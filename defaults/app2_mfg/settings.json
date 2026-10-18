@@ -1,0 +1,5 @@
+{
+  "default_backend": "smart_auto",
+  "mirror": "GHProxy",
+  "use_bink": false
+}

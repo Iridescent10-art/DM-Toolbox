@@ -1,0 +1,11 @@
+{
+  "force_multiplier": 3,
+  "blackwell_kernels": 1,
+  "thin_geometry_isr": 1,
+  "thin_geometry_vwb": 1,
+  "thin_geometry_bam": 1,
+  "hdr_ui_recomposition": 1,
+  "dynamic_mfg": 0,
+  "temporal_fix": 1,
+  "hdr_compatibility": 0
+}

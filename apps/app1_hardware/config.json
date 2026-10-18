@@ -1,0 +1,214 @@
+{
+  "_说明": "全硬件自定义硬件信息配置文件，支持 CPU、GPU/显存、主板、内存、硬盘全套深度定制与一键还原",
+  "current_hardware": {
+    "detected_cpu": "AMD Ryzen 5 9600X 6-Core Processor",
+    "detected_gpu": "NVIDIA GeForce RTX 4070",
+    "gpu_instance_path": "PCI\\VEN_10DE&DEV_2786&SUBSYS_12017377&REV_A1\\4&D0BDF66&0&0009",
+    "motherboard_vendor": "MAXSUN",
+    "motherboard_product": "MS-eSport B650ITX",
+    "memory_vendor": "Asgard",
+    "memory_size_gb": 32,
+    "memory_clock_mhz": 6000,
+    "disk_model": "YSSDM-2TN3000",
+    "disk_instance_path": "SCSI\\DISK&VEN_NVME&PROD_YSSDM-2TN3000\\5&1574F6F4&0&000000"
+  },
+  "custom_target": {
+    "cpu_model": "AMD Ryzen 9 9950X3D2 16-Core Processor",
+    "gpu_model": "NVIDIA GeForce RTX 5090",
+    "gpu_vram_gb": 32,
+    "target_gpu_instance_path": "PCI\\VEN_10DE&DEV_2786&SUBSYS_12017377&REV_A1\\4&D0BDF66&0&0009",
+    "motherboard_vendor": "ASUSTeK COMPUTER INC.",
+    "motherboard_product": "ROG CROSSHAIR X870E HERO",
+    "memory_vendor": "Corsair",
+    "memory_size_gb": 64,
+    "memory_clock_mhz": 7200,
+    "disk_model": "Samsung SSD 990 PRO 4TB",
+    "target_disk_instance_path": "SCSI\\DISK&VEN_NVME&PROD_YSSDM-2TN3000\\5&1574F6F4&0&000000",
+    "enable_startup_fix": true,
+    "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxAccelerator"
+  },
+  "presets": {
+    "cpu": [
+      "AMD Ryzen 9 9950X3D2 16-Core Processor",
+      "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "AMD Ryzen 7 9850X3D 8-Core Processor",
+      "AMD Ryzen 7 9800X3D 8-Core Processor",
+      "AMD Ryzen 9 9950X 16-Core Processor",
+      "AMD Ryzen 9 9900X 12-Core Processor",
+      "AMD Ryzen 7 9700X 8-Core Processor",
+      "AMD Ryzen 5 9600X 6-Core Processor",
+      "AMD Ryzen 7 7800X3D 8-Core Processor",
+      "AMD Ryzen 9 7950X3D 16-Core Processor",
+      "AMD Ryzen 9 7950X 16-Core Processor",
+      "AMD Ryzen 7 5700X3D 8-Core Processor",
+      "AMD Ryzen Threadripper 7980X 64-Core Processor",
+      "AMD EPYC 9654 96-Core Processor",
+      "Intel Core Ultra 9 285K",
+      "Intel Core Ultra 7 265K",
+      "Intel Core Ultra 5 245K",
+      "14th Gen Intel(R) Core(TM) i9-14900KS",
+      "14th Gen Intel(R) Core(TM) i9-14900K",
+      "14th Gen Intel(R) Core(TM) i7-14700K",
+      "14th Gen Intel(R) Core(TM) i5-14600K",
+      "13th Gen Intel(R) Core(TM) i9-13900KS",
+      "13th Gen Intel(R) Core(TM) i9-13900K",
+      "12th Gen Intel(R) Core(TM) i9-12900K",
+      "Intel(R) Xeon(R) Platinum 8592+"
+    ],
+    "gpu": [
+      "NVIDIA GeForce RTX 5090",
+      "NVIDIA GeForce RTX 5090 D",
+      "NVIDIA GeForce RTX 5080",
+      "NVIDIA GeForce RTX 5070 Ti",
+      "NVIDIA GeForce RTX 5070",
+      "NVIDIA GeForce RTX 4090",
+      "NVIDIA GeForce RTX 4090 D",
+      "NVIDIA GeForce RTX 4080 SUPER",
+      "NVIDIA GeForce RTX 4080",
+      "NVIDIA GeForce RTX 4070 Ti SUPER",
+      "NVIDIA GeForce RTX 4070 Ti",
+      "NVIDIA GeForce RTX 4070 SUPER",
+      "NVIDIA GeForce RTX 4070",
+      "NVIDIA GeForce RTX 4060 Ti",
+      "NVIDIA GeForce RTX 3090 Ti",
+      "NVIDIA GeForce RTX 3090",
+      "NVIDIA RTX 6000 Ada Generation",
+      "NVIDIA RTX 5000 Ada Generation",
+      "NVIDIA H100 80GB HBM3",
+      "AMD Radeon RX 7900 XTX",
+      "AMD Radeon RX 7900 XT",
+      "AMD Radeon RX 7900 GRE",
+      "AMD Radeon RX 7800 XT"
+    ],
+    "vram": [
+      "48 GB",
+      "32 GB",
+      "24 GB",
+      "20 GB",
+      "16 GB",
+      "12 GB (保持原始)",
+      "8 GB"
+    ],
+    "motherboard": [
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG CROSSHAIR X870E HERO"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG CROSSHAIR X870E DARK HERO"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG MAXIMUS Z890 EXTREME"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG MAXIMUS Z890 APEX"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG MAXIMUS Z890 HERO"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG STRIX X870-F GAMING WIFI"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG STRIX Z790-H GAMING WIFI"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "TUF GAMING X870-PLUS WIFI"
+      },
+      {
+        "vendor": "ASUSTeK COMPUTER INC.",
+        "product": "ROG STRIX B650-A GAMING WIFI"
+      },
+      {
+        "vendor": "Micro-Star International Co., Ltd.",
+        "product": "MEG X870E GODLIKE"
+      },
+      {
+        "vendor": "Micro-Star International Co., Ltd.",
+        "product": "MEG Z890 GODLIKE"
+      },
+      {
+        "vendor": "Micro-Star International Co., Ltd.",
+        "product": "MPG X870E CARBON WIFI"
+      },
+      {
+        "vendor": "Micro-Star International Co., Ltd.",
+        "product": "MAG X870 TOMAHAWK WIFI"
+      },
+      {
+        "vendor": "Micro-Star International Co., Ltd.",
+        "product": "MAG B650 TOMAHAWK WIFI"
+      },
+      {
+        "vendor": "Gigabyte Technology Co., Ltd.",
+        "product": "X870E AORUS XTREME"
+      },
+      {
+        "vendor": "Gigabyte Technology Co., Ltd.",
+        "product": "X870E AORUS MASTER"
+      },
+      {
+        "vendor": "Gigabyte Technology Co., Ltd.",
+        "product": "Z890 AORUS MASTER"
+      },
+      {
+        "vendor": "Gigabyte Technology Co., Ltd.",
+        "product": "B650 AORUS ELITE AX"
+      },
+      {
+        "vendor": "ASRock",
+        "product": "X870E Taichi"
+      }
+    ],
+    "memory_vendor": [
+      "Corsair",
+      "G.Skill",
+      "Kingston",
+      "Asgard",
+      "Predator",
+      "TEAMGROUP",
+      "Crucial",
+      "ADATA"
+    ],
+    "memory_size": [
+      "128 GB",
+      "96 GB (48GBx2)",
+      "64 GB (32GBx2)",
+      "48 GB (24GBx2)",
+      "32 GB (16GBx2)",
+      "16 GB (8GBx2)"
+    ],
+    "memory_clock": [
+      "8400 MHz",
+      "8000 MHz",
+      "7600 MHz",
+      "7200 MHz",
+      "6800 MHz",
+      "6400 MHz",
+      "6000 MHz",
+      "5600 MHz",
+      "3600 MHz"
+    ],
+    "disk": [
+      "Samsung SSD 990 PRO 2TB",
+      "Samsung SSD 990 PRO 4TB",
+      "Crucial T705 2TB PCIe 5.0 NVMe M.2 SSD",
+      "WD_BLACK SN850X 2000GB",
+      "WD_BLACK SN850X 4000GB",
+      "ZhiTai TiPro7000 2TB NVMe SSD",
+      "ZhiTai TiPlus7100 2TB NVMe SSD",
+      "Kingston KC3000 2048GB PCIe 4.0 NVMe M.2 SSD",
+      "SK hynix Platinum P41 2TB",
+      "YSSDM-2TN3000"
+    ]
+  },
+  "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxAccelerator",
+  "theme": "light"
+}

@@ -1,0 +1,19 @@
+# Distribution outputs
+dist/
+dist_setup/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary and logs
+*.log
+scratch*/
+.system_generated/
+
+# IDE configurations
+.vscode/
+.idea/
+*.suo
+*.user

@@ -1,0 +1,870 @@
+"""
+IniConfigManager - Unified INI Configuration Manager & Real-Time Sync Engine.
+Handles bi-directional synchronization between DM-Toolbox GUI and game directory INI configs
+(OptiScaler.ini, ReShade.ini, RTXMFG-UI.ini, mfg_unlocker.ini).
+
+OptiScaler v0.9.4+ rule: `OptiScaler.ini` is the ONLY legal config file. The legacy
+`nvngx.ini` alias is detected by OptiScaler and triggers the in-game red warning
+"nvngx.ini detected, please move over to using OptiScaler.ini and delete the old config",
+so it is purged on every sync / deployment.
+"""
+
+import os
+import re
+from pathlib import Path
+from typing import Dict, Any, Optional, List, Tuple, Union
+
+# OptiScaler v0.9.4-final configuration contract
+OPTISCALER_INI_NAME = "OptiScaler.ini"
+LEGACY_OPTISCALER_INI_NAME = "nvngx.ini"
+OPTISCALER_MENU_SCALE_MIN = 0.5
+OPTISCALER_MENU_SCALE_MAX = 2.0
+DEFAULT_OPTISCALER_MENU_SCALE = 2.0  # 4K / 3840x2160 default recommendation
+OPTISCALER_MENU_SCALE_CHOICES: Tuple[float, ...] = (1.0, 1.5, 2.0)
+
+# Keys that DM-Toolbox wrote for older builds / wrong sections. v0.9.4 does not know them,
+# so they are stripped to keep OptiScaler.ini 100% aligned with the official template.
+LEGACY_OPTISCALER_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("FrameGen", "FGType"),                     # 0.8.x only; v0.9.4 uses FGOutput
+    ("FrameGen", "FrameGenerationMultiplier"),   # lives in [XeFG] InterpolationCount
+    ("FrameGen", "InterpolationCount"),          # lives in [XeFG]
+    ("Hotfix", "UseDelayedInit"),                # real key belongs to [Dx11withDx12], not [Hotfix]
+    ("Sharpness", "Enabled"),                    # [Sharpness] only has OverrideSharpness/Sharpness
+    ("CAS", "Sharpness"),                        # sharpening value lives in [Sharpness]
+)
+
+
+DLSS_PRESET_MAP: Dict[str, int] = {
+    "Default": 0,
+    "M": 13,
+    "Preset M": 13,
+    "L": 12,
+    "Preset L": 12,
+    "K": 11,
+    "Preset K": 11,
+    "J": 10,
+    "Preset J": 10,
+    "F": 6,
+    "Preset F": 6,
+    "E": 5,
+    "Preset E": 5,
+    "C": 3,
+    "Preset C": 3,
+}
+
+VK_KEY_MAP: Dict[str, int] = {
+    "Backspace": 8,   # 0x08 VK_BACK
+    "F11": 122,       # 0x7A VK_F11
+    "Insert": 45,     # 0x2D VK_INSERT
+    "Home": 36,       # 0x24 VK_HOME
+    "End": 35,        # 0x23 VK_END
+    "Delete": 46,     # 0x2E VK_DELETE
+}
+
+
+class IniConfigManager:
+    """
+    Unified INI Configuration Manager preserving all existing comments, blank lines,
+    section order, and unmanaged keys while updating or injecting required key-values.
+    """
+
+    #: Structured outcome of the most recent Mode C forward sync (used by UI/patcher/tests).
+    last_report: Dict[str, Any] = {}
+
+    @staticmethod
+    def read_ini_sections(file_path: Union[str, Path]) -> Dict[str, Dict[str, str]]:
+        """
+        Parse an INI file into a dictionary of {section: {key: value}},
+        ignoring comments and preserving key/section casing.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            return {}
+
+        result: Dict[str, Dict[str, str]] = {}
+        current_sec = ""
+
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith(";") or stripped.startswith("#"):
+                        continue
+                    if stripped.startswith("[") and "]" in stripped:
+                        current_sec = stripped[1:stripped.index("]")].strip()
+                        if current_sec not in result:
+                            result[current_sec] = {}
+                        continue
+                    if "=" in stripped and current_sec:
+                        k, v = stripped.split("=", 1)
+                        result[current_sec][k.strip()] = v.strip()
+        except Exception:
+            pass
+
+        return result
+
+    @staticmethod
+    def write_ini_sections(file_path: Union[str, Path], updates: Dict[str, Dict[str, Any]]) -> bool:
+        """
+        Safely update or inject sections and key-values into an INI file.
+        Preserves all comments, line formatting, and unmanaged fields.
+        """
+        path = Path(file_path)
+        lines: List[str] = []
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+            except Exception:
+                lines = []
+
+        # Normalized lookup: { SECTION_UPPER: (OrigSectionName, { KEY_UPPER: (OrigKeyName, str_val) }) }
+        updates_normalized = {
+            sec.strip().upper(): (
+                sec.strip(),
+                {k.strip().upper(): (k.strip(), str(v)) for k, v in kv.items()}
+            )
+            for sec, kv in updates.items()
+        }
+
+        out_lines: List[str] = []
+        current_sec_upper: Optional[str] = None
+        written_keys: Dict[str, set] = {sec_u: set() for sec_u in updates_normalized}
+
+        def flush_missing_keys(sec_upper: str):
+            if sec_upper in updates_normalized:
+                orig_sec, kv_map = updates_normalized[sec_upper]
+                for k_upper, (orig_k, val) in kv_map.items():
+                    if k_upper not in written_keys[sec_upper]:
+                        out_lines.append(f"{orig_k}={val}\n")
+                        written_keys[sec_upper].add(k_upper)
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and "]" in stripped:
+                if current_sec_upper:
+                    flush_missing_keys(current_sec_upper)
+                sec_name = stripped[1:stripped.index("]")].strip()
+                current_sec_upper = sec_name.upper()
+                out_lines.append(line)
+                continue
+
+            if current_sec_upper and current_sec_upper in updates_normalized:
+                if "=" in stripped and not stripped.startswith(";") and not stripped.startswith("#"):
+                    k, v = stripped.split("=", 1)
+                    k_clean = k.strip().upper()
+                    orig_sec, kv_map = updates_normalized[current_sec_upper]
+                    if k_clean in kv_map:
+                        orig_k, new_val = kv_map[k_clean]
+                        indent = line[:len(line) - len(line.lstrip())]
+                        out_lines.append(f"{indent}{orig_k}={new_val}\n")
+                        written_keys[current_sec_upper].add(k_clean)
+                        continue
+
+            out_lines.append(line)
+
+        # Flush keys for the trailing section
+        if current_sec_upper:
+            flush_missing_keys(current_sec_upper)
+
+        # Append completely new sections that were never encountered in the file
+        for sec_upper, (orig_sec, kv_map) in updates_normalized.items():
+            if not any(k in written_keys[sec_upper] for k in kv_map):
+                if out_lines and not out_lines[-1].endswith("\n\n"):
+                    out_lines.append("\n")
+                out_lines.append(f"[{orig_sec}]\n")
+                for k_upper, (orig_k, val) in kv_map.items():
+                    out_lines.append(f"{orig_k}={val}\n")
+                    written_keys[sec_upper].add(k_upper)
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.writelines(out_lines)
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def remove_ini_keys(file_path: Union[str, Path], keys: List[Tuple[str, str]]) -> int:
+        """
+        Remove obsolete `Section/Key` lines from an INI while preserving every comment,
+        blank line and unmanaged key. Returns the number of removed lines.
+        """
+        path = Path(file_path)
+        if not path.exists() or not keys:
+            return 0
+
+        wanted: Dict[str, set] = {}
+        for sec, key in keys:
+            wanted.setdefault(sec.strip().upper(), set()).add(key.strip().upper())
+
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception:
+            return 0
+
+        out_lines: List[str] = []
+        current_sec = ""
+        removed = 0
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and "]" in stripped:
+                current_sec = stripped[1:stripped.index("]")].strip().upper()
+                out_lines.append(line)
+                continue
+            if current_sec in wanted and "=" in stripped and not stripped.startswith(";"):
+                key = stripped.split("=", 1)[0].strip().upper()
+                if key in wanted[current_sec]:
+                    removed += 1
+                    continue
+            out_lines.append(line)
+
+        if removed:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.writelines(out_lines)
+            except Exception:
+                return 0
+        return removed
+
+    # ---------------- Mode C (OptiScaler / XeSS 2.0 / FSR 3.1) Sync ----------------
+    @staticmethod
+    def normalize_menu_scale(value: Any) -> str:
+        """Clamp the in-game ImGui menu scale to OptiScaler's legal 0.5 - 2.0 range."""
+        try:
+            scale = float(value)
+        except (TypeError, ValueError):
+            scale = DEFAULT_OPTISCALER_MENU_SCALE
+        if scale != scale:  # NaN guard
+            scale = DEFAULT_OPTISCALER_MENU_SCALE
+        scale = max(OPTISCALER_MENU_SCALE_MIN, min(OPTISCALER_MENU_SCALE_MAX, scale))
+        return f"{scale:.1f}"
+
+    @staticmethod
+    def detect_xefg_max_interpolations(target_dir: Union[str, Path]) -> Optional[int]:
+        """
+        Read the real XeFG capability from the OptiScaler.log written on the previous launch:
+        "XeFG_Dx12::CreateSwapchain Max supported interpolations: N".
+        Returns None when no log / no XeFG swapchain record is available.
+        """
+        log_path = Path(target_dir) / "OptiScaler.log"
+        if not log_path.exists():
+            return None
+        try:
+            size = log_path.stat().st_size
+            with open(log_path, "rb") as f:
+                f.seek(max(0, size - 2 * 1024 * 1024))
+                tail = f.read().decode("utf-8", errors="ignore")
+            matches = re.findall(r"Max supported interpolations:\s*(\d+)", tail)
+            if matches:
+                return max(1, min(3, int(matches[-1])))
+        except Exception:
+            pass
+        return None
+
+    @classmethod
+    def resolve_interpolation_count(cls, target_dir: Union[str, Path], fg_output: str, requested: Any) -> Tuple[int, Optional[int], bool]:
+        """
+        Return (effective, max_supported, clamped).
+
+        - FSR 3.1 FG / Nukem9 bridge only ever support 2X, so 1 interpolated frame is forced.
+        - XeFG is capped by libxess_fg's "Max supported interpolations". Requesting more
+          leaves OptiScaler showing "Restart the game to apply correct XeFG settings!" and
+          the frame generation output never matches the menu.
+        """
+        try:
+            requested = int(requested)
+        except (TypeError, ValueError):
+            requested = 1
+        requested = max(1, min(3, requested))
+
+        if str(fg_output).strip().lower() != "xefg":
+            return 1, None, requested != 1
+
+        max_supported = cls.detect_xefg_max_interpolations(target_dir)
+        if max_supported is None:
+            # Bundled XeSS-FG SDK (libxess_fg 1.3.x) exposes a single interpolated frame.
+            # Stay on the safe side until a real log proves a higher capability.
+            max_supported = 1
+        effective = max(1, min(requested, max_supported))
+        return effective, max_supported, effective != requested
+
+    @classmethod
+    def purge_legacy_nvngx_ini(cls, target_dir: Union[str, Path]) -> bool:
+        """
+        Delete the legacy `nvngx.ini` alias. OptiScaler v0.9.4 detects it and keeps showing
+        "nvngx.ini detected, please move over to using OptiScaler.ini and delete the old config".
+        """
+        legacy = Path(target_dir) / LEGACY_OPTISCALER_INI_NAME
+        if not legacy.exists():
+            return False
+        try:
+            legacy.unlink()
+            return True
+        except PermissionError:
+            try:
+                os.chmod(legacy, 0o666)
+                legacy.unlink()
+                return True
+            except Exception:
+                return False
+        except Exception:
+            return False
+
+    @classmethod
+    def sync_mode_c_forward(cls, target_dir: Union[str, Path], preset: Dict[str, Any], exe_name: Optional[str] = None) -> bool:
+        """
+        Forward sync the Mode C preset into the ONE legal config file: `OptiScaler.ini`.
+
+        OptiScaler v0.9.4-final contract (verified against the official bundled template and
+        a real yysls 4K in-game session):
+        - [FrameGen] Enabled / FGInput / FGOutput are consumed at D3D12 init, so they must be
+          correct BEFORE launch. FGType / FrameGenerationMultiplier do not exist in v0.9.4.
+        - [XeFG] InterpolationCount is the MFG multiplier (1=2X, 2=3X, 3=4X). libxess_fg
+          clamps it to "Max supported interpolations"; asking for more leaves the menu stuck
+          on "Restart the game to apply correct XeFG settings!".
+        - [Menu] Scale is 0.5 - 2.0 (default 1.0 = unreadable on 4K). We write 2.0 by default
+          and let the user pick 1.0 / 1.5 / 2.0 from the Mode C panel.
+        - [Sharpness] OverrideSharpness + Sharpness carry the RCAS value. [CAS] Sharpness and
+          [Sharpness] Enabled are not v0.9.4 keys and are stripped from legacy files.
+        - `nvngx.ini` is never written and is deleted, silencing the red warning banner.
+
+        Crash-prevention guards kept:
+        - TargetProcessName isolates the game from launchers / crash handlers
+        - SkipFirstFrames = 5 avoids Splash/SwapChain crashes in the Messiah engine
+        - EarlyHooking = false avoids premature D3D12 root signature corruption
+        - Dxgi = false on RTX 40/50 avoids driver-level hijacking conflicts
+        """
+        target = Path(target_dir)
+        if not target.exists():
+            return False
+
+        fg_output = str(preset.get("fg_output", "xefg")).strip().lower()
+        fg_input = str(preset.get("fg_input", "dlssg")).strip().lower()
+        requested_interpolation = preset.get("interpolation_count", 1)
+        try:
+            requested_interpolation = int(requested_interpolation)
+        except (TypeError, ValueError):
+            requested_interpolation = 1
+        effective_interpolation, xefg_max, interpolation_clamped = cls.resolve_interpolation_count(
+            target, fg_output, requested_interpolation
+        )
+        menu_scale = cls.normalize_menu_scale(preset.get("menu_scale", DEFAULT_OPTISCALER_MENU_SCALE))
+        dx12_upscaler = preset.get("dx12_upscaler", "auto")
+        rcas_enabled = bool(preset.get("rcas_enabled", False))
+        rcas_sharpness = float(preset.get("rcas_sharpness", 0.0))
+        sharp_str = f"{rcas_sharpness:.1f}" if not rcas_enabled else f"{rcas_sharpness:.2f}"
+
+        dlss_p = str(preset.get("dlss_preset", "Default")).strip()
+        is_dlss_default = dlss_p.lower() in ["default", "0", "none", ""]
+
+        if is_dlss_default:
+            dlss_sec = {
+                "RenderPresetOverride": "false",
+                "RenderPresetForAll": "0",
+                "RenderPresetDLAA": "0",
+                "RenderPresetQuality": "0",
+                "RenderPresetBalanced": "0",
+                "RenderPresetPerformance": "0",
+                "RenderPresetUltraPerformance": "0"
+            }
+        else:
+            enum_val = str(DLSS_PRESET_MAP.get(dlss_p, 13))
+            dlss_sec = {
+                "RenderPresetOverride": "true",
+                "RenderPresetForAll": enum_val,
+                "RenderPresetDLAA": enum_val,
+                "RenderPresetQuality": enum_val,
+                "RenderPresetBalanced": enum_val,
+                "RenderPresetPerformance": enum_val,
+                "RenderPresetUltraPerformance": enum_val
+            }
+
+        multiplier_num = effective_interpolation + 1  # 1->2X, 2->3X, 3->4X
+
+        # Check GPU vendor
+        try:
+            from core.utils import get_system_gpu_name, is_rtx_40_or_newer
+            gpu_name = get_system_gpu_name()
+            is_rtx40_50 = is_rtx_40_or_newer(gpu_name)
+        except Exception:
+            is_rtx40_50 = True
+
+        menu_key = str(preset.get("menu_key", "Insert")).strip()
+        if menu_key in VK_KEY_MAP:
+            vk_code = VK_KEY_MAP[menu_key]
+        elif menu_key.isdigit():
+            vk_code = int(menu_key)
+        else:
+            vk_code = 45
+
+        # 1. Update the ONE legal config file: OptiScaler.ini
+        opti_ini = target / OPTISCALER_INI_NAME
+        opti_updates: Dict[str, Dict[str, str]] = {
+            "FrameGen": {
+                "Enabled": "true",
+                "FGInput": fg_input,
+                "FGOutput": fg_output,
+            },
+            "XeFG": {
+                "IgnoreInitChecks": "false",
+                "InterpolationCount": str(effective_interpolation),
+                "DepthInverted": "true",
+            },
+            "Upscalers": {
+                "Dx12Upscaler": dx12_upscaler
+            },
+            "DLSS": dlss_sec,
+            "CAS": {
+                "Enabled": "true" if rcas_enabled else "false"
+            },
+            "Sharpness": {
+                "OverrideSharpness": "true" if rcas_enabled else "false",
+                "Sharpness": sharp_str
+            },
+            "Hotfix": {
+                "SkipFirstFrames": "5",
+                "CheckForUpdate": "false",
+                "CreateD3D12DeviceForLuma": "false"
+            },
+            "Hooks": {
+                "EarlyHooking": "false",
+                "UseNtdllHooks": "true"
+            },
+            "Spoofing": {
+                "Dxgi": "false" if is_rtx40_50 else "auto",
+                "StreamlineSpoofing": "false" if is_rtx40_50 else "auto",
+                "DxgiFactoryWrapping": "false"
+            },
+            "Menu": {
+                "OverlayMenu": "true",
+                "Scale": menu_scale,
+                "ShortcutKey": str(vk_code),
+                "DisableSplash": "false",
+                "ShowFps": "false"
+            },
+            "Log": {
+                "LogToFile": "true",
+                "LogLevel": "1"
+            }
+        }
+
+        if exe_name:
+            opti_updates["ProcessFilter"] = {
+                "TargetProcessName": os.path.basename(exe_name)
+            }
+
+        ok_opti = cls.write_ini_sections(opti_ini, opti_updates)
+
+        # 2. Strip keys that do not exist in v0.9.4 (written by older DM-Toolbox builds).
+        cls.remove_ini_keys(opti_ini, LEGACY_OPTISCALER_KEYS)
+
+        # 3. Never keep a second config: OptiScaler keeps showing the red
+        #    "nvngx.ini detected" banner while the legacy alias exists.
+        nvngx_purged = cls.purge_legacy_nvngx_ini(target)
+
+        warnings: List[str] = []
+        if interpolation_clamped:
+            if fg_output == "xefg":
+                warnings.append(
+                    f"本机 libxess_fg 最高支持 {((xefg_max or 1) + 1)}X 插帧，已将 {requested_interpolation + 1}X "
+                    f"自动下调为 {effective_interpolation + 1}X，避免游戏内出现 "
+                    f"Restart the game to apply correct XeFG settings! 黄字警告。"
+                )
+            else:
+                warnings.append(
+                    f"{fg_output.upper()} 通道固定为 2X 双倍插帧，已将 {requested_interpolation + 1}X 自动锁定为 2X。"
+                )
+        if nvngx_purged:
+            warnings.append("已删除遗留的 nvngx.ini，仅保留唯一的 OptiScaler.ini。")
+
+        cls.last_report = {
+            "ini_path": str(opti_ini),
+            "fg_output": fg_output,
+            "fg_input": fg_input,
+            "multiplier": multiplier_num,
+            "requested_interpolation_count": requested_interpolation,
+            "interpolation_count": effective_interpolation,
+            "xefg_max_interpolations": xefg_max,
+            "interpolation_clamped": interpolation_clamped,
+            "menu_scale": menu_scale,
+            "menu_shortcut": vk_code,
+            "nvngx_ini_removed": nvngx_purged,
+            "nvngx_ini_present": (target / LEGACY_OPTISCALER_INI_NAME).exists(),
+            "warnings": warnings,
+        }
+
+        return ok_opti
+
+    @classmethod
+    def read_mode_c_reverse(cls, target_dir: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Reverse sync from the ONE legal `OptiScaler.ini`.
+
+        A legacy `nvngx.ini` is only read as a one-time migration fallback when no
+        `OptiScaler.ini` exists yet; as soon as the real file is present the alias is deleted.
+        """
+        target = Path(target_dir)
+        opti_ini = target / OPTISCALER_INI_NAME
+        legacy_ini = target / LEGACY_OPTISCALER_INI_NAME
+
+        if opti_ini.exists():
+            data = cls.read_ini_sections(opti_ini)
+            # Bidirectional sync cleanup: kill the red "nvngx.ini detected" banner.
+            cls.purge_legacy_nvngx_ini(target)
+        elif legacy_ini.exists():
+            data = cls.read_ini_sections(legacy_ini)
+        else:
+            return None
+
+        if not data:
+            return None
+
+        preset: Dict[str, Any] = {}
+
+        # Parse FrameGen section (v0.9.4 uses FGOutput; FGType is 0.8.x legacy)
+        fg_sec = data.get("FrameGen", {})
+        if "FGOutput" in fg_sec:
+            preset["fg_output"] = fg_sec["FGOutput"].strip().lower()
+        elif "FGType" in fg_sec:
+            preset["fg_output"] = fg_sec["FGType"].strip().lower()
+
+        if "FGInput" in fg_sec:
+            preset["fg_input"] = fg_sec["FGInput"].strip().lower()
+
+        # Parse Multiplier / InterpolationCount (1=2X, 2=3X, 3=4X)
+        xefg_sec = data.get("XeFG", {})
+        if "InterpolationCount" in xefg_sec:
+            try:
+                preset["interpolation_count"] = max(1, min(3, int(xefg_sec["InterpolationCount"])))
+            except Exception:
+                pass
+        elif "FrameGenerationMultiplier" in fg_sec:
+            try:
+                mult = int(fg_sec["FrameGenerationMultiplier"])
+                preset["interpolation_count"] = max(1, min(3, mult - 1))
+            except Exception:
+                pass
+
+        # Parse Upscaler
+        up_sec = data.get("Upscalers", {})
+        if "Dx12Upscaler" in up_sec:
+            preset["dx12_upscaler"] = up_sec["Dx12Upscaler"].strip().lower()
+
+        # Parse CAS & Sharpness
+        cas_sec = data.get("CAS", {})
+        sharp_sec = data.get("Sharpness", {})
+        if "Enabled" in cas_sec:
+            preset["rcas_enabled"] = (cas_sec["Enabled"].lower() == "true")
+        elif "OverrideSharpness" in sharp_sec:
+            preset["rcas_enabled"] = (sharp_sec["OverrideSharpness"].lower() == "true")
+
+        if "Sharpness" in sharp_sec:
+            try:
+                preset["rcas_sharpness"] = float(sharp_sec["Sharpness"])
+            except Exception:
+                pass
+
+        # Parse DLSS preset
+        dlss_sec = data.get("DLSS", {})
+        if dlss_sec.get("RenderPresetOverride", "").lower() == "true":
+            raw_p = dlss_sec.get("RenderPresetForAll", "0")
+            inv_dlss = {13: "M", 12: "L", 11: "K", 10: "J", 6: "F", 5: "E", 3: "C"}
+            try:
+                preset["dlss_preset"] = inv_dlss.get(int(raw_p), "Default")
+            except Exception:
+                preset["dlss_preset"] = "Default"
+        else:
+            preset["dlss_preset"] = "Default"
+
+        # Parse Menu shortcut key + menu scale
+        menu_sec = data.get("Menu", {})
+        if "ShortcutKey" in menu_sec:
+            raw_key = menu_sec["ShortcutKey"]
+            inv_keys = {8: "Backspace", 122: "F11", 45: "Insert", 36: "Home", 35: "End", 46: "Delete"}
+            try:
+                vk_int = int(raw_key, 0)
+                if vk_int in inv_keys:
+                    preset["menu_key"] = inv_keys[vk_int]
+            except Exception:
+                pass
+
+        if "Scale" in menu_sec:
+            try:
+                preset["menu_scale"] = max(
+                    OPTISCALER_MENU_SCALE_MIN,
+                    min(OPTISCALER_MENU_SCALE_MAX, float(menu_sec["Scale"]))
+                )
+            except Exception:
+                pass
+
+        return preset if preset else None
+
+    # ---------------- Mode B (RenoDX ReShade Addon) Sync ----------------
+    @classmethod
+    def sync_mode_b_forward(cls, target_dir: Union[str, Path], config: Dict[str, Any]) -> bool:
+        """
+        Forward sync Mode B parameters into TargetExeDir/ReShade.ini.
+        Ensures early loading [ADDON] LoadFromDllMain and exact section/key names matching
+        renodx-mfgunlock.addon64 binary: [RenoDX.MFGUnlock] (with [MFG Unlock] and [MFGAdaUnlock] mirrors).
+        """
+        target = Path(target_dir)
+        if not target.exists():
+            return False
+
+        reshade_ini = target / "ReShade.ini"
+
+        force_mult = int(config.get("force_multiplier", 3))
+        blackwell = int(config.get("blackwell_kernels", 1))
+        isr = int(config.get("thin_geometry_isr", 1))
+        vwb = int(config.get("thin_geometry_vwb", 1))
+        bam = int(config.get("thin_geometry_bam", 1))
+        hdr_ui = int(config.get("hdr_ui_recomposition", 1))
+        dynamic_mfg = int(config.get("dynamic_mfg", 0))
+        temporal_fix = int(config.get("temporal_fix", 1))
+        hdr_compat = int(config.get("hdr_compatibility", 0))
+
+        # Core keys used by renodx-mfgunlock.addon64
+        mfg_keys = {
+            "ForceMultiplier": str(force_mult),
+            "BlackwellFrameworkKernels": str(blackwell),
+            "ThinGeometryIntermediateScatter": str(isr),
+            "ThinGeometryPreviousScatter": str(vwb),
+            "ThinGeometryValidatedWarpBlend": str(bam),
+            "HDRUIRecomposition": str(hdr_ui),
+            "DynamicMFG": str(dynamic_mfg),
+            "TemporalFix": str(temporal_fix),
+            "HDRCompatibilityMode": str(hdr_compat),
+            # Aliases for backward compatibility
+            "EnableISR": str(isr),
+            "EnableVWB": str(vwb),
+            "EnableBAM": str(bam),
+            "HdrUiFix": str(hdr_ui),
+            "FrameGenMultiplier": str(force_mult),
+        }
+
+        addon_updates = {
+            "LoadFromDllMain": "1"
+        }
+        if reshade_ini.exists():
+            existing_sections = cls.read_ini_sections(reshade_ini)
+            existing_addon = existing_sections.get("ADDON", {})
+            if "DisabledAddons" in existing_addon:
+                disabled_list = [x.strip() for x in existing_addon["DisabledAddons"].split(",") if x.strip()]
+                clean_disabled = [x for x in disabled_list if "mfgunlock" not in x.lower()]
+                addon_updates["DisabledAddons"] = ",".join(clean_disabled)
+
+        updates = {
+            "GENERAL": {
+                "TutorialProgress": "4"
+            },
+            "ADDON": addon_updates,
+            # Exact section recognized by the official binary
+            "RenoDX.MFGUnlock": mfg_keys,
+            # Mirror sections for compatibility with third-party/legacy forks
+            "MFG Unlock": mfg_keys,
+            "MFGAdaUnlock": mfg_keys
+        }
+
+        return cls.write_ini_sections(reshade_ini, updates)
+
+    @classmethod
+    def read_mode_b_reverse(cls, target_dir: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Reverse sync: read parameters from TargetExeDir/ReShade.ini.
+        Checks [RenoDX.MFGUnlock], [MFG Unlock], and [MFGAdaUnlock].
+        """
+        target = Path(target_dir)
+        reshade_ini = target / "ReShade.ini"
+        if not reshade_ini.exists():
+            return None
+
+        data = cls.read_ini_sections(reshade_ini)
+        # Check sections in priority order
+        mfg_sec = (
+            data.get("RenoDX.MFGUnlock")
+            or data.get("MFG Unlock")
+            or data.get("MFGAdaUnlock")
+            or {}
+        )
+        if not mfg_sec:
+            return None
+
+        config: Dict[str, Any] = {}
+
+        # Multiplier
+        mult_val = mfg_sec.get("ForceMultiplier") or mfg_sec.get("FrameGenMultiplier")
+        if mult_val is not None:
+            try:
+                config["force_multiplier"] = int(mult_val)
+            except Exception:
+                pass
+
+        # Blackwell kernels
+        if "BlackwellFrameworkKernels" in mfg_sec:
+            config["blackwell_kernels"] = int(mfg_sec["BlackwellFrameworkKernels"])
+
+        # Thin geometry ISR
+        isr_val = mfg_sec.get("ThinGeometryIntermediateScatter") or mfg_sec.get("EnableISR")
+        if isr_val is not None:
+            config["thin_geometry_isr"] = int(isr_val)
+
+        # Thin geometry VWB
+        vwb_val = mfg_sec.get("ThinGeometryPreviousScatter") or mfg_sec.get("EnableVWB")
+        if vwb_val is not None:
+            config["thin_geometry_vwb"] = int(vwb_val)
+
+        # Thin geometry BAM
+        bam_val = mfg_sec.get("ThinGeometryValidatedWarpBlend") or mfg_sec.get("EnableBAM")
+        if bam_val is not None:
+            config["thin_geometry_bam"] = int(bam_val)
+
+        # HDR UI Recomposition
+        hdr_val = mfg_sec.get("HDRUIRecomposition") or mfg_sec.get("HdrUiFix")
+        if hdr_val is not None:
+            config["hdr_ui_recomposition"] = int(hdr_val)
+
+        # Dynamic MFG
+        if "DynamicMFG" in mfg_sec:
+            config["dynamic_mfg"] = int(mfg_sec["DynamicMFG"])
+
+        # Temporal Fix
+        if "TemporalFix" in mfg_sec:
+            config["temporal_fix"] = int(mfg_sec["TemporalFix"])
+
+        # HDR Compatibility
+        if "HDRCompatibilityMode" in mfg_sec:
+            config["hdr_compatibility"] = int(mfg_sec["HDRCompatibilityMode"])
+
+        return config if config else None
+
+    # ---------------- Mode A (dashdogy / Standalone) Sync ----------------
+    @classmethod
+    def sync_mode_a_forward(cls, target_dir: Union[str, Path], config: Dict[str, Any]) -> bool:
+        """
+        Forward sync Mode A configuration to TargetExeDir/RTXMFG-UI.ini, mfg_unlocker.ini, and RTX40MFG-UI.ini.
+        Enforces proper hotkey mapping (Backspace = 8 / VK_BACK) and DLSS preset mapping.
+        """
+        target = Path(target_dir)
+        if not target.exists():
+            return False
+
+        multiplier = int(config.get("multiplier", 3))
+        menu_key = str(config.get("menu_key", "Backspace")).strip()
+        preset = config.get("dlss_preset", "Default")
+        bink_hook = config.get("bink_hook", False)
+
+        preset_str = str(preset).strip()
+        is_default = preset_str.lower() in ["default", "0", "none", ""]
+
+        vk_code = VK_KEY_MAP.get(menu_key, 8)
+
+        render_preset_val = "0"
+        if not is_default:
+            render_preset_val = str(DLSS_PRESET_MAP.get(preset_str, 13))
+
+        clean_preset_name = "Default" if is_default else ("M" if preset_str in ["M", "Preset M", "13"] else preset_str)
+
+        updates = {
+            "General": {
+                "MenuKey": menu_key,
+                "ToggleKey": str(vk_code),
+                "Multiplier": str(multiplier),
+                "Preset": clean_preset_name,
+                "DLSSPreset": clean_preset_name,
+                "RenderPreset": render_preset_val,
+                "BinkHook": "1" if bink_hook else "0"
+            }
+        }
+
+        ok1 = cls.write_ini_sections(target / "RTXMFG-UI.ini", updates)
+        ok2 = cls.write_ini_sections(target / "mfg_unlocker.ini", updates)
+
+        overlay_updates = {
+            "Overlay": {
+                "ToggleKey": str(vk_code),
+                "FirstLaunchMenuShown": "1"
+            }
+        }
+        ok3 = cls.write_ini_sections(target / "RTX40MFG-UI.ini", overlay_updates)
+
+        return ok1 or ok2 or ok3
+
+    @classmethod
+    def read_mode_a_reverse(cls, target_dir: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Reverse sync: read parameters from TargetExeDir/RTXMFG-UI.ini, mfg_unlocker.ini, or RTX40MFG-UI.ini.
+        """
+        target = Path(target_dir)
+        ini1 = target / "RTXMFG-UI.ini"
+        ini2 = target / "mfg_unlocker.ini"
+        ini3 = target / "RTX40MFG-UI.ini"
+
+        data: Dict[str, Dict[str, str]] = {}
+        if ini1.exists():
+            data = cls.read_ini_sections(ini1)
+        elif ini2.exists():
+            data = cls.read_ini_sections(ini2)
+
+        sec = data.get("General", {})
+        config: Dict[str, Any] = {}
+        if "Multiplier" in sec:
+            try:
+                config["multiplier"] = int(sec["Multiplier"])
+            except Exception:
+                pass
+
+        if "MenuKey" in sec:
+            config["menu_key"] = sec["MenuKey"]
+        elif "ToggleKey" in sec:
+            try:
+                vk_code = int(sec["ToggleKey"])
+                vk_inv = {8: "Backspace", 122: "F11", 45: "Insert", 36: "Home", 35: "End", 46: "Delete"}
+                config["menu_key"] = vk_inv.get(vk_code, "Backspace")
+            except Exception:
+                config["menu_key"] = "Backspace"
+
+        # Check RTX40MFG-UI.ini for actual Overlay ToggleKey
+        if ini3.exists():
+            data3 = cls.read_ini_sections(ini3)
+            sec3 = data3.get("Overlay", {})
+            if "ToggleKey" in sec3:
+                try:
+                    vk_code = int(sec3["ToggleKey"])
+                    vk_inv = {8: "Backspace", 122: "F11", 45: "Insert", 36: "Home", 35: "End", 46: "Delete"}
+                    if vk_code in vk_inv:
+                        config["menu_key"] = vk_inv[vk_code]
+                except Exception:
+                    pass
+
+        raw_p = sec.get("Preset") or sec.get("DLSSPreset") or sec.get("RenderPreset")
+        if raw_p is not None:
+            p_clean = raw_p.strip()
+            if p_clean in ["0", "", "Default", "default", "none", "None"]:
+                config["dlss_preset"] = "Default"
+            elif p_clean in ["13", "M", "Preset M"]:
+                config["dlss_preset"] = "M"
+            elif p_clean in ["12", "L", "Preset L"]:
+                config["dlss_preset"] = "L"
+            elif p_clean in ["11", "K", "Preset K"]:
+                config["dlss_preset"] = "K"
+            elif p_clean in ["10", "J", "Preset J"]:
+                config["dlss_preset"] = "J"
+            elif p_clean in ["6", "F", "Preset F"]:
+                config["dlss_preset"] = "F"
+            elif p_clean in ["5", "E", "Preset E"]:
+                config["dlss_preset"] = "E"
+            elif p_clean in ["3", "C", "Preset C"]:
+                config["dlss_preset"] = "C"
+            else:
+                config["dlss_preset"] = "Default"
+        else:
+            config["dlss_preset"] = "Default"
+
+        if "BinkHook" in sec:
+            config["bink_hook"] = (sec["BinkHook"] in ["1", "true", "True"])
+
+        return config if (config or ini3.exists()) else None
+
