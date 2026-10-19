@@ -2,7 +2,11 @@
 
 <div align="center">
 
-![DM-Toolbox](common/assets/preview_main.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="common/assets/preview_main_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="common/assets/preview_main_light.png">
+  <img alt="DM-Toolbox" src="common/assets/preview_main.png">
+</picture>
 
 **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**
 
@@ -31,7 +35,11 @@
 
 <div align="center">
 
-![全硬件配置大师](common/assets/preview_hardware.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="common/assets/preview_hardware_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="common/assets/preview_hardware_light.png">
+  <img alt="全硬件配置大师" src="common/assets/preview_hardware.png">
+</picture>
 
 </div>
 
