@@ -107,12 +107,12 @@ def test_3_theme_toggle_is_pill():
     app = QApplication.instance() or QApplication(sys.argv)
     win = app3.AutoHDRWindow()
     qss = win.btn_theme.styleSheet()
-    assert "border-radius: 12px" in qss, f"theme pill radius missing: {qss!r}"
+    assert "border-radius: 10px" in qss, f"theme toggle radius missing: {qss!r}"
     assert win.btn_theme.objectName() == "ThemeToggleBtn"
     # The inline capsule must win over page-level stylesheets
     assert "QPushButton" in qss
     win.close()
-    print("  -> 标题栏「黑夜模式」按钮为 12px 圆角胶囊（控件级样式，优先于全局 QSS）！")
+    print("  -> 标题栏主题按钮为无边框 10px 圆角纯图标按钮！")
 
 
 def main():

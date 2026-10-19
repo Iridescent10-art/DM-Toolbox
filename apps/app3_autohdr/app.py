@@ -184,13 +184,13 @@ class AutoHDRWindow(BaseWindow):
 
         self.badge_count = QLabel("已配置 0 款游戏")
         self.badge_count.setStyleSheet("""
-            color: #2563EB;
+            color: #2F8F5B;
             font-size: 11px;
             font-weight: 700;
-            background-color: #EFF6FF;
+            background-color: #F5F5F5;
             padding: 3px 10px;
             border-radius: 8px;
-            border: 1px solid #BFDBFE;
+            border: 1px solid #D4D4D4;
         """)
         title_row.addWidget(self.badge_count)
         title_row.addStretch()
@@ -238,14 +238,14 @@ class AutoHDRWindow(BaseWindow):
         self.search_input.setStyleSheet("""
             QLineEdit {
                 background-color: #FFFFFF;
-                border: 1px solid #CBD5E1;
+                border: 1px solid #D4D4D4;
                 border-radius: 8px;
                 padding: 6px 12px;
                 font-size: 13px;
-                color: #1E293B;
+                color: #2A2B2C;
             }
             QLineEdit:focus {
-                border-color: #2563EB;
+                border-color: #2F8F5B;
             }
         """)
         self.search_input.textChanged.connect(self.filter_data)
@@ -257,7 +257,7 @@ class AutoHDRWindow(BaseWindow):
         c_row2.setSpacing(10)
 
         lbl_batch = QLabel("批量控制：")
-        lbl_batch.setStyleSheet("font-size: 12px; font-weight: 700; color: #475569;")
+        lbl_batch.setStyleSheet("font-size: 12px; font-weight: 700; color: #4A4A4A;")
         self.lbl_batch = lbl_batch
         c_row2.addWidget(lbl_batch)
 
@@ -328,37 +328,71 @@ class AutoHDRWindow(BaseWindow):
             if self.is_dark_mode:
                 self.search_input.setStyleSheet("""
                     QLineEdit {
-                        background-color: #1E293B;
-                        border: 1px solid #475569;
+                        background-color: #2A2B2C;
+                        border: 1px solid #4A4A4A;
                         border-radius: 8px;
                         padding: 6px 12px;
                         font-size: 13px;
-                        color: #F8FAFC;
+                        color: #F5F5F5;
                     }
                     QLineEdit:focus {
-                        border-color: #38BDF8;
+                        border-color: #8FE3B0;
                     }
                 """)
             else:
                 self.search_input.setStyleSheet("""
                     QLineEdit {
                         background-color: #FFFFFF;
-                        border: 1px solid #CBD5E1;
+                        border: 1px solid #D4D4D4;
                         border-radius: 8px;
                         padding: 6px 12px;
                         font-size: 13px;
-                        color: #1E293B;
+                        color: #2A2B2C;
                     }
                     QLineEdit:focus {
-                        border-color: #2563EB;
+                        border-color: #2F8F5B;
                     }
                 """)
 
-        # 2. 批量控制栏标签配色
+        # 2. 批量控制栏标签配色 + 顶部计数徽标（统一 DM 中性风格）
+        if hasattr(self, "badge_count") and self.badge_count:
+            if self.is_dark_mode:
+                self.badge_count.setStyleSheet(
+                    "color: #A0A0A0; background-color: #303132; border: 1px solid #3A3A3A;"
+                    " padding: 3px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;"
+                )
+            else:
+                self.badge_count.setStyleSheet(
+                    "color: #5A5A5A; background-color: #EFEFEF; border: 1px solid #E5E5E5;"
+                    " padding: 3px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;"
+                )
         if hasattr(self, "lbl_batch") and self.lbl_batch:
             self.lbl_batch.setStyleSheet(
-                f"font-size: 12px; font-weight: 700; color: {'#94A3B8' if self.is_dark_mode else '#475569'};"
+                f"font-size: 12px; font-weight: 700; color: {'#A0A0A0' if self.is_dark_mode else '#4A4A4A'};"
             )
+        if hasattr(self, "btn_enable_all") and hasattr(self, "btn_disable_all") and self.btn_enable_all:
+            if self.is_dark_mode:
+                self.btn_enable_all.setStyleSheet(
+                    "QPushButton { background-color: #303132; color: #E8E8E8; border: 1px solid #4A4A4A;"
+                    " border-radius: 8px; padding: 6px 16px; font-weight: 700; }"
+                    "QPushButton:hover { background-color: #6FD398; color: #FFFFFF; border-color: #6FD398; }"
+                )
+                self.btn_disable_all.setStyleSheet(
+                    "QPushButton { background-color: #303132; color: #F87171; border: 1px solid #4A4A4A;"
+                    " border-radius: 8px; padding: 6px 16px; font-weight: 700; }"
+                    "QPushButton:hover { background-color: #3A3A3A; color: #FCA5A5; }"
+                )
+            else:
+                self.btn_enable_all.setStyleSheet(
+                    "QPushButton { background-color: #E8E8E8; color: #1A1A1A; border: 1px solid #D4D4D4;"
+                    " border-radius: 8px; padding: 6px 16px; font-weight: 700; }"
+                    "QPushButton:hover { background-color: #2F8F5B; color: #FFFFFF; border-color: #2F8F5B; }"
+                )
+                self.btn_disable_all.setStyleSheet(
+                    "QPushButton { background-color: #F5F5F5; color: #B91C1C; border: 1px solid #E5E5E5;"
+                    " border-radius: 8px; padding: 6px 16px; font-weight: 700; }"
+                    "QPushButton:hover { background-color: #FEE2E2; border-color: #FCA5A5; }"
+                )
         if hasattr(self, "lbl_batch_hint") and self.lbl_batch_hint:
             self.lbl_batch_hint.setStyleSheet(
                 f"font-size: 11px; color: {'#64748B' if self.is_dark_mode else '#94A3B8'};"
@@ -369,35 +403,35 @@ class AutoHDRWindow(BaseWindow):
             if self.is_dark_mode:
                 self.table.setStyleSheet("""
                     QTableWidget {
-                        background-color: #1E293B;
-                        alternate-background-color: #0F172A;
-                        border: 1px solid #334155;
+                        background-color: #2A2B2C;
+                        alternate-background-color: #292929;
+                        border: 1px solid #3A3A3A;
                         border-radius: 12px;
                         outline: none;
                         gridline-color: transparent;
-                        color: #F8FAFC;
+                        color: #F5F5F5;
                         font-size: 13px;
                     }
                     QTableWidget::item {
                         padding: 8px 10px;
-                        border-bottom: 1px solid #334155;
-                        color: #F8FAFC;
+                        border-bottom: 1px solid #3A3A3A;
+                        color: #F5F5F5;
                     }
                     QTableWidget::item:selected {
-                        background-color: #334155;
-                        color: #60A5FA;
+                        background-color: #3A3A3A;
+                        color: #7ED9A2;
                     }
                     QHeaderView::section {
-                        background-color: #0F172A;
+                        background-color: #292929;
                         color: #94A3B8;
                         font-weight: 700;
                         font-size: 13px;
                         padding: 10px 10px;
                         border: none;
-                        border-bottom: 2px solid #334155;
+                        border-bottom: 2px solid #3A3A3A;
                     }
                     QTableCornerButton::section {
-                        background-color: #0F172A;
+                        background-color: #292929;
                         border: none;
                     }
                 """)
@@ -405,34 +439,34 @@ class AutoHDRWindow(BaseWindow):
                 self.table.setStyleSheet("""
                     QTableWidget {
                         background-color: #FFFFFF;
-                        alternate-background-color: #F8FAFC;
-                        border: 1px solid #E2E8F0;
+                        alternate-background-color: #F5F5F5;
+                        border: 1px solid #E5E5E5;
                         border-radius: 12px;
                         outline: none;
                         gridline-color: transparent;
-                        color: #0F172A;
+                        color: #292929;
                         font-size: 13px;
                     }
                     QTableWidget::item {
                         padding: 8px 10px;
-                        border-bottom: 1px solid #F1F5F9;
-                        color: #0F172A;
+                        border-bottom: 1px solid #EFEFEF;
+                        color: #292929;
                     }
                     QTableWidget::item:selected {
-                        background-color: #EFF6FF;
-                        color: #2563EB;
+                        background-color: #F5F5F5;
+                        color: #2F8F5B;
                     }
                     QHeaderView::section {
-                        background-color: #F8FAFC;
-                        color: #475569;
+                        background-color: #F5F5F5;
+                        color: #4A4A4A;
                         font-weight: 700;
                         font-size: 13px;
                         padding: 10px 10px;
                         border: none;
-                        border-bottom: 2px solid #E2E8F0;
+                        border-bottom: 2px solid #E5E5E5;
                     }
                     QTableCornerButton::section {
-                        background-color: #F8FAFC;
+                        background-color: #F5F5F5;
                         border: none;
                     }
                 """)
@@ -489,7 +523,7 @@ class AutoHDRWindow(BaseWindow):
             item_path.setToolTip(path)
             item_path.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             item_path.setFont(QFont("Microsoft YaHei UI", 9, QFont.Bold))
-            item_path.setForeground(QColor("#F8FAFC" if self.is_dark_mode else "#0F172A"))
+            item_path.setForeground(QColor("#F5F5F5" if self.is_dark_mode else "#292929"))
             self.table.setItem(row_idx, 1, item_path)
 
             # 3. 运行模式下拉框 (主题自适应与圆角优化)
@@ -501,25 +535,25 @@ class AutoHDRWindow(BaseWindow):
             if self.is_dark_mode:
                 combo.setStyleSheet("""
                     QComboBox {
-                        background-color: #0F172A;
-                        border: 1px solid #334155;
+                        background-color: #292929;
+                        border: 1px solid #3A3A3A;
                         border-radius: 8px;
                         padding: 6px 12px;
                         font-size: 13px;
                         font-weight: 600;
-                        color: #F8FAFC;
+                        color: #F5F5F5;
                     }
                     QComboBox:hover {
-                        border-color: #38BDF8;
+                        border-color: #8FE3B0;
                     }
                     /* Native chevron: the old CSS-border triangle hack is unsupported by
                        Qt and left an empty/broken box at the right edge. */
                     QComboBox QAbstractItemView {
-                        background-color: #0F172A;
-                        color: #F8FAFC;
-                        selection-background-color: #1E293B;
-                        selection-color: #38BDF8;
-                        border: 1px solid #334155;
+                        background-color: #292929;
+                        color: #F5F5F5;
+                        selection-background-color: #2A2B2C;
+                        selection-color: #8FE3B0;
+                        border: 1px solid #3A3A3A;
                         border-radius: 8px;
                         padding: 4px;
                     }
@@ -528,12 +562,12 @@ class AutoHDRWindow(BaseWindow):
                 combo.setStyleSheet("""
                     QComboBox {
                         background-color: #FFFFFF;
-                        border: 1px solid #CBD5E1;
+                        border: 1px solid #D4D4D4;
                         border-radius: 8px;
                         padding: 6px 12px;
                         font-size: 13px;
                         font-weight: 600;
-                        color: #1E293B;
+                        color: #2A2B2C;
                     }
                     QComboBox:hover {
                         border-color: #94A3B8;
@@ -541,10 +575,10 @@ class AutoHDRWindow(BaseWindow):
                     /* Native chevron: see the dark-theme comment above. */
                     QComboBox QAbstractItemView {
                         background-color: #FFFFFF;
-                        color: #1E293B;
-                        selection-background-color: #EFF6FF;
-                        selection-color: #2563EB;
-                        border: 1px solid #CBD5E1;
+                        color: #2A2B2C;
+                        selection-background-color: #F5F5F5;
+                        selection-color: #2F8F5B;
+                        border: 1px solid #D4D4D4;
                         border-radius: 8px;
                         padding: 4px;
                     }
@@ -574,33 +608,33 @@ class AutoHDRWindow(BaseWindow):
             if self.is_dark_mode:
                 del_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #451A1A;
-                        color: #FCA5A5;
-                        border: 1px solid #7F1D1D;
+                        background-color: #303132;
+                        color: #F87171;
+                        border: 1px solid #4A4A4A;
                         border-radius: 6px;
                         padding: 4px 10px;
                         font-size: 12px;
                         font-weight: 600;
                     }
                     QPushButton:hover {
-                        background-color: #DC2626;
-                        color: #FFFFFF;
+                        background-color: #3A3A3A;
+                        color: #FCA5A5;
                     }
                 """)
             else:
                 del_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #FEE2E2;
-                        color: #DC2626;
-                        border: 1px solid #FCA5A5;
+                        background-color: #F5F5F5;
+                        color: #B91C1C;
+                        border: 1px solid #E5E5E5;
                         border-radius: 6px;
                         padding: 4px 10px;
                         font-size: 12px;
                         font-weight: 600;
                     }
                     QPushButton:hover {
-                        background-color: #DC2626;
-                        color: #FFFFFF;
+                        background-color: #FEE2E2;
+                        color: #B91C1C;
                     }
                 """)
             del_btn.clicked.connect(lambda _, k=key_name, p=path: self.on_delete(k, p))

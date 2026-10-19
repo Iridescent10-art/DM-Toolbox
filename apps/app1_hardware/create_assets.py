@@ -32,7 +32,7 @@ def create_app_icon():
     
     # Create Gradient background
     grad_img = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
-    # Linear gradient: Top-Left (Vibrant Sky Blue #2563EB) to Bottom-Right (Electric Royal Blue #1D4ED8 to Cyan #0EA5E9)
+    # Linear gradient: Top-Left (Vibrant Sky Blue #2F8F5B) to Bottom-Right (Electric Royal Blue #26784C to Cyan #0EA5E9)
     for y in range(margin, canvas_size - margin):
         ratio_y = (y - margin) / (canvas_size - 2 * margin)
         for x in range(margin, canvas_size - margin):
@@ -40,7 +40,7 @@ def create_app_icon():
             diag = (ratio_x + ratio_y) / 2.0
             
             # Color stops:
-            # 0.0 -> (37, 99, 235)  #2563EB
+            # 0.0 -> (37, 99, 235)  #2F8F5B
             # 0.5 -> (30, 64, 175)  #1E40AF
             # 1.0 -> (14, 165, 233) #0EA5E9
             if diag < 0.5:
@@ -133,7 +133,7 @@ def create_app_icon():
     c_shadow = c_shadow.filter(ImageFilter.GaussianBlur(16))
     fg.paste(c_shadow, (0, 0), c_shadow)
     
-    # Chip body (Clean metallic porcelain white #F8FAFC)
+    # Chip body (Clean metallic porcelain white #F5F5F5)
     fg_draw.rounded_rectangle(chip_box, radius=chip_r, fill=(248, 250, 252, 255), outline=(255, 255, 255, 240), width=6)
     
     # Inner silicon die (Silicon reflective metallic dark blue / gold accent)

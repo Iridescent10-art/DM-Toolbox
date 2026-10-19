@@ -625,7 +625,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
             self.icon_lbl.setPixmap(pix)
         else:
             self.icon_lbl.setText("⚡")
-            self.icon_lbl.setStyleSheet("font-size: 28px; color: #2563EB;")
+            self.icon_lbl.setStyleSheet("font-size: 28px; color: #2F8F5B;")
         b_layout.addWidget(self.icon_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
 
         info_box = QVBoxLayout()
@@ -684,14 +684,14 @@ class DLSSIndicatorWindow(DMBaseWindow):
         self.btn_enable_all.setToolTip("一次性开启全部 4 项水印 / HUD 指示器")
         self.btn_enable_all.setStyleSheet("""
             QPushButton#BtnEnableAll {
-                background-color: #2563EB;
+                background-color: #2F8F5B;
                 color: #FFFFFF;
                 border: none;
                 border-radius: 10px;
                 font-size: 14px;
                 font-weight: 700;
             }
-            QPushButton#BtnEnableAll:hover { background-color: #1D4ED8; }
+            QPushButton#BtnEnableAll:hover { background-color: #26784C; }
         """)
         self.btn_enable_all.clicked.connect(lambda: self.apply_all(True))
         batch_row.addWidget(self.btn_enable_all)
@@ -794,7 +794,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
         self.ref_desc_labels = []
         for i, (m_name, m_ratio, m_desc) in enumerate(modes):
             l1 = QLabel(f"● {m_name}")
-            l1.setStyleSheet("font-weight: 700; color: #2563EB; font-size: 12px;")
+            l1.setStyleSheet("font-weight: 700; color: #2F8F5B; font-size: 12px;")
             l2 = QLabel(f"渲染比: {m_ratio}")
             l2.setStyleSheet("font-weight: 600; color: #059669; font-size: 12px;")
             l3 = QLabel(m_desc)
@@ -911,14 +911,14 @@ class DLSSIndicatorWindow(DMBaseWindow):
             return
         is_dark = self.is_dark_mode
 
-        card_bg = "#1E293B" if is_dark else "#FFFFFF"
-        card_border = "#334155" if is_dark else "#E2E8F0"
-        card_hover = "#3B82F6" if is_dark else "#2563EB"
-        text_primary = "#F8FAFC" if is_dark else "#1E293B"
-        text_secondary = "#94A3B8" if is_dark else "#64748B"
-        sep_color = "#334155" if is_dark else "#E2E8F0"
-        btn_outline_bg = "#232B3E" if is_dark else "#F1F5F9"
-        btn_outline_fg = "#CBD5E1" if is_dark else "#475569"
+        card_bg = "#2A2B2C" if is_dark else "#FFFFFF"
+        card_border = "#3A3A3A" if is_dark else "#E5E5E5"
+        card_hover = "#4A4A4A" if is_dark else "#D4D4D4"
+        text_primary = "#E8E8E8" if is_dark else "#1A1A1A"
+        text_secondary = "#A0A0A0" if is_dark else "#8A8A8A"
+        sep_color = "#3A3A3A" if is_dark else "#E5E5E5"
+        btn_outline_bg = "#303132" if is_dark else "#EFEFEF"
+        btn_outline_fg = "#D4D4D4" if is_dark else "#4A4A4A"
 
         scrollbar_qss = SCROLLBAR_DARK_QSS if is_dark else SCROLLBAR_LIGHT_QSS
         card_qss = f"""
@@ -972,7 +972,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
                     font-weight: 600;
                 }}
                 QPushButton:hover {{
-                    background-color: {'#334155' if is_dark else '#E2E8F0'};
+                    background-color: {'#3A3A3A' if is_dark else '#E5E5E5'};
                     color: {text_primary};
                 }}
             """)
@@ -995,9 +995,9 @@ class DLSSIndicatorWindow(DMBaseWindow):
         on_fg = "#34D399" if is_dark else "#16A34A"
         on_border = "#059669" if is_dark else "#86EFAC"
 
-        off_bg = "#1E293B" if is_dark else "#F1F5F9"
+        off_bg = "#2A2B2C" if is_dark else "#EFEFEF"
         off_fg = "#94A3B8" if is_dark else "#64748B"
-        off_border = "#334155" if is_dark else "#CBD5E1"
+        off_border = "#3A3A3A" if is_dark else "#D4D4D4"
 
         def apply_badge(lbl: QLabel, is_on: bool, on_text: str, off_text: str):
             if is_on:
@@ -1008,30 +1008,56 @@ class DLSSIndicatorWindow(DMBaseWindow):
                 lbl.setStyleSheet(f"padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; background-color: {off_bg}; color: {off_fg}; border: 1px solid {off_border};")
 
         def apply_btn(btn: QPushButton, is_on: bool):
-            if is_on:
-                btn.setText("🛑 关闭该指示")
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #DC2626;
-                        color: #FFFFFF;
-                        border: none;
-                        border-radius: 8px;
-                        font-weight: 700;
-                    }
-                    QPushButton:hover { background-color: #B91C1C; }
-                """)
+            if is_dark:
+                if is_on:
+                    btn.setText("🛑 关闭该指示")
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #303132;
+                            color: #F87171;
+                            border: 1px solid #4A4A4A;
+                            border-radius: 8px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover { background-color: #3A3A3A; color: #FCA5A5; }
+                    """)
+                else:
+                    btn.setText("🚀 开启该指示")
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #303132;
+                            color: #E8E8E8;
+                            border: 1px solid #4A4A4A;
+                            border-radius: 8px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover { background-color: #6FD398; color: #FFFFFF; border-color: #6FD398; }
+                    """)
             else:
-                btn.setText("🚀 开启该指示")
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2563EB;
-                        color: #FFFFFF;
-                        border: none;
-                        border-radius: 8px;
-                        font-weight: 700;
-                    }
-                    QPushButton:hover { background-color: #1D4ED8; }
-                """)
+                if is_on:
+                    btn.setText("🛑 关闭该指示")
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #F5F5F5;
+                            color: #B91C1C;
+                            border: 1px solid #E5E5E5;
+                            border-radius: 8px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover { background-color: #FEE2E2; border-color: #FCA5A5; }
+                    """)
+                else:
+                    btn.setText("🚀 开启该指示")
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #E8E8E8;
+                            color: #1A1A1A;
+                            border: 1px solid #D4D4D4;
+                            border-radius: 8px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover { background-color: #2F8F5B; color: #FFFFFF; border-color: #2F8F5B; }
+                    """)
 
         # 0. Show exactly which real game folders will be modified
         opti_inis = find_all_optiscaler_inis()
@@ -1076,6 +1102,14 @@ class DLSSIndicatorWindow(DMBaseWindow):
         s_reshade = get_reshade_overlay_status()
         apply_badge(self.badge_reshade, s_reshade, "🟢 已开启 (FPS)", "⚪ 已关闭")
         apply_btn(self.btn_toggle_reshade, s_reshade)
+
+        # Batch controls share the same neutral styling as the per-card toggles
+        if hasattr(self, "btn_enable_all"):
+            apply_btn(self.btn_enable_all, False)
+            self.btn_enable_all.setText("⚡ 一键全部开启")
+        if hasattr(self, "btn_disable_all"):
+            apply_btn(self.btn_disable_all, True)
+            self.btn_disable_all.setText("⛔ 一键全部关闭")
 
         # 5. Per-card "is it actually usable?" hints
         reason_ok = "#34D399" if is_dark else "#059669"
@@ -1127,9 +1161,9 @@ class DLSSIndicatorWindow(DMBaseWindow):
                 self.set_status("所有屏幕水印与 HUD 指示器当前处于【未开启】状态。")
         else:
             self.badge_status.setText(f"🟡 部分开启 ({active_count}/4 运行中)")
-            part_bg = "#78350F" if is_dark else "#FEF3C7"
+            part_bg = "#78350F" if is_dark else "#F5F5F5"
             part_fg = "#FBBF24" if is_dark else "#D97706"
-            part_bd = "#D97706" if is_dark else "#FDE68A"
+            part_bd = "#D97706" if is_dark else "#E5E5E5"
             self.badge_status.setStyleSheet(f"padding: 4px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; background-color: {part_bg}; color: {part_fg}; border: 1px solid {part_bd};")
             if not silent:
                 self.set_status(f"当前有 {active_count} 项指示器处于启用状态。")

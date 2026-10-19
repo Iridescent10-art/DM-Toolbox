@@ -28,7 +28,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QIcon, QFont, QPixmap, QColor, QPainter, QPen,
-    QCursor, QGuiApplication, QRegion
+    QCursor, QGuiApplication, QRegion, QPainterPath
 )
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -43,6 +43,40 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+
+def _theme_toggle_icon(is_dark: bool, size: int = 32) -> QIcon:
+    """Crescent moon with craters (JXR converter style)."""
+    pm = QPixmap(size, size)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    color = QColor("#E8E8E8" if is_dark else "#1A1A1A")
+    pen = QPen(color, 1.6)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    if is_dark:
+        import math
+        c = size / 2.0
+        p.drawEllipse(QPointF(c, c), size * 0.18, size * 0.18)
+        for i in range(8):
+            a = math.radians(i * 45)
+            r1, r2 = size * 0.32, size * 0.44
+            p.drawLine(QPointF(c + math.cos(a) * r1, c + math.sin(a) * r1),
+                       QPointF(c + math.cos(a) * r2, c + math.sin(a) * r2))
+    else:
+        outer = QPainterPath()
+        outer.addEllipse(QRectF(size * 0.10, size * 0.10, size * 0.64, size * 0.64))
+        cut = QPainterPath()
+        cut.addEllipse(QRectF(size * 0.30, 0.0, size * 0.68, size * 0.68))
+        p.drawPath(outer.subtracted(cut))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(color)
+        for cx, cy, cr in ((0.56, 0.34, 0.055), (0.47, 0.50, 0.045), (0.60, 0.60, 0.040)):
+            p.drawEllipse(QPointF(size * cx, size * cy), size * cr, size * cr)
+    p.end()
+    return QIcon(pm)
+
 
 try:
     from common.config_manager import get_global_theme, set_global_theme
@@ -196,7 +230,7 @@ def apply_dm_window_frame(window: QWidget, is_dark: Optional[bool] = None) -> bo
             )
 
             # 3. 设置 DWM 硬件级边框对齐色 (0x00BBGGRR 格式)
-            # 白天: #D6E6FE -> 0x00FEE6D6; 黑夜: #232B3E -> 0x003E2B23
+            # 白天: #E5E5E5 -> 0x00FEE6D6; 黑夜: #303132 -> 0x003E2B23
             border_color = ctypes.c_ulong(0x003E2B23 if is_dark else 0x00FEE6D6)
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd,
@@ -355,8 +389,8 @@ class DMCardFrame(QFrame):
                     border-radius: 6px;
                     font-size: 11px;
                     font-weight: 600;
-                    background-color: #DBEAFE;
-                    color: #2563EB;
+                    background-color: #E8E8E8;
+                    color: #2F8F5B;
                 """)
                 header.addWidget(self.lbl_badge, 0, Qt.AlignmentFlag.AlignTop)
 
@@ -366,10 +400,10 @@ class DMCardFrame(QFrame):
 
     def apply_theme(self, is_dark: bool):
         self.is_dark = is_dark
-        bg = "#1E293B" if is_dark else "#FFFFFF"
-        border = "#334155" if is_dark else "#E2E8F0"
-        title_c = "#F8FAFC" if is_dark else "#1E293B"
-        sub_c = "#94A3B8" if is_dark else "#64748B"
+        bg = "#2A2B2C" if is_dark else "#FFFFFF"
+        border = "#3A3A3A" if is_dark else "#E5E5E5"
+        title_c = "#E8E8E8" if is_dark else "#1A1A1A"
+        sub_c = "#A0A0A0" if is_dark else "#8A8A8A"
 
         self.setStyleSheet(f"""
             QFrame#DMCardFrame {{
@@ -378,7 +412,7 @@ class DMCardFrame(QFrame):
                 border-radius: 14px;
             }}
             QFrame#DMCardFrame:hover {{
-                border: 1px solid {'#3B82F6' if is_dark else '#2563EB'};
+                border: 1px solid {'#3E9E69' if is_dark else '#2F8F5B'};
             }}
         """)
         if hasattr(self, "lbl_title"):
@@ -479,17 +513,17 @@ class DMCaptionButton(QPushButton):
                 painter.fillRect(self.rect(), QColor("#E11D48"))
         else:
             if self.is_pressed:
-                bg = QColor("#334155") if self.is_dark_mode else QColor("#CBD5E1")
+                bg = QColor("#3A3A3A") if self.is_dark_mode else QColor("#D4D4D4")
                 painter.fillRect(self.rect(), bg)
             elif self.is_hovered:
-                bg = QColor("#1E293B") if self.is_dark_mode else QColor("#E2E8F0")
+                bg = QColor("#2A2B2C") if self.is_dark_mode else QColor("#E5E5E5")
                 painter.fillRect(self.rect(), bg)
 
         # Icon color
         if self.btn_type == DMCaptionButtonType.CLOSE and self.is_hovered:
             icon_color = QColor("#FFFFFF")
         else:
-            icon_color = QColor("#CBD5E1") if self.is_dark_mode else QColor("#475569")
+            icon_color = QColor("#D4D4D4") if self.is_dark_mode else QColor("#4A4A4A")
 
         pen = QPen(icon_color, 1.3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
@@ -614,7 +648,10 @@ class DMBaseWindow(QMainWindow):
         tb_layout.addStretch()
 
         # 图2右上角主题切换胶囊
-        self.btn_theme = QPushButton("🌙 黑夜模式" if not self.is_dark_mode else "☀️ 白天模式")
+        self.btn_theme = QPushButton("")
+        self.btn_theme.setFixedSize(30, 30)
+        self.btn_theme.setIcon(_theme_toggle_icon(self.is_dark_mode))
+        self.btn_theme.setIconSize(QSize(16, 16))
         self.btn_theme.setObjectName("ThemeToggleBtn")
         self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_theme.setToolTip("切换日间 / 夜间模式 (将同步切换所有打开的软件)")
@@ -673,11 +710,11 @@ class DMBaseWindow(QMainWindow):
             self.apply_theme()
 
     def apply_theme(self):
-        bg = "#14171F" if self.is_dark_mode else "#F4F6F9"
-        border = "#232B3E" if self.is_dark_mode else "#D6E6FE"
-        tb_bg = "#1A1D26" if self.is_dark_mode else "#FFFFFF"
-        tb_border = "#282E3D" if self.is_dark_mode else "#E8EEF5"
-        text_color = "#F8FAFC" if self.is_dark_mode else "#1E293B"
+        bg = "#292929" if self.is_dark_mode else "#F5F5F5"
+        border = "#303132" if self.is_dark_mode else "#E5E5E5"
+        tb_bg = "#2A2B2C" if self.is_dark_mode else "#FFFFFF"
+        tb_border = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
+        text_color = "#E8E8E8" if self.is_dark_mode else "#1A1A1A"
 
         # Synchronize application palette to prevent OS dark palette bleedthrough
         app = QApplication.instance()
@@ -685,17 +722,17 @@ class DMBaseWindow(QMainWindow):
             from PySide6.QtGui import QPalette
             pal = QPalette()
             if self.is_dark_mode:
-                pal.setColor(QPalette.ColorRole.Window, QColor("#14171F"))
-                pal.setColor(QPalette.ColorRole.WindowText, QColor("#F8FAFC"))
-                pal.setColor(QPalette.ColorRole.Base, QColor("#1E293B"))
-                pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#14171F"))
-                pal.setColor(QPalette.ColorRole.Text, QColor("#F8FAFC"))
+                pal.setColor(QPalette.ColorRole.Window, QColor("#292929"))
+                pal.setColor(QPalette.ColorRole.WindowText, QColor("#F5F5F5"))
+                pal.setColor(QPalette.ColorRole.Base, QColor("#2A2B2C"))
+                pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#292929"))
+                pal.setColor(QPalette.ColorRole.Text, QColor("#F5F5F5"))
             else:
-                pal.setColor(QPalette.ColorRole.Window, QColor("#F4F6F9"))
-                pal.setColor(QPalette.ColorRole.WindowText, QColor("#1E293B"))
+                pal.setColor(QPalette.ColorRole.Window, QColor("#F5F5F5"))
+                pal.setColor(QPalette.ColorRole.WindowText, QColor("#2A2B2C"))
                 pal.setColor(QPalette.ColorRole.Base, QColor("#FFFFFF"))
-                pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#F1F5F9"))
-                pal.setColor(QPalette.ColorRole.Text, QColor("#1E293B"))
+                pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#EFEFEF"))
+                pal.setColor(QPalette.ColorRole.Text, QColor("#2A2B2C"))
             app.setPalette(pal)
 
         # 0. 全局现代化极简圆角滚动条样式 (与图2主界面 100% 对齐)
@@ -715,8 +752,8 @@ class DMBaseWindow(QMainWindow):
             self.central_widget.setStyleSheet(f"""
                 QWidget#RootContainer {{
                     background-color: {bg};
-                    border: 1px solid {border};
-                    border-radius: 14px;
+                    border: none;
+                    border-radius: 8px;
                 }}
             """)
 
@@ -732,23 +769,22 @@ class DMBaseWindow(QMainWindow):
         self.lbl_window_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {text_color}; border: none; background: transparent;")
 
         # 3. 主题胶囊按钮
-        self.btn_theme.setText("☀️ 白天模式" if self.is_dark_mode else "🌙 黑夜模式")
-        pill_bg = "#232B3E" if self.is_dark_mode else "#F1F5F9"
-        pill_fg = "#CBD5E1" if self.is_dark_mode else "#475569"
-        pill_border = "#334155" if self.is_dark_mode else "#E2E8F0"
+        self.btn_theme.setText("")
+        self.btn_theme.setIcon(_theme_toggle_icon(self.is_dark_mode))
+        pill_bg = "#303132" if self.is_dark_mode else "#EFEFEF"
+        pill_fg = "#D4D4D4" if self.is_dark_mode else "#4A4A4A"
+        pill_border = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
         self.btn_theme.setStyleSheet(f"""
             QPushButton#ThemeToggleBtn {{
-                background-color: {pill_bg};
-                color: {pill_fg};
-                border: 1px solid {pill_border};
-                border-radius: 12px;
-                padding: 4px 14px;
-                font-size: 11px;
-                font-weight: 600;
+                background-color: transparent;
+                color: {text_color};
+                border: none;
+                border-radius: 10px;
+                padding: 4px 6px;
             }}
             QPushButton#ThemeToggleBtn:hover {{
-                background-color: {'#334155' if self.is_dark_mode else '#E2E8F0'};
-                color: {'#F8FAFC' if self.is_dark_mode else '#1E293B'};
+                background-color: {'#3A3A3A' if self.is_dark_mode else '#E5E5E5'};
+                color: {'#F5F5F5' if self.is_dark_mode else '#2A2B2C'};
             }}
         """)
 

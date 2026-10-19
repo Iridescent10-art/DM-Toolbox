@@ -287,27 +287,27 @@ class AppCard(QFrame):
 
     def apply_theme(self, is_dark: bool):
         if is_dark:
-            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #F8FAFC;")
+            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #F5F5F5;")
             self.lbl_tag.setStyleSheet("""
-                color: #93C5FD;
+                color: #A0A0A0;
                 font-size: 11px;
                 font-weight: 700;
-                background-color: #1E3A8A;
+                background-color: #303132;
                 padding: 2px 7px;
                 border-radius: 5px;
             """)
             self.lbl_desc.setStyleSheet("color: #94A3B8; font-size: 12px; line-height: 1.45;")
         else:
-            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #0F172A;")
+            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #292929;")
             self.lbl_tag.setStyleSheet("""
-                color: #2563EB;
+                color: #5A5A5A;
                 font-size: 11px;
                 font-weight: 700;
-                background-color: #EFF6FF;
+                background-color: #F0F0F0;
                 padding: 2px 7px;
                 border-radius: 5px;
             """)
-            self.lbl_desc.setStyleSheet("color: #475569; font-size: 12px; line-height: 1.45;")
+            self.lbl_desc.setStyleSheet("color: #4A4A4A; font-size: 12px; line-height: 1.45;")
 
         self._render_status(is_dark)
 
@@ -334,8 +334,8 @@ class AppCard(QFrame):
                 """)
             self.btn_action.setText("🚀 置顶 / 重新打开")
             self.btn_action.setStyleSheet("""
-                background-color: #059669;
-                color: #FFFFFF;
+                background-color: #8FE3B0;
+                color: #10231A;
                 border: none;
                 border-radius: 9px;
                 padding: 7px 14px;
@@ -349,7 +349,7 @@ class AppCard(QFrame):
                     color: #94A3B8;
                     font-size: 11px;
                     font-weight: 600;
-                    background-color: #334155;
+                    background-color: #3A3A3A;
                     padding: 3px 9px;
                     border-radius: 8px;
                 """)
@@ -358,14 +358,14 @@ class AppCard(QFrame):
                     color: #64748B;
                     font-size: 11px;
                     font-weight: 600;
-                    background-color: #F1F5F9;
+                    background-color: #EFEFEF;
                     padding: 3px 9px;
                     border-radius: 8px;
                 """)
             self.btn_action.setText("🚀 打开软件")
             self.btn_action.setStyleSheet("""
-                background-color: #2563EB;
-                color: #FFFFFF;
+                background-color: #8FE3B0;
+                color: #10231A;
                 border: none;
                 border-radius: 9px;
                 padding: 7px 14px;
@@ -508,45 +508,45 @@ class ToolboxLauncher(BaseWindow):
         super().apply_theme()
         is_dark = getattr(self, "is_dark_mode", False)
         if hasattr(self, "t_lbl"):
-            self.t_lbl.setStyleSheet(f"font-size: 19px; font-weight: 800; color: {'#F8FAFC' if is_dark else '#0F172A'};")
+            self.t_lbl.setStyleSheet(f"font-size: 19px; font-weight: 800; color: {'#F5F5F5' if is_dark else '#292929'};")
         if hasattr(self, "sub_lbl"):
             self.sub_lbl.setStyleSheet(f"font-size: 12px; color: {'#94A3B8' if is_dark else '#64748B'};")
         if hasattr(self, "lbl_cache_size"):
             if is_dark:
                 self.lbl_cache_size.setStyleSheet("""
-                    background-color: #0F172A;
+                    background-color: #292929;
                     color: #94A3B8;
                     font-size: 11px;
                     font-weight: 700;
                     padding: 6px 12px;
-                    border: 1px solid #334155;
+                    border: 1px solid #3A3A3A;
                     border-radius: 8px;
                 """)
             else:
                 self.lbl_cache_size.setStyleSheet("""
-                    background-color: #F8FAFC;
-                    color: #334155;
+                    background-color: #F5F5F5;
+                    color: #3A3A3A;
                     font-size: 11px;
                     font-weight: 700;
                     padding: 6px 12px;
-                    border: 1px solid #E2E8F0;
+                    border: 1px solid #E5E5E5;
                     border-radius: 8px;
                 """)
         if hasattr(self, "tip_card"):
             if is_dark:
                 self.tip_card.setStyleSheet("""
-                    background-color: #1E293B;
-                    border: 1px solid #334155;
+                    background-color: #2A2B2C;
+                    border: 1px solid #3A3A3A;
                     border-radius: 12px;
                 """)
             else:
                 self.tip_card.setStyleSheet("""
-                    background-color: #F8FAFC;
-                    border: 1px solid #E2E8F0;
+                    background-color: #F5F5F5;
+                    border: 1px solid #E5E5E5;
                     border-radius: 12px;
                 """)
         if hasattr(self, "tip_lbl"):
-            self.tip_lbl.setStyleSheet(f"color: {'#94A3B8' if is_dark else '#475569'}; font-size: 12px;")
+            self.tip_lbl.setStyleSheet(f"color: {'#94A3B8' if is_dark else '#4A4A4A'}; font-size: 12px;")
 
         if hasattr(self, "cards"):
             for card in self.cards.values():

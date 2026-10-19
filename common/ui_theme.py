@@ -13,8 +13,8 @@ import tempfile
 from ctypes import wintypes
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Union
-from PySide6.QtCore import Qt, QPoint, QTimer, QRectF, QPointF, QEvent, QPropertyAnimation, QEasingCurve, Signal, QObject
-from PySide6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QPen, QCursor, QGuiApplication, QImage
+from PySide6.QtCore import Qt, QPoint, QTimer, QRectF, QPointF, QEvent, QPropertyAnimation, QEasingCurve, Signal, QObject, QSize
+from PySide6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QPen, QCursor, QGuiApplication, QImage, QPainterPath
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QScrollArea, QGraphicsDropShadowEffect, QApplication,
@@ -31,6 +31,41 @@ from common.dm_ui_core import (
 )
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+
+
+def theme_toggle_icon(is_dark: bool, size: int = 32) -> QIcon:
+    """Line-art crescent moon with craters (JXR converter style), used in both themes."""
+    pm = QPixmap(size, size)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    color = QColor("#E8E8E8" if is_dark else "#1A1A1A")
+    pen = QPen(color, 1.6)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    if is_dark:
+        import math
+        c = size / 2.0
+        p.drawEllipse(QPointF(c, c), size * 0.18, size * 0.18)
+        for i in range(8):
+            a = math.radians(i * 45)
+            r1, r2 = size * 0.32, size * 0.44
+            p.drawLine(QPointF(c + math.cos(a) * r1, c + math.sin(a) * r1),
+                       QPointF(c + math.cos(a) * r2, c + math.sin(a) * r2))
+    else:
+        outer = QPainterPath()
+        outer.addEllipse(QRectF(size * 0.10, size * 0.10, size * 0.64, size * 0.64))
+        cut = QPainterPath()
+        cut.addEllipse(QRectF(size * 0.30, 0.0, size * 0.68, size * 0.68))
+        p.drawPath(outer.subtracted(cut))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(color)
+        for cx, cy, cr in ((0.56, 0.34, 0.055), (0.47, 0.50, 0.045), (0.60, 0.60, 0.040)):
+            p.drawEllipse(QPointF(size * cx, size * cy), size * cr, size * cr)
+    p.end()
+    return QIcon(pm)
+
 
 try:
     from common.config_manager import get_global_theme, set_global_theme
@@ -113,42 +148,36 @@ QMainWindow {
 }
 
 QWidget#CentralWidget {
-    background-color: #F0F4FA;
-    border: 1px solid #D6E6FE;
-    border-radius: 14px;
+    background-color: #F5F5F5;
+    border: none;
+    border-radius: 8px;
 }
 
 /* 顶部标题栏 */
 QFrame#TitleBar {
     background-color: #FFFFFF;
-    border-top-left-radius: 14px;
-    border-top-right-radius: 14px;
-    border-bottom: 1px solid #E8EEF5;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom: 1px solid #E5E5E5;
 }
 
 QLabel#WindowTitle {
-    color: #1E293B;
+    color: #2A2B2C;
     font-size: 14px;
     font-weight: 700;
 }
 
 /* 图2右上角主题切换胶囊按钮 */
-QPushButton#ThemeToggleBtn, QPushButton.ThemeToggleBtn {
-    background-color: #FFFFFF;
-    color: #334155;
-    border: 1px solid #CBD5E1;
-    border-radius: 12px;
-    padding: 4px 14px;
-    font-size: 12px;
-    font-weight: 600;
+QPushButton#ThemeToggleBtn { 
+    background-color: transparent;
+    color: #3A3A3A;
+    border: none;
+    border-radius: 10px;
+    padding: 4px 6px;
     min-height: 24px;
 }
 
-QPushButton#ThemeToggleBtn:hover, QPushButton.ThemeToggleBtn:hover {
-    background-color: #F1F5F9;
-    border-color: #94A3B8;
-    color: #1E293B;
-}
+QPushButton#ThemeToggleBtn:hover { background-color: #EFEFEF; border: none; }
 
 /* 图2右上角极简窗口控制按钮 */
 QPushButton.WindowControl, QPushButton.TitleBtn {
@@ -170,8 +199,8 @@ QPushButton#TitleBtnMax, QPushButton.TitleBtnMax {
 }
 
 QPushButton.WindowControl:hover, QPushButton.TitleBtn:hover {
-    background-color: #E2E8F0;
-    color: #0F172A;
+    background-color: #E5E5E5;
+    color: #292929;
 }
 
 QPushButton#WindowCloseBtn, QPushButton.TitleBtnClose {
@@ -202,7 +231,7 @@ QScrollBar:vertical {
 }
 
 QScrollBar::handle:vertical {
-    background: #CBD5E1;
+    background: #D4D4D4;
     min-height: 24px;
     border-radius: 3px;
 }
@@ -273,16 +302,16 @@ QScrollArea > QWidget > QWidget {
 /* 现代卡片 */
 QFrame.GridCard, QFrame.ToolCard, QFrame.card {
     background-color: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #E5E5E5;
     border-radius: 16px;
 }
 
 QFrame.GridCard:hover, QFrame.ToolCard:hover, QFrame.card:hover {
-    border-color: #93C5FD;
+    border-color: #A7F3D0;
 }
 
 QLabel.CardTitle {
-    color: #1E293B;
+    color: #2A2B2C;
     font-size: 16px;
     font-weight: 700;
 }
@@ -295,23 +324,23 @@ QLabel.CardSubtitle {
 
 /* 按钮规范 */
 QPushButton.PrimaryBtn, QPushButton.CardActionBlue {
-    background-color: #2563EB;
-    color: #FFFFFF;
+    background-color: #8FE3B0;
+    color: #10231A;
     border: none;
     border-radius: 10px;
     padding: 8px 18px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 QPushButton.PrimaryBtn:hover, QPushButton.CardActionBlue:hover {
-    background-color: #1D4ED8;
+    background-color: #7ED9A2;
 }
 
 QPushButton.SecondaryBtn, QPushButton.OutlineBtn {
     background-color: #FFFFFF;
-    color: #334155;
-    border: 1px solid #CBD5E1;
+    color: #3A3A3A;
+    border: 1px solid #D4D4D4;
     border-radius: 10px;
     padding: 8px 16px;
     font-size: 13px;
@@ -319,14 +348,14 @@ QPushButton.SecondaryBtn, QPushButton.OutlineBtn {
 }
 
 QPushButton.SecondaryBtn:hover, QPushButton.OutlineBtn:hover {
-    background-color: #F8FAFC;
+    background-color: #F5F5F5;
     border-color: #94A3B8;
 }
 
 QPushButton.DangerBtn, QPushButton.CardActionRed {
-    background-color: #DC2626;
-    color: #FFFFFF;
-    border: none;
+    background-color: #F5F5F5;
+    color: #B91C1C;
+    border: 1px solid #E5E5E5;
     border-radius: 10px;
     padding: 8px 16px;
     font-size: 13px;
@@ -334,34 +363,35 @@ QPushButton.DangerBtn, QPushButton.CardActionRed {
 }
 
 QPushButton.DangerBtn:hover, QPushButton.CardActionRed:hover {
-    background-color: #B91C1C;
+    background-color: #FEE2E2;
+    color: #991B1B;
 }
 
 /* 输入框与下拉列表 */
 QLineEdit {
     background-color: #FFFFFF;
-    border: 1px solid #CBD5E1;
+    border: 1px solid #D4D4D4;
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 13px;
-    color: #1E293B;
+    color: #2A2B2C;
 }
 
 QLineEdit:focus {
-    border-color: #2563EB;
+    border-color: #2F8F5B;
 }
 
 QComboBox {
     background-color: #FFFFFF;
-    border: 1px solid #CBD5E1;
+    border: 1px solid #D4D4D4;
     border-radius: 8px;
     padding: 6px 28px 6px 12px;
     font-size: 13px;
-    color: #1E293B;
+    color: #2A2B2C;
 }
 
 QComboBox:hover {
-    border-color: #93C5FD;
+    border-color: #A7F3D0;
 }
 
 /* Let Qt paint its native chevron. The previous CSS-border triangle hack is not
@@ -369,10 +399,10 @@ QComboBox:hover {
 
 QComboBox QAbstractItemView {
     background-color: #FFFFFF;
-    color: #0F172A;
-    selection-background-color: #EFF6FF;
-    selection-color: #2563EB;
-    border: 1px solid #CBD5E1;
+    color: #292929;
+    selection-background-color: #F5F5F5;
+    selection-color: #2F8F5B;
+    border: 1px solid #D4D4D4;
     border-radius: 8px;
     padding: 4px;
     outline: none;
@@ -381,17 +411,17 @@ QComboBox QAbstractItemView {
 QComboBox QAbstractItemView::item {
     min-height: 30px;
     padding: 4px 10px;
-    color: #0F172A;
+    color: #292929;
 }
 
 QComboBox QAbstractItemView::item:hover {
-    background-color: #F1F5F9;
-    color: #2563EB;
+    background-color: #EFEFEF;
+    color: #2F8F5B;
 }
 
 QComboBox QAbstractItemView::item:selected {
-    background-color: #EFF6FF;
-    color: #2563EB;
+    background-color: #F5F5F5;
+    color: #2F8F5B;
 }
 
 QFrame#StatusBar {
@@ -402,18 +432,18 @@ QFrame#StatusBar {
 /* 表格 */
 QTableWidget {
     background-color: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #E5E5E5;
     border-radius: 12px;
     gridline-color: transparent;
-    color: #1E293B;
+    color: #2A2B2C;
     font-size: 13px;
 }
 
 QHeaderView::section {
-    background-color: #F8FAFC;
+    background-color: #F5F5F5;
     color: #64748B;
     border: none;
-    border-bottom: 1px solid #E2E8F0;
+    border-bottom: 1px solid #E5E5E5;
     padding: 8px;
     font-weight: 600;
 }
@@ -431,18 +461,18 @@ QLabel#StatusBanner {
 
 /* 现代化 Fluent 动态进度条规范 */
 QProgressBar {
-    background-color: #E2E8F0;
+    background-color: #E5E5E5;
     border: none;
     border-radius: 5px;
     height: 10px;
     text-align: center;
-    color: #1E293B;
+    color: #2A2B2C;
     font-size: 11px;
     font-weight: 600;
 }
 
 QProgressBar::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563EB, stop:1 #3B82F6);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2F8F5B, stop:1 #3E9E69);
     border-radius: 5px;
 }
 """
@@ -460,44 +490,38 @@ QMainWindow {
 }
 
 QWidget#CentralWidget {
-    background-color: #0F172A;
-    border: 1px solid #1E293B;
-    border-radius: 14px;
+    background-color: #292929;
+    border: none;
+    border-radius: 8px;
 }
 
 QFrame#TitleBar {
-    background-color: #1E293B;
-    border-top-left-radius: 14px;
-    border-top-right-radius: 14px;
-    border-bottom: 1px solid #334155;
+    background-color: #2A2B2C;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom: 1px solid #3A3A3A;
 }
 
 QLabel#WindowTitle {
-    color: #F8FAFC;
+    color: #E8E8E8;
     font-size: 14px;
     font-weight: 700;
 }
 
-QPushButton#ThemeToggleBtn, QPushButton.ThemeToggleBtn {
-    background-color: #1E293B;
-    color: #F8FAFC;
-    border: 1px solid #475569;
-    border-radius: 12px;
-    padding: 4px 14px;
-    font-size: 12px;
-    font-weight: 600;
+QPushButton#ThemeToggleBtn { 
+    background-color: transparent;
+    color: #E8E8E8;
+    border: none;
+    border-radius: 10px;
+    padding: 4px 6px;
     min-height: 24px;
 }
 
-QPushButton#ThemeToggleBtn:hover, QPushButton.ThemeToggleBtn:hover {
-    background-color: #334155;
-    border-color: #64748B;
-    color: #FFFFFF;
-}
+QPushButton#ThemeToggleBtn:hover { background-color: #3A3A3A; border: none; }
 
 QPushButton.WindowControl, QPushButton.TitleBtn {
     background-color: transparent;
-    color: #94A3B8;
+    color: #A0A0A0;
     border: none;
     border-radius: 6px;
     min-width: 34px;
@@ -514,13 +538,13 @@ QPushButton#TitleBtnMax, QPushButton.TitleBtnMax {
 }
 
 QPushButton.WindowControl:hover, QPushButton.TitleBtn:hover {
-    background-color: #334155;
+    background-color: #3A3A3A;
     color: #FFFFFF;
 }
 
 QPushButton#WindowCloseBtn, QPushButton.TitleBtnClose {
     background-color: transparent;
-    color: #94A3B8;
+    color: #A0A0A0;
     border: none;
     border-radius: 6px;
     min-width: 34px;
@@ -546,13 +570,13 @@ QScrollBar:vertical {
 }
 
 QScrollBar::handle:vertical {
-    background: #334155;
+    background: #3A3A3A;
     min-height: 24px;
     border-radius: 3px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: #475569;
+    background: #4A4A4A;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -614,45 +638,45 @@ QScrollArea > QWidget > QWidget {
 }
 
 QFrame.GridCard, QFrame.ToolCard, QFrame.card {
-    background-color: #1E293B;
-    border: 1px solid #334155;
+    background-color: #2A2B2C;
+    border: 1px solid #3A3A3A;
     border-radius: 16px;
 }
 
 QFrame.GridCard:hover, QFrame.ToolCard:hover, QFrame.card:hover {
-    border-color: #60A5FA;
+    border-color: #A7F3D0;
 }
 
 QLabel.CardTitle {
-    color: #F8FAFC;
+    color: #E8E8E8;
     font-size: 16px;
     font-weight: 700;
 }
 
 QLabel.CardSubtitle {
-    color: #94A3B8;
+    color: #A0A0A0;
     font-size: 12px;
     line-height: 1.4;
 }
 
 QPushButton.PrimaryBtn, QPushButton.CardActionBlue {
-    background-color: #3B82F6;
-    color: #FFFFFF;
+    background-color: #8FE3B0;
+    color: #10231A;
     border: none;
     border-radius: 10px;
     padding: 8px 18px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 QPushButton.PrimaryBtn:hover, QPushButton.CardActionBlue:hover {
-    background-color: #2563EB;
+    background-color: #7ED9A2;
 }
 
 QPushButton.SecondaryBtn, QPushButton.OutlineBtn {
-    background-color: #1E293B;
-    color: #F8FAFC;
-    border: 1px solid #475569;
+    background-color: #2A2B2C;
+    color: #E8E8E8;
+    border: 1px solid #4A4A4A;
     border-radius: 10px;
     padding: 8px 16px;
     font-size: 13px;
@@ -660,14 +684,14 @@ QPushButton.SecondaryBtn, QPushButton.OutlineBtn {
 }
 
 QPushButton.SecondaryBtn:hover, QPushButton.OutlineBtn:hover {
-    background-color: #334155;
-    border-color: #64748B;
+    background-color: #3A3A3A;
+    border-color: #8A8A8A;
 }
 
 QPushButton.DangerBtn, QPushButton.CardActionRed {
-    background-color: #EF4444;
-    color: #FFFFFF;
-    border: none;
+    background-color: #303132;
+    color: #F87171;
+    border: 1px solid #4A4A4A;
     border-radius: 10px;
     padding: 8px 16px;
     font-size: 13px;
@@ -675,43 +699,44 @@ QPushButton.DangerBtn, QPushButton.CardActionRed {
 }
 
 QPushButton.DangerBtn:hover, QPushButton.CardActionRed:hover {
-    background-color: #DC2626;
+    background-color: #3A3A3A;
+    color: #FCA5A5;
 }
 
 QLineEdit {
-    background-color: #0F172A;
-    border: 1px solid #475569;
+    background-color: #292929;
+    border: 1px solid #4A4A4A;
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 13px;
-    color: #F8FAFC;
+    color: #E8E8E8;
 }
 
 QLineEdit:focus {
-    border-color: #60A5FA;
+    border-color: #A7F3D0;
 }
 
 QComboBox {
-    background-color: #0F172A;
-    border: 1px solid #475569;
+    background-color: #292929;
+    border: 1px solid #4A4A4A;
     border-radius: 8px;
     padding: 6px 28px 6px 12px;
     font-size: 13px;
-    color: #F8FAFC;
+    color: #E8E8E8;
 }
 
 QComboBox:hover {
-    border-color: #38BDF8;
+    border-color: #A7F3D0;
 }
 
 /* Native chevron (see the light-theme comment above). */
 
 QComboBox QAbstractItemView {
-    background-color: #1E293B;
-    color: #F8FAFC;
+    background-color: #2A2B2C;
+    color: #E8E8E8;
     selection-background-color: #1E3A8A;
-    selection-color: #60A5FA;
-    border: 1px solid #475569;
+    selection-color: #A7F3D0;
+    border: 1px solid #4A4A4A;
     border-radius: 8px;
     padding: 4px;
     outline: none;
@@ -720,17 +745,17 @@ QComboBox QAbstractItemView {
 QComboBox QAbstractItemView::item {
     min-height: 30px;
     padding: 4px 10px;
-    color: #F8FAFC;
+    color: #E8E8E8;
 }
 
 QComboBox QAbstractItemView::item:hover {
-    background-color: #334155;
-    color: #60A5FA;
+    background-color: #3A3A3A;
+    color: #A7F3D0;
 }
 
 QComboBox QAbstractItemView::item:selected {
     background-color: #1E3A8A;
-    color: #60A5FA;
+    color: #A7F3D0;
 }
 
 QFrame#StatusBar {
@@ -739,19 +764,19 @@ QFrame#StatusBar {
 }
 
 QTableWidget {
-    background-color: #1E293B;
-    border: 1px solid #334155;
+    background-color: #2A2B2C;
+    border: 1px solid #3A3A3A;
     border-radius: 12px;
     gridline-color: transparent;
-    color: #F8FAFC;
+    color: #E8E8E8;
     font-size: 13px;
 }
 
 QHeaderView::section {
-    background-color: #0F172A;
-    color: #94A3B8;
+    background-color: #292929;
+    color: #A0A0A0;
     border: none;
-    border-bottom: 1px solid #334155;
+    border-bottom: 1px solid #3A3A3A;
     padding: 8px;
     font-weight: 600;
 }
@@ -768,18 +793,18 @@ QLabel#StatusBanner {
 
 /* 现代化 Fluent 动态进度条规范 (暗黑模式) */
 QProgressBar {
-    background-color: #1E293B;
-    border: 1px solid #334155;
+    background-color: #2A2B2C;
+    border: 1px solid #3A3A3A;
     border-radius: 5px;
     height: 10px;
     text-align: center;
-    color: #F8FAFC;
+    color: #E8E8E8;
     font-size: 11px;
     font-weight: 600;
 }
 
 QProgressBar::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3B82F6, stop:1 #60A5FA);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6FD398, stop:1 #A7F3D0);
     border-radius: 5px;
 }
 """
@@ -841,7 +866,7 @@ class CaptionButton(QPushButton):
             if self.btn_type == CaptionButtonType.CLOSE:
                 bg_color = QColor("#EF4444")
             else:
-                bg_color = QColor("#334155") if self.is_dark_mode else QColor("#E2E8F0")
+                bg_color = QColor("#3A3A3A") if self.is_dark_mode else QColor("#E5E5E5")
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(bg_color)
             painter.drawRoundedRect(QRectF(1.0, 1.0, w - 2.0, h - 2.0), 6.0, 6.0)
@@ -850,7 +875,7 @@ class CaptionButton(QPushButton):
         if self.btn_type == CaptionButtonType.CLOSE and self.is_hovered:
             icon_color = QColor("#FFFFFF")
         else:
-            icon_color = QColor("#F8FAFC") if self.is_dark_mode else QColor("#334155")
+            icon_color = QColor("#F5F5F5") if self.is_dark_mode else QColor("#3A3A3A")
 
         pen = QPen(icon_color, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
@@ -995,13 +1020,13 @@ class ModernProgressDialog(QDialog):
         self._apply_theme()
 
     def _apply_theme(self):
-        bg = "#1E293B" if self.is_dark else "#FFFFFF"
-        border = "#334155" if self.is_dark else "#E2E8F0"
-        title_c = "#F8FAFC" if self.is_dark else "#0F172A"
-        desc_c = "#E2E8F0" if self.is_dark else "#1E293B"
+        bg = "#2A2B2C" if self.is_dark else "#FFFFFF"
+        border = "#3A3A3A" if self.is_dark else "#E5E5E5"
+        title_c = "#F5F5F5" if self.is_dark else "#292929"
+        desc_c = "#E5E5E5" if self.is_dark else "#2A2B2C"
         detail_c = "#94A3B8" if self.is_dark else "#64748B"
-        badge_bg = "#1E3A8A" if self.is_dark else "#DBEAFE"
-        badge_fg = "#60A5FA" if self.is_dark else "#2563EB"
+        badge_bg = "#1E3A8A" if self.is_dark else "#E8E8E8"
+        badge_fg = "#7ED9A2" if self.is_dark else "#2F8F5B"
 
         self.card.setStyleSheet(f"""
             QFrame {{
@@ -1034,15 +1059,15 @@ class ModernProgressDialog(QDialog):
                     border-radius: 6px;
                 }}
                 QPushButton:hover {{
-                    background: {'#334155' if self.is_dark else '#F1F5F9'};
+                    background: {'#3A3A3A' if self.is_dark else '#EFEFEF'};
                     color: {'#EF4444' if self.is_dark else '#DC2626'};
                 }}
             """)
 
         # Style progress bar
-        pb_bg = "#0F172A" if self.is_dark else "#E2E8F0"
-        chunk_c1 = "#3B82F6" if self.is_dark else "#2563EB"
-        chunk_c2 = "#60A5FA" if self.is_dark else "#3B82F6"
+        pb_bg = "#292929" if self.is_dark else "#E5E5E5"
+        chunk_c1 = "#3E9E69" if self.is_dark else "#2F8F5B"
+        chunk_c2 = "#7ED9A2" if self.is_dark else "#3E9E69"
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {pb_bg};
@@ -1135,8 +1160,8 @@ class ModernProgressDialog(QDialog):
                 btn_row = QHBoxLayout()
                 btn_row.addStretch()
                 self.btn_confirm_finish = QPushButton("确定并关闭")
-                btn_bg = "#2563EB" if not self.is_dark else "#3B82F6"
-                btn_hover = "#1D4ED8" if not self.is_dark else "#2563EB"
+                btn_bg = "#2F8F5B" if not self.is_dark else "#3E9E69"
+                btn_hover = "#26784C" if not self.is_dark else "#2F8F5B"
                 self.btn_confirm_finish.setStyleSheet(f"""
                     QPushButton {{
                         background-color: {btn_bg};
@@ -1264,10 +1289,10 @@ class ModernConfirmDialog(QDialog):
         header.setSpacing(12)
 
         icon_map = {
-            "warning": ("⚠️", "#FEF3C7", "#D97706", "#78350F", "#FBBF24"),
+            "warning": ("⚠️", "#F5F5F5", "#D97706", "#78350F", "#FBBF24"),
             "danger": ("🧹", "#FEE2E2", "#DC2626", "#7F1D1D", "#F87171"),
             "error": ("✕", "#FEE2E2", "#DC2626", "#7F1D1D", "#F87171"),
-            "info": ("ℹ️", "#DBEAFE", "#2563EB", "#1E3A8A", "#60A5FA"),
+            "info": ("ℹ️", "#E8E8E8", "#2F8F5B", "#1E3A8A", "#7ED9A2"),
             "question": ("❓", "#EDE9FE", "#7C3AED", "#4C1D95", "#A78BFA"),
             "success": ("✓", "#DCFCE7", "#16A34A", "#064E3B", "#34D399"),
         }
@@ -1291,7 +1316,7 @@ class ModernConfirmDialog(QDialog):
         self.lbl_title.setStyleSheet(f"""
             font-size: 16px;
             font-weight: 700;
-            color: {'#F8FAFC' if self.is_dark else '#0F172A'};
+            color: {'#F5F5F5' if self.is_dark else '#292929'};
             border: none;
         """)
         header.addWidget(self.lbl_title)
@@ -1311,7 +1336,7 @@ class ModernConfirmDialog(QDialog):
                 border-radius: 6px;
             }}
             QPushButton:hover {{
-                background: {'#334155' if self.is_dark else '#F1F5F9'};
+                background: {'#3A3A3A' if self.is_dark else '#EFEFEF'};
                 color: {'#EF4444' if self.is_dark else '#DC2626'};
             }}
         """)
@@ -1325,7 +1350,7 @@ class ModernConfirmDialog(QDialog):
             self.lbl_message.setStyleSheet(f"""
                 font-size: 13px;
                 line-height: 1.6;
-                color: {'#E2E8F0' if self.is_dark else '#334155'};
+                color: {'#E5E5E5' if self.is_dark else '#3A3A3A'};
                 border: none;
             """)
             self.card_layout.addWidget(self.lbl_message)
@@ -1337,9 +1362,9 @@ class ModernConfirmDialog(QDialog):
             items_layout.setContentsMargins(14, 12, 14, 12)
             items_layout.setSpacing(8)
 
-            f_bg = "#0F172A" if self.is_dark else "#F8FAFC"
-            f_border = "#334155" if self.is_dark else "#E2E8F0"
-            f_text = "#CBD5E1" if self.is_dark else "#475569"
+            f_bg = "#292929" if self.is_dark else "#F5F5F5"
+            f_border = "#3A3A3A" if self.is_dark else "#E5E5E5"
+            f_text = "#D4D4D4" if self.is_dark else "#4A4A4A"
 
             items_frame.setStyleSheet(f"""
                 QFrame {{
@@ -1362,8 +1387,8 @@ class ModernConfirmDialog(QDialog):
             note_layout.setContentsMargins(12, 8, 12, 8)
             note_layout.setSpacing(8)
 
-            n_bg = "#451A03" if self.is_dark else "#FFFBEB"
-            n_border = "#78350F" if self.is_dark else "#FDE68A"
+            n_bg = "#451A03" if self.is_dark else "#FFFFFF"
+            n_border = "#78350F" if self.is_dark else "#E5E5E5"
             n_text = "#FCD34D" if self.is_dark else "#B45309"
 
             note_frame.setStyleSheet(f"""
@@ -1388,11 +1413,11 @@ class ModernConfirmDialog(QDialog):
             self.btn_cancel = QPushButton(cancel_text)
             self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_cancel.clicked.connect(self.reject)
-            c_bg = "#334155" if self.is_dark else "#F1F5F9"
-            c_fg = "#94A3B8" if self.is_dark else "#475569"
-            c_bd = "#475569" if self.is_dark else "#CBD5E1"
-            c_hbg = "#475569" if self.is_dark else "#E2E8F0"
-            c_hfg = "#F8FAFC" if self.is_dark else "#0F172A"
+            c_bg = "#3A3A3A" if self.is_dark else "#EFEFEF"
+            c_fg = "#94A3B8" if self.is_dark else "#4A4A4A"
+            c_bd = "#4A4A4A" if self.is_dark else "#D4D4D4"
+            c_hbg = "#4A4A4A" if self.is_dark else "#E5E5E5"
+            c_hfg = "#F5F5F5" if self.is_dark else "#292929"
             self.btn_cancel.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c_bg};
@@ -1419,9 +1444,9 @@ class ModernConfirmDialog(QDialog):
             c_hover = "#B91C1C" if not self.is_dark else "#DC2626"
             c_press = "#991B1B" if not self.is_dark else "#B91C1C"
         else:
-            c_bg = "#2563EB" if not self.is_dark else "#3B82F6"
-            c_hover = "#1D4ED8" if not self.is_dark else "#2563EB"
-            c_press = "#1E40AF" if not self.is_dark else "#1D4ED8"
+            c_bg = "#2F8F5B" if not self.is_dark else "#3E9E69"
+            c_hover = "#26784C" if not self.is_dark else "#2F8F5B"
+            c_press = "#1E40AF" if not self.is_dark else "#26784C"
 
         self.btn_confirm.setStyleSheet(f"""
             QPushButton {{
@@ -1444,8 +1469,8 @@ class ModernConfirmDialog(QDialog):
         self.card_layout.addLayout(btn_layout)
 
         # Card theme
-        card_bg = "#1E293B" if self.is_dark else "#FFFFFF"
-        card_border = "#334155" if self.is_dark else "#E2E8F0"
+        card_bg = "#2A2B2C" if self.is_dark else "#FFFFFF"
+        card_border = "#3A3A3A" if self.is_dark else "#E5E5E5"
         self.card.setStyleSheet(f"""
             QFrame {{
                 background-color: {card_bg};
@@ -1597,7 +1622,7 @@ class BaseWindow(QMainWindow):
     - Frameless with custom title bar matching Figure 1
     - Custom-painted CaptionButtons with 100% horizontal center-line alignment
     - Full border drag resizing (拖动放大缩小) on all 8 borders/corners
-    - Theme toggle pill button with text: "🌙 黑夜模式" / "☀️ 白天模式"
+    - Theme toggle pill button with text: "☾ 黑夜模式" / "☀ 白天模式"
     - Automatic real-time cross-process theme synchronization
     - Sleek 6px transparent scrollbars matching Image 1 with 0px horizontal scrollbar
     """
@@ -1698,7 +1723,10 @@ class BaseWindow(QMainWindow):
         tb_layout.addStretch()
 
         # 图2右上角主题切换胶囊
-        self.btn_theme = QPushButton("🌙 黑夜模式" if not self.is_dark_mode else "☀️ 白天模式")
+        self.btn_theme = QPushButton("")
+        self.btn_theme.setFixedSize(30, 30)
+        self.btn_theme.setIcon(theme_toggle_icon(self.is_dark_mode))
+        self.btn_theme.setIconSize(QSize(16, 16))
         self.btn_theme.setObjectName("ThemeToggleBtn")
         self.btn_theme.setProperty("class", "ThemeToggleBtn")
         self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1767,7 +1795,8 @@ class BaseWindow(QMainWindow):
         self.setStyleSheet(ss)
         self._apply_theme_button_style()
         if hasattr(self, "btn_theme"):
-            self.btn_theme.setText("☀️ 白天模式" if self.is_dark_mode else "🌙 黑夜模式")
+            self.btn_theme.setText("")
+            self.btn_theme.setIcon(theme_toggle_icon(self.is_dark_mode))
             self.btn_theme.setToolTip("切换为浅色白天模式" if self.is_dark_mode else "切换为暗色黑夜模式")
         if hasattr(self, "btn_min"):
             self.btn_min.set_dark_mode(self.is_dark_mode)
@@ -1792,29 +1821,28 @@ class BaseWindow(QMainWindow):
         if not hasattr(self, "btn_theme") or self.btn_theme is None:
             return
         if self.is_dark_mode:
-            bg, fg, bd = "#1E293B", "#F8FAFC", "#475569"
-            hover_bg, hover_fg, hover_bd = "#334155", "#FFFFFF", "#64748B"
+            bg, fg, bd = "#2A2B2C", "#F5F5F5", "#4A4A4A"
+            hover_bg, hover_fg, hover_bd = "#3A3A3A", "#FFFFFF", "#64748B"
         else:
-            bg, fg, bd = "#FFFFFF", "#334155", "#CBD5E1"
-            hover_bg, hover_fg, hover_bd = "#F1F5F9", "#1E293B", "#94A3B8"
+            bg, fg, bd = "#FFFFFF", "#3A3A3A", "#D4D4D4"
+            hover_bg, hover_fg, hover_bd = "#EFEFEF", "#2A2B2C", "#94A3B8"
         self.btn_theme.setStyleSheet(f"""
             QPushButton {{
-                background-color: {bg};
+                background-color: transparent;
                 color: {fg};
-                border: 1px solid {bd};
-                border-radius: 12px;
-                padding: 4px 14px;
-                font-size: 12px;
-                font-weight: 600;
+                border: none;
+                border-radius: 10px;
+                padding: 4px 6px;
                 min-height: 24px;
             }}
             QPushButton:hover {{
                 background-color: {hover_bg};
                 color: {hover_fg};
-                border-color: {hover_bd};
+                border: none;
             }}
             QPushButton:pressed {{
                 background-color: {hover_bg};
+                border: none;
             }}
         """)
 

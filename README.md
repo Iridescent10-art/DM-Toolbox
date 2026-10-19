@@ -9,7 +9,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://microsoft.com)
 [![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
 [![Qt](https://img.shields.io/badge/GUI-PySide6%20%2F%20Fluent%20Design-orange.svg)](https://www.qt.io)
-[![Release](https://img.shields.io/badge/Release-v1.2.6-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
+[![Release](https://img.shields.io/badge/Release-v1.2.7-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
 
 </div>
 
@@ -71,7 +71,7 @@
 - 把 Windows HDR 截图（JPEG XR / `.jxr`）批量转换为 **Ultra HDR JPEG** 或 **SDR PNG**，支持拖拽文件/文件夹与后台并发队列。
 - 内置 Google `libultrahdr 1.5.1` + `libjpeg-turbo 3.2.0`，支持 `libultrahdr` / `ACES` / `BT.2446` 三种 Tone Mapping、JPEG 质量 60–100、峰值亮度自动/预设/自定义、EXIF/XMP 元数据透传。
 - 独立单文件 `JxrConverter.exe`（约 66MB，免 .NET 运行时安装），由启动器以外部 EXE 方式打开；**沿用作者原始图标，未做任何修改**。
-- 启动器卡片与描述遵循 DM 统一主题；转换器窗口本身保持其 WPF Fluent 风格。
+- **深 / 浅主题切换**：标题栏太阳/月亮按钮即时切换，选择保存到 `settings.json`；强调色由蓝色改为浅绿色，界面与工具箱的 DM 中性主题一致。
 
 ---
 

@@ -864,30 +864,30 @@ class CPUGPUApp:
         except Exception:
             pass
 
-        self.root.configure(bg="#f8fafc")
+        self.root.configure(bg="#F5F5F5")
 
-        self.style.configure(".", font=("Microsoft YaHei", 9), background="#f8fafc")
-        self.style.configure("Header.TLabel", font=("Microsoft YaHei", 15, "bold"), foreground="#0f172a", background="#f8fafc")
-        self.style.configure("SubHeader.TLabel", font=("Microsoft YaHei", 9), foreground="#64748b", background="#f8fafc")
-        self.style.configure("Section.TLabel", font=("Microsoft YaHei", 10, "bold"), foreground="#1e293b", background="#ffffff")
+        self.style.configure(".", font=("Microsoft YaHei", 9), background="#F5F5F5")
+        self.style.configure("Header.TLabel", font=("Microsoft YaHei", 15, "bold"), foreground="#292929", background="#F5F5F5")
+        self.style.configure("SubHeader.TLabel", font=("Microsoft YaHei", 9), foreground="#64748b", background="#F5F5F5")
+        self.style.configure("Section.TLabel", font=("Microsoft YaHei", 10, "bold"), foreground="#2A2B2C", background="#ffffff")
         self.style.configure("InfoKey.TLabel", font=("Microsoft YaHei", 9), foreground="#64748b", background="#ffffff")
-        self.style.configure("InfoVal.TLabel", font=("Microsoft YaHei", 9, "bold"), foreground="#0f172a", background="#ffffff")
+        self.style.configure("InfoVal.TLabel", font=("Microsoft YaHei", 9, "bold"), foreground="#292929", background="#ffffff")
         self.style.configure("Card.TFrame", background="#ffffff", relief="flat")
 
         # 选项卡样式
-        self.style.configure("TNotebook", background="#f8fafc", borderwidth=0)
-        self.style.configure("TNotebook.Tab", font=("Microsoft YaHei", 10), padding=(16, 8), background="#e2e8f0", foreground="#334155")
-        self.style.map("TNotebook.Tab", background=[("selected", "#ffffff")], foreground=[("selected", "#2563eb")])
+        self.style.configure("TNotebook", background="#F5F5F5", borderwidth=0)
+        self.style.configure("TNotebook.Tab", font=("Microsoft YaHei", 10), padding=(16, 8), background="#E5E5E5", foreground="#3A3A3A")
+        self.style.map("TNotebook.Tab", background=[("selected", "#ffffff")], foreground=[("selected", "#2F8F5B")])
 
         # 按钮样式
-        self.style.configure("Primary.TButton", font=("Microsoft YaHei", 10, "bold"), background="#2563eb", foreground="#ffffff", borderwidth=0, padding=(16, 10))
-        self.style.map("Primary.TButton", background=[("active", "#1d4ed8"), ("pressed", "#1e40af")])
+        self.style.configure("Primary.TButton", font=("Microsoft YaHei", 10, "bold"), background="#2F8F5B", foreground="#ffffff", borderwidth=0, padding=(16, 10))
+        self.style.map("Primary.TButton", background=[("active", "#26784C"), ("pressed", "#1e40af")])
 
         self.style.configure("Danger.TButton", font=("Microsoft YaHei", 9), background="#ef4444", foreground="#ffffff", borderwidth=0, padding=(12, 8))
         self.style.map("Danger.TButton", background=[("active", "#dc2626"), ("pressed", "#b91c1c")])
 
-        self.style.configure("Secondary.TButton", font=("Microsoft YaHei", 9), background="#e2e8f0", foreground="#334155", borderwidth=0, padding=(10, 6))
-        self.style.map("Secondary.TButton", background=[("active", "#cbd5e1"), ("pressed", "#94a3b8")])
+        self.style.configure("Secondary.TButton", font=("Microsoft YaHei", 9), background="#E5E5E5", foreground="#3A3A3A", borderwidth=0, padding=(10, 6))
+        self.style.map("Secondary.TButton", background=[("active", "#D4D4D4"), ("pressed", "#94a3b8")])
 
     def detect_hardware(self):
         # 检测 CPU
@@ -994,7 +994,7 @@ class CPUGPUApp:
         subtitle.pack(anchor=tk.W, pady=(2, 4))
 
         # 2. 权限状态栏
-        admin_frame = tk.Frame(main_frame, bg="#dcfce7" if is_admin() else "#fef3c7", padx=12, pady=5)
+        admin_frame = tk.Frame(main_frame, bg="#dcfce7" if is_admin() else "#F5F5F5", padx=12, pady=5)
         admin_frame.pack(fill=tk.X, pady=(0, 8))
 
         admin_txt = "✅ 当前已获得系统管理员权限 (Administrator)，配置可直接深度生效并写入系统底层及小黑盒" if is_admin() else "⚠️ 当前为普通用户权限。点击「一键应用」将自动弹出 Windows 授权提权窗口"
@@ -1009,7 +1009,7 @@ class CPUGPUApp:
         ttk.Label(card_curr, text="🖥️ 当前系统检测硬件状态", style="Section.TLabel").grid(row=0, column=0, columnspan=4, sticky=tk.W, pady=(0, 4))
 
         ttk.Label(card_curr, text="CPU 显示:", style="InfoKey.TLabel").grid(row=1, column=0, sticky=tk.W, padx=(0, 6), pady=2)
-        self.lbl_cpu_display = ttk.Label(card_curr, text=self.current_cpu, style="InfoVal.TLabel", foreground="#2563eb")
+        self.lbl_cpu_display = ttk.Label(card_curr, text=self.current_cpu, style="InfoVal.TLabel", foreground="#2F8F5B")
         self.lbl_cpu_display.grid(row=1, column=1, sticky=tk.W, pady=2, padx=(0, 20))
 
         ttk.Label(card_curr, text="GPU 显示:", style="InfoKey.TLabel").grid(row=1, column=2, sticky=tk.W, padx=(0, 6), pady=2)
@@ -1026,7 +1026,7 @@ class CPUGPUApp:
 
         ttk.Label(card_curr, text="小黑盒状态:", style="InfoKey.TLabel").grid(row=3, column=0, sticky=tk.W, padx=(0, 6), pady=2)
         x_status = "✅ 全硬件拦截器已激活 (小黑盒检测将同步呈现全部目标硬件)" if self.xiaoheihe_hooked else ("⚡ 已适配 (点击「一键应用」自动注入)" if self.xiaoheihe_installed else "未检测到小黑盒安装")
-        x_color = "#16a34a" if self.xiaoheihe_hooked else ("#2563eb" if self.xiaoheihe_installed else "#6b7280")
+        x_color = "#16a34a" if self.xiaoheihe_hooked else ("#2F8F5B" if self.xiaoheihe_installed else "#6b7280")
         self.lbl_xiaoheihe = ttk.Label(card_curr, text=x_status, style="InfoVal.TLabel", foreground=x_color)
         self.lbl_xiaoheihe.grid(row=3, column=1, columnspan=3, sticky=tk.W, pady=2)
 
@@ -1156,10 +1156,10 @@ class CPUGPUApp:
         btn_restart_tm.pack(side=tk.RIGHT)
 
         # 6. 底部提示
-        tip_frame = tk.Frame(main_frame, bg="#eff6ff", padx=10, pady=5)
+        tip_frame = tk.Frame(main_frame, bg="#F5F5F5", padx=10, pady=5)
         tip_frame.pack(fill=tk.X, pady=(4, 0))
 
-        tip_title = tk.Label(tip_frame, text="💡 生效提醒与指引：", bg="#eff6ff", fg="#1e40af", font=("Microsoft YaHei", 8, "bold"))
+        tip_title = tk.Label(tip_frame, text="💡 生效提醒与指引：", bg="#F5F5F5", fg="#1e40af", font=("Microsoft YaHei", 8, "bold"))
         tip_title.pack(anchor=tk.W)
 
         tip_desc = tk.Label(
@@ -1167,7 +1167,7 @@ class CPUGPUApp:
             text="1. 本工具已全面打通 CPU、显卡/显存、主板、内存及硬盘；\n"
                  "2. 应用修改后，关闭并重新打开【任务管理器】可看到最新显存与硬件；\n"
                  "3. 小黑盒加速器若已在后台运行，请在右下角系统托盘图标【右键彻底退出】后再重新打开，即可看到全套定制硬件！",
-            bg="#eff6ff", fg="#1e3a8a", justify=tk.LEFT, font=("Microsoft YaHei", 8)
+            bg="#F5F5F5", fg="#1e3a8a", justify=tk.LEFT, font=("Microsoft YaHei", 8)
         )
         tip_desc.pack(anchor=tk.W, pady=(1, 0))
 
@@ -1223,7 +1223,7 @@ class CPUGPUApp:
         self.lbl_disk_display.config(text=self.current_disk)
 
         x_status = "✅ 全硬件拦截器已激活 (小黑盒检测将同步呈现全部目标硬件)" if self.xiaoheihe_hooked else ("⚡ 已适配 (点击「一键应用」自动注入)" if self.xiaoheihe_installed else "未检测到小黑盒安装")
-        x_color = "#16a34a" if self.xiaoheihe_hooked else ("#2563eb" if self.xiaoheihe_installed else "#6b7280")
+        x_color = "#16a34a" if self.xiaoheihe_hooked else ("#2F8F5B" if self.xiaoheihe_installed else "#6b7280")
         self.lbl_xiaoheihe.config(text=x_status, foreground=x_color)
 
     def sync_to_config(self):

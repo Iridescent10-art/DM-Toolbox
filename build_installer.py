@@ -5,7 +5,7 @@ Builds a standalone, zero-dependency installer package using Inno Setup:
 1. Compiles high-integrity native GUI launcher DMBOX.exe (with app_icon.ico and requireAdministrator manifest).
 2. Assembles self-contained staging tree dist/DMBOX/ with isolated Python 3.14 + PySide6 runtime.
 3. Validates the isolated runtime and module imports.
-4. Generates and compiles Inno Setup script into dist_setup/DM工具箱_安装包_v1.0.exe.
+4. Generates and compiles Inno Setup script into dist_setup/DM-BOX.exe.
 """
 
 import os
@@ -231,7 +231,7 @@ def step4_build_inno_installer():
     iss_content = f"""[Setup]
 ; 基本应用信息
 AppName=DM工具箱
-AppVersion=1.2.6
+AppVersion=1.2.7
 AppPublisher=DM Studio
 AppPublisherURL=https://github.com/
 AppSupportURL=https://github.com/

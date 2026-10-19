@@ -25,7 +25,7 @@ if sys.platform == "win32":
         pass
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtCore import Qt, Signal, QObject, QPoint, QTimer, QEvent, QFileSystemWatcher
+from PySide6.QtCore import Qt, Signal, QObject, QPoint, QTimer, QEvent, QFileSystemWatcher, QSize
 from PySide6.QtGui import QIcon, QPixmap, QColor, QFont, QGuiApplication, QCursor
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -46,7 +46,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from common.config_manager import get_global_theme, set_global_theme
-from common.ui_theme import CaptionButton, CaptionButtonType, ModernProgressDialog, ProgressSignalBridge
+from common.ui_theme import CaptionButton, CaptionButtonType, ModernProgressDialog, ProgressSignalBridge, theme_toggle_icon
 from common.dm_ui_core import DMSizeGrip, apply_dm_window_frame
 
 # Core modules
@@ -84,19 +84,19 @@ class ModernDialog(QDialog):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setFixedWidth(460)
 
-        bg_color = "#1e293b" if is_dark else "#ffffff"
-        border_color = "#334155" if is_dark else "#cbd5e1"
-        text_color = "#f8fafc" if is_dark else "#0f172a"
-        msg_color = "#94a3b8" if is_dark else "#475569"
+        bg_color = "#2A2B2C" if is_dark else "#ffffff"
+        border_color = "#3A3A3A" if is_dark else "#D4D4D4"
+        text_color = "#F5F5F5" if is_dark else "#292929"
+        msg_color = "#94a3b8" if is_dark else "#4A4A4A"
 
         type_map = {
-            "info": ("ℹ", "#dbeafe", "#1d4ed8"),
+            "info": ("ℹ", "#E8E8E8", "#26784C"),
             "success": ("✓", "#dcfce7", "#16a34a"),
-            "warning": ("⚠", "#fef3c7", "#d97706"),
+            "warning": ("⚠", "#F5F5F5", "#d97706"),
             "error": ("✕", "#fee2e2", "#dc2626"),
             "question": ("?", "#ede9fe", "#7c3aed")
         }
-        icon_char, b_bg, b_fg = type_map.get(dialog_type, ("ℹ", "#dbeafe", "#1d4ed8"))
+        icon_char, b_bg, b_fg = type_map.get(dialog_type, ("ℹ", "#E8E8E8", "#26784C"))
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -154,8 +154,8 @@ class ModernDialog(QDialog):
         if dialog_type == "question":
             btn_cancel = QPushButton("取消")
             btn_cancel.setStyleSheet("""
-                background-color: #e2e8f0;
-                color: #334155;
+                background-color: #E5E5E5;
+                color: #3A3A3A;
                 border: none;
                 border-radius: 8px;
                 padding: 8px 20px;
@@ -167,7 +167,7 @@ class ModernDialog(QDialog):
 
             btn_ok = QPushButton("确认执行")
             btn_ok.setStyleSheet("""
-                background-color: #2563eb;
+                background-color: #2F8F5B;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
@@ -180,7 +180,7 @@ class ModernDialog(QDialog):
         else:
             btn_ok = QPushButton("我知道了")
             btn_ok.setStyleSheet("""
-                background-color: #2563eb;
+                background-color: #2F8F5B;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
@@ -245,9 +245,9 @@ class ModernTranslationGuideDialog(QDialog):
         else:
             self.resize(880, 650)
 
-        bg_color = "#1e293b" if is_dark else "#ffffff"
-        border_color = "#334155" if is_dark else "#cbd5e1"
-        text_color = "#f8fafc" if is_dark else "#0f172a"
+        bg_color = "#2A2B2C" if is_dark else "#ffffff"
+        border_color = "#3A3A3A" if is_dark else "#D4D4D4"
+        text_color = "#F5F5F5" if is_dark else "#292929"
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
@@ -271,8 +271,8 @@ class ModernTranslationGuideDialog(QDialog):
         badge = QLabel("📖")
         badge.setFixedSize(36, 36)
         badge.setStyleSheet(f"""
-            background-color: {'#1e3a8a' if is_dark else '#dbeafe'};
-            color: {'#60a5fa' if is_dark else '#1d4ed8'};
+            background-color: {'#1e3a8a' if is_dark else '#E8E8E8'};
+            color: {'#7ED9A2' if is_dark else '#26784C'};
             border-radius: 10px;
             font-size: 18px;
             qproperty-alignment: AlignCenter;
@@ -303,7 +303,7 @@ class ModernTranslationGuideDialog(QDialog):
                 border-radius: 6px;
             }}
             QPushButton:hover {{
-                background: {'#334155' if is_dark else '#f1f5f9'};
+                background: {'#3A3A3A' if is_dark else '#EFEFEF'};
                 color: {'#ef4444' if is_dark else '#dc2626'};
             }}
         """)
@@ -322,8 +322,8 @@ class ModernTranslationGuideDialog(QDialog):
                 padding: 6px;
             }}
             QTabBar::tab {{
-                background: {'#334155' if is_dark else '#e2e8f0'};
-                color: {'#cbd5e1' if is_dark else '#475569'};
+                background: {'#3A3A3A' if is_dark else '#E5E5E5'};
+                color: {'#D4D4D4' if is_dark else '#4A4A4A'};
                 border-radius: 8px;
                 padding: 8px 16px;
                 margin-right: 6px;
@@ -332,20 +332,20 @@ class ModernTranslationGuideDialog(QDialog):
                 font-size: 12px;
             }}
             QTabBar::tab:selected {{
-                background: #2563eb;
+                background: #2F8F5B;
                 color: #ffffff;
             }}
             QTabBar::tab:hover:!selected {{
-                background: {'#475569' if is_dark else '#cbd5e1'};
-                color: {'#f8fafc' if is_dark else '#0f172a'};
+                background: {'#4A4A4A' if is_dark else '#D4D4D4'};
+                color: {'#F5F5F5' if is_dark else '#292929'};
             }}
             QTabBar::scroller {{
                 width: 38px;
             }}
             QTabBar QToolButton {{
-                background-color: #2563eb;
+                background-color: #2F8F5B;
                 color: #ffffff;
-                border: 1px solid #1d4ed8;
+                border: 1px solid #26784C;
                 border-radius: 6px;
                 margin: 1px;
                 padding: 2px;
@@ -354,14 +354,14 @@ class ModernTranslationGuideDialog(QDialog):
                 min-height: 22px;
             }}
             QTabBar QToolButton:hover {{
-                background-color: #1d4ed8;
+                background-color: #26784C;
             }}
             QTabBar QToolButton:pressed {{
                 background-color: #1e40af;
             }}
             QTabBar QToolButton:disabled {{
-                background-color: {'#334155' if is_dark else '#e2e8f0'};
-                border-color: {'#475569' if is_dark else '#cbd5e1'};
+                background-color: {'#3A3A3A' if is_dark else '#E5E5E5'};
+                border-color: {'#4A4A4A' if is_dark else '#D4D4D4'};
                 color: {'#64748b' if is_dark else '#94a3b8'};
             }}
         """)
@@ -380,7 +380,7 @@ class ModernTranslationGuideDialog(QDialog):
         btn_row.addStretch()
         btn_ok = QPushButton("我知道了")
         btn_ok.setStyleSheet("""
-            background-color: #2563eb;
+            background-color: #2F8F5B;
             color: #ffffff;
             border: none;
             border-radius: 8px;
@@ -399,9 +399,9 @@ class ModernTranslationGuideDialog(QDialog):
         tb.setOpenExternalLinks(True)
         tb.setStyleSheet(f"""
             QTextBrowser {{
-                background-color: {'#0f172a' if is_dark else '#f8fafc'};
-                color: {'#e2e8f0' if is_dark else '#1e293b'};
-                border: 1px solid {'#334155' if is_dark else '#e2e8f0'};
+                background-color: {'#292929' if is_dark else '#F5F5F5'};
+                color: {'#E5E5E5' if is_dark else '#2A2B2C'};
+                border: 1px solid {'#3A3A3A' if is_dark else '#E5E5E5'};
                 border-radius: 8px;
                 padding: 12px;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -411,17 +411,17 @@ class ModernTranslationGuideDialog(QDialog):
         return tb
 
     def _create_optiscaler_tab(self, is_dark: bool) -> QWidget:
-        th_bg = '#1e293b' if is_dark else '#e2e8f0'
-        td_border = '#334155' if is_dark else '#cbd5e1'
-        badge_blue = '<span style="background-color: #2563eb; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Insert】键</span>'
+        th_bg = '#2A2B2C' if is_dark else '#E5E5E5'
+        td_border = '#3A3A3A' if is_dark else '#D4D4D4'
+        badge_blue = '<span style="background-color: #2F8F5B; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Insert】键</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #3b82f6; margin-top: 0;">🚀 模式 C · OptiScaler 跨卡转译（Insert）</h3>
+            <h3 style="color: #3E9E69; margin-top: 0;">🚀 模式 C · OptiScaler 跨卡转译（Insert）</h3>
             <p><b>适用显卡</b>：全架构通用 —— NVIDIA RTX 20/30/40/50 系列、GTX 系列、AMD Radeon、Intel Arc。</p>
             <p><b>核心使用方法</b>：修补完成后进入游戏，在游戏的<b>【画质 / 图像设置】</b>中直接开启原本被禁用的<b>【DLSS 帧生成 (Frame Generation)】</b>开关。OptiScaler 会在底层接管并转译为 <b>Intel XeFG</b>（默认，2X）或 <b>AMD FSR 3.1 FG</b> 运行，游戏帧率即刻翻倍。</p>
             <p><b>游戏内控制台呼出快捷键</b>：进入游戏随时按下键盘 {badge_blue}，即可呼出或隐藏悬浮控制台。若觉得 4K 下菜单过小，请在【模式 C 预设面板 → 游戏内菜单界面大小】选择 <code>2.0x</code>。</p>
             <hr style="border: 0; border-top: 1px solid {td_border}; margin: 12px 0;">
-            <h4 style="color: #38bdf8; margin: 8px 0;">📋 游戏内悬浮菜单中英文对照表（逐项中文释义）</h4>
+            <h4 style="color: #8FE3B0; margin: 8px 0;">📋 游戏内悬浮菜单中英文对照表（逐项中文释义）</h4>
             <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; border-color: {td_border}; font-size: 12px;">
                 <tr style="background-color: {th_bg}; font-weight: bold;">
                     <th style="width: 28%; text-align: left;">英文原版名称</th>
@@ -474,7 +474,7 @@ class ModernTranslationGuideDialog(QDialog):
         return self._create_browser(html, is_dark)
 
     def _create_reshade_tab(self, is_dark: bool) -> QWidget:
-        td_border = '#334155' if is_dark else '#cbd5e1'
+        td_border = '#3A3A3A' if is_dark else '#D4D4D4'
         badge_home = '<span style="background-color: #16a34a; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Home】键</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
@@ -497,10 +497,10 @@ class ModernTranslationGuideDialog(QDialog):
         return self._create_browser(html, is_dark)
 
     def _create_standalone_tab(self, is_dark: bool) -> QWidget:
-        badge_bs = '<span style="background-color: #2563eb; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Backspace】(退格键)</span>'
+        badge_bs = '<span style="background-color: #2F8F5B; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Backspace】(退格键)</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #3b82f6; margin-top: 0;">📦 模式 A · dashdogy 独立代理（Backspace）</h3>
+            <h3 style="color: #3E9E69; margin-top: 0;">📦 模式 A · dashdogy 独立代理（Backspace）</h3>
             <p><b>适用显卡</b>：NVIDIA GeForce RTX 40 / 50 系列。</p>
             <p><b>核心优势</b>：零外部依赖，使用微软系统级代理 DLL (<code>version.dll</code> 或 <code>winmm.dll</code>) 劫持注入，完全原生兼容，性能损耗为 0。</p>
             <p><b>游戏内快捷键</b>：进入游戏按下键盘 {badge_bs} 可呼出内置设置菜单。</p>
@@ -542,9 +542,9 @@ class ModernRHIGuideDialog(QDialog):
         else:
             self.resize(760, 600)
 
-        bg_color = "#1e293b" if is_dark else "#ffffff"
-        border_color = "#334155" if is_dark else "#cbd5e1"
-        text_color = "#f8fafc" if is_dark else "#0f172a"
+        bg_color = "#2A2B2C" if is_dark else "#ffffff"
+        border_color = "#3A3A3A" if is_dark else "#D4D4D4"
+        text_color = "#F5F5F5" if is_dark else "#292929"
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
@@ -600,7 +600,7 @@ class ModernRHIGuideDialog(QDialog):
                 border-radius: 6px;
             }}
             QPushButton:hover {{
-                background: {'#334155' if is_dark else '#f1f5f9'};
+                background: {'#3A3A3A' if is_dark else '#EFEFEF'};
                 color: {'#ef4444' if is_dark else '#dc2626'};
             }}
         """)
@@ -616,8 +616,8 @@ class ModernRHIGuideDialog(QDialog):
         info_box = QFrame()
         info_box.setStyleSheet(f"""
             QFrame {{
-                background-color: {'#0f172a' if is_dark else '#f8fafc'};
-                border: 1px solid {'#334155' if is_dark else '#e2e8f0'};
+                background-color: {'#292929' if is_dark else '#F5F5F5'};
+                border: 1px solid {'#3A3A3A' if is_dark else '#E5E5E5'};
                 border-radius: 8px;
                 padding: 10px;
             }}
@@ -629,7 +629,7 @@ class ModernRHIGuideDialog(QDialog):
         lbl_gname.setStyleSheet(f"font-size: 13px; color: {text_color}; border: none;")
         ib_layout.addWidget(lbl_gname)
 
-        lbl_gpath = QLabel(f"📁 主程序路径: <code style='color: {'#60a5fa' if is_dark else '#2563eb'};'>{exe_path}</code>")
+        lbl_gpath = QLabel(f"📁 主程序路径: <code style='color: {'#7ED9A2' if is_dark else '#2F8F5B'};'>{exe_path}</code>")
         lbl_gpath.setWordWrap(True)
         lbl_gpath.setStyleSheet(f"font-size: 11px; color: {'#94a3b8' if is_dark else '#64748b'}; border: none;")
         ib_layout.addWidget(lbl_gpath)
@@ -643,7 +643,7 @@ class ModernRHIGuideDialog(QDialog):
         self.btn_copy_file = QPushButton("📋 复制主程序完整路径 (推荐)")
         self.btn_copy_file.setStyleSheet("""
             QPushButton {
-                background-color: #2563eb;
+                background-color: #2F8F5B;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
@@ -652,7 +652,7 @@ class ModernRHIGuideDialog(QDialog):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #1d4ed8;
+                background-color: #26784C;
             }
         """)
         self.btn_copy_file.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -681,8 +681,8 @@ class ModernRHIGuideDialog(QDialog):
         self.btn_open_folder = QPushButton("📂 在资源管理器中打开")
         self.btn_open_folder.setStyleSheet(f"""
             QPushButton {{
-                background-color: {'#334155' if is_dark else '#e2e8f0'};
-                color: {'#e2e8f0' if is_dark else '#334155'};
+                background-color: {'#3A3A3A' if is_dark else '#E5E5E5'};
+                color: {'#E5E5E5' if is_dark else '#3A3A3A'};
                 border: none;
                 border-radius: 8px;
                 padding: 8px 14px;
@@ -690,7 +690,7 @@ class ModernRHIGuideDialog(QDialog):
                 font-size: 12px;
             }}
             QPushButton:hover {{
-                background-color: {'#475569' if is_dark else '#cbd5e1'};
+                background-color: {'#4A4A4A' if is_dark else '#D4D4D4'};
             }}
         """)
         self.btn_open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -704,8 +704,8 @@ class ModernRHIGuideDialog(QDialog):
         guide_browser.setOpenExternalLinks(True)
         guide_browser.setStyleSheet(f"""
             QTextBrowser {{
-                background-color: {'#0f172a' if is_dark else '#f8fafc'};
-                border: 1px solid {'#334155' if is_dark else '#e2e8f0'};
+                background-color: {'#292929' if is_dark else '#F5F5F5'};
+                border: 1px solid {'#3A3A3A' if is_dark else '#E5E5E5'};
                 border-radius: 10px;
                 color: {text_color};
                 padding: 10px;
@@ -714,12 +714,12 @@ class ModernRHIGuideDialog(QDialog):
 
         html = f"""
         <div style="line-height: 1.6; font-size: 12px; color: {text_color};">
-            <div style="background-color: {'#422006' if is_dark else '#fef3c7'}; border-left: 4px solid #f59e0b; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px;">
+            <div style="background-color: {'#422006' if is_dark else '#F5F5F5'}; border-left: 4px solid #f59e0b; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px;">
                 <b style="color: {'#fbbf24' if is_dark else '#b45309'}; font-size: 13px;">⚠️ 为什么在文件选择窗口顶部的地址栏粘贴会无法跳转？</b><br>
                 在 Windows 文件选择窗口中，<b>最顶部的地址栏只接受“文件夹路径”</b>。如果您把 <code>...\\yysls.exe</code> 这类包含主程序文件名的路径粘贴在顶部，Windows 会将其误当作文件夹查找而导致无法跳转或报错。
             </div>
             
-            <b style="color: {'#38bdf8' if is_dark else '#0284c7'}; font-size: 13px;">✨ 正确跳转方法（两种方法 100% 成功，任选一种）：</b><br>
+            <b style="color: {'#8FE3B0' if is_dark else '#0284c7'}; font-size: 13px;">✨ 正确跳转方法（两种方法 100% 成功，任选一种）：</b><br>
             <ol style="margin-top: 4px; padding-left: 20px;">
                 <li><b>方法 1（最简单秒选·强烈推荐）：</b><br>
                 点击上方【📋 复制主程序完整路径】，在 RHI 弹出的文件选择器<b>最下方【文件名(N)】框内</b>按 <code>Ctrl + V</code> 粘贴，然后直接按回车或点击【打开(O)】，即可瞬间精确选中！</li>
@@ -763,8 +763,8 @@ class ModernRHIGuideDialog(QDialog):
         btn_ok = QPushButton("我知道了")
         btn_ok.setStyleSheet(f"""
             QPushButton {{
-                background-color: {'#334155' if is_dark else '#e2e8f0'};
-                color: {'#e2e8f0' if is_dark else '#334155'};
+                background-color: {'#3A3A3A' if is_dark else '#E5E5E5'};
+                color: {'#E5E5E5' if is_dark else '#3A3A3A'};
                 border: none;
                 border-radius: 8px;
                 padding: 9px 20px;
@@ -772,7 +772,7 @@ class ModernRHIGuideDialog(QDialog):
                 font-size: 13px;
             }}
             QPushButton:hover {{
-                background-color: {'#475569' if is_dark else '#cbd5e1'};
+                background-color: {'#4A4A4A' if is_dark else '#D4D4D4'};
             }}
         """)
         btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -988,14 +988,14 @@ class OptiScalerPresetDialog(QDialog):
 
     def _build_ui(self):
         is_dark = self.is_dark
-        bg_color = "#1e293b" if is_dark else "#ffffff"
-        border_color = "#334155" if is_dark else "#cbd5e1"
-        text_color = "#f8fafc" if is_dark else "#0f172a"
+        bg_color = "#2A2B2C" if is_dark else "#ffffff"
+        border_color = "#3A3A3A" if is_dark else "#D4D4D4"
+        text_color = "#F5F5F5" if is_dark else "#292929"
         sub_text = "#94a3b8" if is_dark else "#64748b"
-        card_bg = "#0f172a" if is_dark else "#f8fafc"
-        card_border = "#334155" if is_dark else "#e2e8f0"
-        combo_bg = "#1e293b" if is_dark else "#ffffff"
-        combo_border = "#475569" if is_dark else "#cbd5e1"
+        card_bg = "#292929" if is_dark else "#F5F5F5"
+        card_border = "#3A3A3A" if is_dark else "#E5E5E5"
+        combo_bg = "#2A2B2C" if is_dark else "#ffffff"
+        combo_border = "#4A4A4A" if is_dark else "#D4D4D4"
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
@@ -1019,8 +1019,8 @@ class OptiScalerPresetDialog(QDialog):
         badge = QLabel("⚡")
         badge.setFixedSize(38, 38)
         badge.setStyleSheet(f"""
-            background-color: {'#1e3a8a' if is_dark else '#dbeafe'};
-            color: {'#60a5fa' if is_dark else '#1d4ed8'};
+            background-color: {'#1e3a8a' if is_dark else '#E8E8E8'};
+            color: {'#7ED9A2' if is_dark else '#26784C'};
             border-radius: 10px;
             font-size: 20px;
             qproperty-alignment: AlignCenter;
@@ -1051,7 +1051,7 @@ class OptiScalerPresetDialog(QDialog):
                 border-radius: 6px;
             }}
             QPushButton:hover {{
-                background: {'#334155' if is_dark else '#f1f5f9'};
+                background: {'#3A3A3A' if is_dark else '#EFEFEF'};
                 color: {'#ef4444' if is_dark else '#dc2626'};
             }}
         """)
@@ -1142,10 +1142,10 @@ class OptiScalerPresetDialog(QDialog):
         self.stacked_widget = QStackedWidget()
         self.tab_widget = self.stacked_widget  # Alias for backward compatibility
         self.tab_widget.tabText = lambda i: self.tab_buttons[i].text()
-        border_col = '#334155' if is_dark else '#cbd5e1'
+        border_col = '#3A3A3A' if is_dark else '#D4D4D4'
         self.stacked_widget.setStyleSheet(f"""
             QStackedWidget {{
-                background-color: {'#0f172a' if is_dark else '#ffffff'};
+                background-color: {'#292929' if is_dark else '#ffffff'};
                 border: 1px solid {border_col};
                 border-radius: 10px;
             }}
@@ -1169,8 +1169,8 @@ class OptiScalerPresetDialog(QDialog):
         guide_box = QFrame()
         guide_box.setStyleSheet(f"""
             QFrame {{
-                background-color: {'#1e3a8a33' if is_dark else '#eff6ff'};
-                border-left: 4px solid #3b82f6;
+                background-color: {'#1e3a8a33' if is_dark else '#F5F5F5'};
+                border-left: 4px solid #3E9E69;
                 border-radius: 6px;
                 padding: 8px 12px;
             }}
@@ -1183,7 +1183,7 @@ class OptiScalerPresetDialog(QDialog):
         gb_layout.setContentsMargins(8, 6, 8, 6)
         gb_layout.setSpacing(2)
         lbl_tip_title = QLabel("💡 运行时热重载与生效说明：")
-        lbl_tip_title.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {'#60a5fa' if is_dark else '#1d4ed8'};")
+        lbl_tip_title.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {'#7ED9A2' if is_dark else '#26784C'};")
         gb_layout.addWidget(lbl_tip_title)
 
         lbl_tip_desc = QLabel(
@@ -1211,7 +1211,7 @@ class OptiScalerPresetDialog(QDialog):
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {'#334155' if is_dark else '#f1f5f9'};
+                background-color: {'#3A3A3A' if is_dark else '#EFEFEF'};
                 color: {text_color};
             }}
         """)
@@ -1224,8 +1224,8 @@ class OptiScalerPresetDialog(QDialog):
         btn_cancel = QPushButton("取消")
         btn_cancel.setStyleSheet(f"""
             QPushButton {{
-                background-color: {'#334155' if is_dark else '#e2e8f0'};
-                color: {'#e2e8f0' if is_dark else '#334155'};
+                background-color: {'#3A3A3A' if is_dark else '#E5E5E5'};
+                color: {'#E5E5E5' if is_dark else '#3A3A3A'};
                 border: none;
                 border-radius: 8px;
                 padding: 8px 20px;
@@ -1233,7 +1233,7 @@ class OptiScalerPresetDialog(QDialog):
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {'#475569' if is_dark else '#cbd5e1'};
+                background-color: {'#4A4A4A' if is_dark else '#D4D4D4'};
             }}
         """)
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1243,7 +1243,7 @@ class OptiScalerPresetDialog(QDialog):
         btn_save = QPushButton("💾 保存配置并同步至游戏")
         btn_save.setStyleSheet("""
             QPushButton {
-                background-color: #2563eb;
+                background-color: #2F8F5B;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
@@ -1252,7 +1252,7 @@ class OptiScalerPresetDialog(QDialog):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #1d4ed8;
+                background-color: #26784C;
             }
         """)
         btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1287,13 +1287,13 @@ class OptiScalerPresetDialog(QDialog):
 
     def _update_tab_button_style(self, btn: QPushButton, is_active: bool):
         is_dark = self.is_dark
-        text_color = "#f8fafc" if is_dark else "#0f172a"
+        text_color = "#F5F5F5" if is_dark else "#292929"
         if is_active:
             btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #2563eb;
+                    background-color: #2F8F5B;
                     color: #ffffff;
-                    border: 1px solid #1d4ed8;
+                    border: 1px solid #26784C;
                     border-radius: 8px;
                     padding: 8px 10px;
                     font-size: 13px;
@@ -1301,14 +1301,14 @@ class OptiScalerPresetDialog(QDialog):
                     min-height: 40px;
                 }
                 QPushButton:hover {
-                    background-color: #1d4ed8;
+                    background-color: #26784C;
                 }
             """)
         else:
-            bg = "#1e293b" if is_dark else "#f1f5f9"
-            border = "#334155" if is_dark else "#cbd5e1"
+            bg = "#2A2B2C" if is_dark else "#EFEFEF"
+            border = "#3A3A3A" if is_dark else "#D4D4D4"
             col = "#94a3b8" if is_dark else "#64748b"
-            hover_bg = "#334155" if is_dark else "#e2e8f0"
+            hover_bg = "#3A3A3A" if is_dark else "#E5E5E5"
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {bg};
@@ -1350,7 +1350,7 @@ class OptiScalerPresetDialog(QDialog):
         mc_layout.setSpacing(10)
 
         lbl_sec1 = QLabel("📦 独立代理多帧生成 (dashdogy / MFG-Unlocker) 核心设定")
-        lbl_sec1.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#60a5fa' if is_dark else '#2563eb'};")
+        lbl_sec1.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#7ED9A2' if is_dark else '#2F8F5B'};")
         mc_layout.addWidget(lbl_sec1)
 
         # Row 1: Multiplier
@@ -1480,7 +1480,7 @@ class OptiScalerPresetDialog(QDialog):
         fg_layout.setSpacing(10)
 
         lbl_fg_sec = QLabel("⚡ 多帧生成 (Frame Generation) 核心设定")
-        lbl_fg_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#38bdf8' if is_dark else '#0284c7'};")
+        lbl_fg_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#8FE3B0' if is_dark else '#0284c7'};")
         fg_layout.addWidget(lbl_fg_sec)
 
         # Row: FG Output
@@ -1674,7 +1674,7 @@ class OptiScalerPresetDialog(QDialog):
         h_sharp.addStretch()
 
         self.lbl_sharp_val = QLabel("0.00")
-        self.lbl_sharp_val.setStyleSheet(f"color: {'#38bdf8' if is_dark else '#0284c7'}; font-weight: bold; font-size: 13px;")
+        self.lbl_sharp_val.setStyleSheet(f"color: {'#8FE3B0' if is_dark else '#0284c7'}; font-weight: bold; font-size: 13px;")
         h_sharp.addWidget(self.lbl_sharp_val)
         up_layout.addLayout(h_sharp)
 
@@ -1692,16 +1692,16 @@ class OptiScalerPresetDialog(QDialog):
             QSlider::groove:horizontal {{
                 border: none;
                 height: 6px;
-                background: {'#334155' if is_dark else '#e2e8f0'};
+                background: {'#3A3A3A' if is_dark else '#E5E5E5'};
                 border-radius: 3px;
             }}
             QSlider::sub-page:horizontal {{
-                background: #2563eb;
+                background: #2F8F5B;
                 border-radius: 3px;
             }}
             QSlider::handle:horizontal {{
                 background: #ffffff;
-                border: 2px solid #2563eb;
+                border: 2px solid #2F8F5B;
                 width: 16px;
                 height: 16px;
                 margin: -5px 0;
@@ -1791,7 +1791,7 @@ class OptiScalerPresetDialog(QDialog):
         oc_layout.setSpacing(8)
 
         lbl_opt_sec = QLabel("🛡️ Blackwell 架构优化内核与薄几何体抗伪影")
-        lbl_opt_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#38bdf8' if is_dark else '#0284c7'};")
+        lbl_opt_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#8FE3B0' if is_dark else '#0284c7'};")
         oc_layout.addWidget(lbl_opt_sec)
 
         self.chk_b_blackwell = QCheckBox("🌟 启用 Blackwell 架构优化内核 (BlackwellFrameworkKernels · 全光流运动矢量平滑)")
@@ -1833,11 +1833,11 @@ class OptiScalerPresetDialog(QDialog):
             arrow_url = get_combo_arrow_url(self.is_dark)
         except Exception:
             arrow_url = ""
-        disabled_bg = '#334155' if self.is_dark else '#f1f5f9'
+        disabled_bg = '#3A3A3A' if self.is_dark else '#EFEFEF'
         disabled_text = '#64748b' if self.is_dark else '#94a3b8'
-        disabled_border = '#475569' if self.is_dark else '#e2e8f0'
-        item_hover_bg = '#334155' if self.is_dark else '#e2e8f0'
-        item_hover_text = '#f8fafc' if self.is_dark else '#0f172a'
+        disabled_border = '#4A4A4A' if self.is_dark else '#E5E5E5'
+        item_hover_bg = '#3A3A3A' if self.is_dark else '#E5E5E5'
+        item_hover_text = '#F5F5F5' if self.is_dark else '#292929'
         return f"""
             QComboBox {{
                 background-color: {bg};
@@ -1872,7 +1872,7 @@ class OptiScalerPresetDialog(QDialog):
             QComboBox QListView {{
                 background-color: {bg};
                 color: {text};
-                selection-background-color: #2563eb;
+                selection-background-color: #2F8F5B;
                 selection-color: #ffffff;
                 border: 1px solid {border};
                 border-radius: 6px;
@@ -1892,7 +1892,7 @@ class OptiScalerPresetDialog(QDialog):
             }}
             QComboBox QAbstractItemView::item:selected,
             QComboBox QListView::item:selected {{
-                background-color: #2563eb;
+                background-color: #2F8F5B;
                 color: #ffffff;
             }}
         """
@@ -2090,24 +2090,24 @@ LIGHT_THEME = """
         background: transparent;
     }
     QWidget#CentralWidget {
-        background-color: #F0F4FA;
-        border: 1px solid #D6E6FE;
-        border-radius: 16px;
+        background-color: #F5F5F5;
+        border: none;
+    border-radius: 8px;
     }
     QWidget#Sidebar {
         background-color: #FFFFFF;
         border-top-left-radius: 0px;
         border-bottom-left-radius: 16px;
-        border-right: 1px solid #E8EEF5;
+        border-right: 1px solid #E5E5E5;
     }
     QWidget#TitleBar {
         background-color: #FFFFFF;
-        border-top-left-radius: 16px;
-        border-top-right-radius: 16px;
-        border-bottom: 1px solid #E8EEF5;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        border-bottom: 1px solid #E5E5E5;
     }
     QLabel {
-        color: #1E293B;
+        color: #2A2B2C;
     }
     
     /* 图2右上角标题栏按钮 */
@@ -2128,28 +2128,22 @@ LIGHT_THEME = """
         font-weight: 700;
     }
     QPushButton.title-btn:hover {
-        background-color: #E2E8F0;
-        color: #0F172A;
+        background-color: #E5E5E5;
+        color: #292929;
     }
     QPushButton.title-close-btn:hover {
         background-color: #EF4444;
         color: #FFFFFF;
     }
-    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn {
-        background-color: #FFFFFF;
-        color: #1E293B;
-        border: 1px solid #CBD5E1;
-        border-radius: 12px;
-        padding: 4px 14px;
-        font-size: 12px;
-        font-weight: 600;
-        min-height: 24px;
-    }
-    QPushButton.theme-toggle-btn:hover, QPushButton#ThemeToggleBtn:hover {
-        background-color: #F1F5F9;
-        border-color: #94A3B8;
-        color: #1E293B;
-    }
+    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn { 
+    background-color: transparent;
+    color: #3A3A3A;
+    border: none;
+    border-radius: 10px;
+    padding: 4px 6px;
+    min-height: 24px;
+}
+    QPushButton.theme-toggle-btn:hover, QPushButton#ThemeToggleBtn:hover { background-color: #EFEFEF; border: none; }
 
     /* 图1优化：现代化极简 6px 细致圆角滑动条 (全软件统一) */
     QScrollBar:vertical {
@@ -2160,7 +2154,7 @@ LIGHT_THEME = """
         border-radius: 3px;
     }
     QScrollBar::handle:vertical {
-        background: #CBD5E1;
+        background: #D4D4D4;
         min-height: 24px;
         border-radius: 3px;
     }
@@ -2213,12 +2207,12 @@ LIGHT_THEME = """
         font-weight: 600;
     }
     QPushButton.nav-btn:hover {
-        background-color: #F1F5F9;
-        color: #1E293B;
+        background-color: #EFEFEF;
+        color: #2A2B2C;
     }
     QPushButton.nav-btn-active {
-        background-color: #2B85FF;
-        color: #FFFFFF;
+        background-color: #E8E8E8;
+        color: #1A1A1A;
         font-weight: bold;
         border-radius: 12px;
         padding: 10px 16px;
@@ -2229,21 +2223,21 @@ LIGHT_THEME = """
     /* Cards */
     QFrame.card {
         background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
+        border: 1px solid #E5E5E5;
         border-radius: 16px;
     }
     QFrame.card:hover {
-        border-color: #93C5FD;
+        border-color: #A7F3D0;
     }
 
     /* Dropdowns */
     QComboBox {
         background-color: #ffffff;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #D4D4D4;
         border-radius: 8px;
         padding: 7px 12px;
         font-size: 13px;
-        color: #0f172a;
+        color: #292929;
     }
     QComboBox:hover {
         border: 1px solid #94a3b8;
@@ -2254,10 +2248,10 @@ LIGHT_THEME = """
     QComboBoxPrivateContainer,
     QListView#combo_popup {
         background-color: #ffffff;
-        color: #0f172a;
-        selection-background-color: #eff6ff;
-        selection-color: #2563eb;
-        border: 1px solid #cbd5e1;
+        color: #292929;
+        selection-background-color: #F5F5F5;
+        selection-color: #2F8F5B;
+        border: 1px solid #D4D4D4;
         border-radius: 8px;
         padding: 4px;
         outline: none;
@@ -2266,35 +2260,35 @@ LIGHT_THEME = """
     QComboBox QListView::item {
         min-height: 30px;
         padding: 4px 10px;
-        color: #0f172a;
+        color: #292929;
         background-color: #ffffff;
     }
     QComboBox QAbstractItemView::item:hover,
     QComboBox QListView::item:hover {
-        background-color: #f1f5f9;
-        color: #2563eb;
+        background-color: #EFEFEF;
+        color: #2F8F5B;
     }
     QComboBox QAbstractItemView::item:selected,
     QComboBox QListView::item:selected {
-        background-color: #eff6ff;
-        color: #2563eb;
+        background-color: #F5F5F5;
+        color: #2F8F5B;
     }
 
     /* Buttons */
     QPushButton.card-action-btn {
         background-color: transparent;
-        color: #2563eb;
+        color: #2F8F5B;
         border: none;
         font-size: 13px;
         font-weight: bold;
         text-align: left;
     }
     QPushButton.card-action-btn:hover {
-        color: #1d4ed8;
+        color: #26784C;
     }
     QPushButton.primary-btn {
-        background-color: #2563eb;
-        color: #ffffff;
+        background-color: #8FE3B0;
+        color: #10231A;
         border: none;
         border-radius: 10px;
         padding: 11px 24px;
@@ -2302,11 +2296,11 @@ LIGHT_THEME = """
         font-weight: bold;
     }
     QPushButton.primary-btn:hover {
-        background-color: #1d4ed8;
+        background-color: #7ED9A2;
     }
     QPushButton.secondary-btn {
-        background-color: #e2e8f0;
-        color: #334155;
+        background-color: #E5E5E5;
+        color: #3A3A3A;
         border: none;
         border-radius: 10px;
         padding: 11px 22px;
@@ -2314,8 +2308,8 @@ LIGHT_THEME = """
         font-weight: 600;
     }
     QPushButton.secondary-btn:hover {
-        background-color: #cbd5e1;
-        color: #0f172a;
+        background-color: #D4D4D4;
+        color: #292929;
     }
     QPushButton.warning-btn {
         background-color: #fee2e2;
@@ -2331,7 +2325,7 @@ LIGHT_THEME = """
     }
     QFrame#BottomActionBar {
         background-color: #ffffff;
-        border-top: 1px solid #e2e8f0;
+        border-top: 1px solid #E5E5E5;
         border-bottom-right-radius: 16px;
     }
     QStackedWidget {
@@ -2341,42 +2335,42 @@ LIGHT_THEME = """
     /* Table & Header - Eliminate dark corner blocks! */
     QTableWidget {
         background-color: #ffffff;
-        alternate-background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
+        alternate-background-color: #F5F5F5;
+        border: 1px solid #E5E5E5;
         border-radius: 12px;
-        gridline-color: #f1f5f9;
-        color: #0f172a;
+        gridline-color: #EFEFEF;
+        color: #292929;
     }
     QHeaderView {
-        background-color: #f8fafc;
+        background-color: #F5F5F5;
         border: none;
     }
     QHeaderView::section {
-        background-color: #f8fafc;
-        color: #475569;
+        background-color: #F5F5F5;
+        color: #4A4A4A;
         font-weight: bold;
         border: none;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid #E5E5E5;
         padding: 8px 10px;
     }
     QTableCornerButton::section {
-        background-color: #f8fafc;
+        background-color: #F5F5F5;
         border: none;
     }
     QLineEdit {
         background-color: #ffffff;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #D4D4D4;
         border-radius: 8px;
         padding: 6px 12px;
-        color: #0f172a;
+        color: #292929;
     }
     QTabBar::scroller {
         width: 38px;
     }
     QTabBar QToolButton {
-        background-color: #2563eb;
+        background-color: #2F8F5B;
         color: #ffffff;
-        border: 1px solid #1d4ed8;
+        border: 1px solid #26784C;
         border-radius: 6px;
         margin: 1px;
         padding: 2px;
@@ -2385,11 +2379,11 @@ LIGHT_THEME = """
         min-height: 22px;
     }
     QTabBar QToolButton:hover {
-        background-color: #1d4ed8;
+        background-color: #26784C;
     }
     QTabBar QToolButton:disabled {
-        background-color: #e2e8f0;
-        border-color: #cbd5e1;
+        background-color: #E5E5E5;
+        border-color: #D4D4D4;
         color: #94a3b8;
     }
 """
@@ -2399,30 +2393,30 @@ DARK_THEME = """
         background: transparent;
     }
     QWidget#CentralWidget {
-        background-color: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 16px;
+        background-color: #292929;
+        border: none;
+    border-radius: 8px;
     }
     QWidget#Sidebar {
-        background-color: #1e293b;
+        background-color: #2A2B2C;
         border-top-left-radius: 0px;
         border-bottom-left-radius: 16px;
-        border-right: 1px solid #334155;
+        border-right: 1px solid #3A3A3A;
     }
     QWidget#TitleBar {
-        background-color: #0f172a;
-        border-top-left-radius: 16px;
-        border-top-right-radius: 16px;
-        border-bottom: 1px solid #334155;
+        background-color: #292929;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        border-bottom: 1px solid #3A3A3A;
     }
     QLabel {
-        color: #f8fafc;
+        color: #E8E8E8;
     }
     
     /* 图2右上角标题栏按钮 */
     QPushButton.title-btn {
         background-color: transparent;
-        color: #94A3B8;
+        color: #A0A0A0;
         border: none;
         border-radius: 6px;
         font-size: 14px;
@@ -2437,28 +2431,22 @@ DARK_THEME = """
         font-weight: 700;
     }
     QPushButton.title-btn:hover {
-        background-color: #334155;
+        background-color: #3A3A3A;
         color: #FFFFFF;
     }
     QPushButton.title-close-btn:hover {
         background-color: #EF4444;
         color: #FFFFFF;
     }
-    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn {
-        background-color: #1E293B;
-        color: #F8FAFC;
-        border: 1px solid #475569;
-        border-radius: 12px;
-        padding: 4px 14px;
-        font-size: 12px;
-        font-weight: 600;
-        min-height: 24px;
-    }
-    QPushButton.theme-toggle-btn:hover, QPushButton#ThemeToggleBtn:hover {
-        background-color: #334155;
-        border-color: #64748B;
-        color: #FFFFFF;
-    }
+    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn { 
+    background-color: transparent;
+    color: #E8E8E8;
+    border: none;
+    border-radius: 10px;
+    padding: 4px 6px;
+    min-height: 24px;
+}
+    QPushButton.theme-toggle-btn:hover, QPushButton#ThemeToggleBtn:hover { background-color: #3A3A3A; border: none; }
 
     /* 图1优化：现代化暗色极简 6px 细致圆角滑动条 (全软件统一) */
     QScrollBar:vertical {
@@ -2469,12 +2457,12 @@ DARK_THEME = """
         border-radius: 3px;
     }
     QScrollBar::handle:vertical {
-        background: #334155;
+        background: #3A3A3A;
         min-height: 24px;
         border-radius: 3px;
     }
     QScrollBar::handle:vertical:hover {
-        background: #475569;
+        background: #4A4A4A;
     }
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
         height: 0px;
@@ -2513,7 +2501,7 @@ DARK_THEME = """
     /* Sidebar Navigation */
     QPushButton.nav-btn {
         background-color: transparent;
-        color: #94a3b8;
+        color: #A0A0A0;
         border: none;
         border-radius: 10px;
         padding: 10px 14px;
@@ -2522,12 +2510,12 @@ DARK_THEME = """
         font-weight: 600;
     }
     QPushButton.nav-btn:hover {
-        background-color: #334155;
+        background-color: #3A3A3A;
         color: #ffffff;
     }
     QPushButton.nav-btn-active {
-        background-color: #3b82f6;
-        color: #ffffff;
+        background-color: #303132;
+        color: #FFFFFF;
         font-weight: bold;
         border-radius: 10px;
         padding: 10px 14px;
@@ -2537,36 +2525,36 @@ DARK_THEME = """
 
     /* Cards */
     QFrame.card {
-        background-color: #1e293b;
-        border: 1px solid #334155;
+        background-color: #2A2B2C;
+        border: 1px solid #3A3A3A;
         border-radius: 14px;
     }
     QFrame.card:hover {
-        border: 1px solid #475569;
+        border: 1px solid #4A4A4A;
     }
 
     /* Dropdowns */
     QComboBox {
-        background-color: #0f172a;
-        border: 1px solid #475569;
+        background-color: #292929;
+        border: 1px solid #4A4A4A;
         border-radius: 8px;
         padding: 7px 12px;
         font-size: 13px;
-        color: #f8fafc;
+        color: #E8E8E8;
     }
     QComboBox:hover {
-        border: 1px solid #64748b;
+        border: 1px solid #8A8A8A;
     }
     /* Native chevron (see the combo helper above). */
     QComboBox QAbstractItemView,
     QComboBox QListView,
     QComboBoxPrivateContainer,
     QListView#combo_popup {
-        background-color: #1e293b;
-        color: #f8fafc;
+        background-color: #2A2B2C;
+        color: #E8E8E8;
         selection-background-color: #1e3a8a;
-        selection-color: #60a5fa;
-        border: 1px solid #475569;
+        selection-color: #A7F3D0;
+        border: 1px solid #4A4A4A;
         border-radius: 8px;
         padding: 4px;
         outline: none;
@@ -2575,35 +2563,35 @@ DARK_THEME = """
     QComboBox QListView::item {
         min-height: 30px;
         padding: 4px 10px;
-        color: #f8fafc;
-        background-color: #1e293b;
+        color: #E8E8E8;
+        background-color: #2A2B2C;
     }
     QComboBox QAbstractItemView::item:hover,
     QComboBox QListView::item:hover {
-        background-color: #334155;
-        color: #60a5fa;
+        background-color: #3A3A3A;
+        color: #A7F3D0;
     }
     QComboBox QAbstractItemView::item:selected,
     QComboBox QListView::item:selected {
         background-color: #1e3a8a;
-        color: #60a5fa;
+        color: #A7F3D0;
     }
 
     /* Buttons */
     QPushButton.card-action-btn {
         background-color: transparent;
-        color: #60a5fa;
+        color: #A7F3D0;
         border: none;
         font-size: 13px;
         font-weight: bold;
         text-align: left;
     }
     QPushButton.card-action-btn:hover {
-        color: #93c5fd;
+        color: #A7F3D0;
     }
     QPushButton.primary-btn {
-        background-color: #3b82f6;
-        color: #ffffff;
+        background-color: #8FE3B0;
+        color: #10231A;
         border: none;
         border-radius: 10px;
         padding: 11px 24px;
@@ -2611,11 +2599,11 @@ DARK_THEME = """
         font-weight: bold;
     }
     QPushButton.primary-btn:hover {
-        background-color: #2563eb;
+        background-color: #7ED9A2;
     }
     QPushButton.secondary-btn {
-        background-color: #334155;
-        color: #e2e8f0;
+        background-color: #3A3A3A;
+        color: #DDDDDD;
         border: none;
         border-radius: 10px;
         padding: 11px 22px;
@@ -2623,7 +2611,7 @@ DARK_THEME = """
         font-weight: 600;
     }
     QPushButton.secondary-btn:hover {
-        background-color: #475569;
+        background-color: #4A4A4A;
         color: #ffffff;
     }
     QPushButton.warning-btn {
@@ -2639,8 +2627,8 @@ DARK_THEME = """
         background-color: #991b1b;
     }
     QFrame#BottomActionBar {
-        background-color: #0f172a;
-        border-top: 1px solid #334155;
+        background-color: #292929;
+        border-top: 1px solid #3A3A3A;
         border-bottom-right-radius: 16px;
     }
     QStackedWidget {
@@ -2649,43 +2637,43 @@ DARK_THEME = """
 
     /* Table & Header - Eliminate dark corner blocks! */
     QTableWidget {
-        background-color: #1e293b;
-        alternate-background-color: #0f172a;
-        border: 1px solid #334155;
+        background-color: #2A2B2C;
+        alternate-background-color: #292929;
+        border: 1px solid #3A3A3A;
         border-radius: 12px;
-        gridline-color: #334155;
-        color: #f8fafc;
+        gridline-color: #3A3A3A;
+        color: #E8E8E8;
     }
     QHeaderView {
-        background-color: #0f172a;
+        background-color: #292929;
         border: none;
     }
     QHeaderView::section {
-        background-color: #0f172a;
-        color: #94a3b8;
+        background-color: #292929;
+        color: #A0A0A0;
         font-weight: bold;
         border: none;
-        border-bottom: 1px solid #334155;
+        border-bottom: 1px solid #3A3A3A;
         padding: 8px 10px;
     }
     QTableCornerButton::section {
-        background-color: #0f172a;
+        background-color: #292929;
         border: none;
     }
     QLineEdit {
-        background-color: #0f172a;
-        border: 1px solid #475569;
+        background-color: #292929;
+        border: 1px solid #4A4A4A;
         border-radius: 8px;
         padding: 6px 12px;
-        color: #f8fafc;
+        color: #E8E8E8;
     }
     QTabBar::scroller {
         width: 38px;
     }
     QTabBar QToolButton {
-        background-color: #3b82f6;
+        background-color: #6FD398;
         color: #ffffff;
-        border: 1px solid #2563eb;
+        border: 1px solid #6FD398;
         border-radius: 6px;
         margin: 1px;
         padding: 2px;
@@ -2694,12 +2682,12 @@ DARK_THEME = """
         min-height: 22px;
     }
     QTabBar QToolButton:hover {
-        background-color: #2563eb;
+        background-color: #6FD398;
     }
     QTabBar QToolButton:disabled {
-        background-color: #334155;
-        border-color: #475569;
-        color: #64748b;
+        background-color: #3A3A3A;
+        border-color: #4A4A4A;
+        color: #8A8A8A;
     }
 """
 
@@ -2848,31 +2836,33 @@ class ModernMFGGUI(QMainWindow):
             # Synchronize application palette to prevent OS dark palette bleedthrough
             pal = QtGui.QPalette()
             if self.is_dark_mode:
-                pal.setColor(QtGui.QPalette.ColorRole.Window, QColor("#0f172a"))
-                pal.setColor(QtGui.QPalette.ColorRole.WindowText, QColor("#f8fafc"))
-                pal.setColor(QtGui.QPalette.ColorRole.Base, QColor("#1e293b"))
-                pal.setColor(QtGui.QPalette.ColorRole.AlternateBase, QColor("#0f172a"))
-                pal.setColor(QtGui.QPalette.ColorRole.Text, QColor("#f8fafc"))
-                pal.setColor(QtGui.QPalette.ColorRole.Button, QColor("#1e293b"))
-                pal.setColor(QtGui.QPalette.ColorRole.ButtonText, QColor("#f8fafc"))
-                pal.setColor(QtGui.QPalette.ColorRole.Highlight, QColor("#3b82f6"))
+                pal.setColor(QtGui.QPalette.ColorRole.Window, QColor("#292929"))
+                pal.setColor(QtGui.QPalette.ColorRole.WindowText, QColor("#F5F5F5"))
+                pal.setColor(QtGui.QPalette.ColorRole.Base, QColor("#2A2B2C"))
+                pal.setColor(QtGui.QPalette.ColorRole.AlternateBase, QColor("#292929"))
+                pal.setColor(QtGui.QPalette.ColorRole.Text, QColor("#F5F5F5"))
+                pal.setColor(QtGui.QPalette.ColorRole.Button, QColor("#2A2B2C"))
+                pal.setColor(QtGui.QPalette.ColorRole.ButtonText, QColor("#F5F5F5"))
+                pal.setColor(QtGui.QPalette.ColorRole.Highlight, QColor("#3E9E69"))
                 pal.setColor(QtGui.QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
             else:
-                pal.setColor(QtGui.QPalette.ColorRole.Window, QColor("#f8fafc"))
-                pal.setColor(QtGui.QPalette.ColorRole.WindowText, QColor("#0f172a"))
+                pal.setColor(QtGui.QPalette.ColorRole.Window, QColor("#F5F5F5"))
+                pal.setColor(QtGui.QPalette.ColorRole.WindowText, QColor("#292929"))
                 pal.setColor(QtGui.QPalette.ColorRole.Base, QColor("#ffffff"))
-                pal.setColor(QtGui.QPalette.ColorRole.AlternateBase, QColor("#f1f5f9"))
-                pal.setColor(QtGui.QPalette.ColorRole.Text, QColor("#0f172a"))
+                pal.setColor(QtGui.QPalette.ColorRole.AlternateBase, QColor("#EFEFEF"))
+                pal.setColor(QtGui.QPalette.ColorRole.Text, QColor("#292929"))
                 pal.setColor(QtGui.QPalette.ColorRole.Button, QColor("#ffffff"))
-                pal.setColor(QtGui.QPalette.ColorRole.ButtonText, QColor("#0f172a"))
-                pal.setColor(QtGui.QPalette.ColorRole.Highlight, QColor("#2563eb"))
+                pal.setColor(QtGui.QPalette.ColorRole.ButtonText, QColor("#292929"))
+                pal.setColor(QtGui.QPalette.ColorRole.Highlight, QColor("#2F8F5B"))
                 pal.setColor(QtGui.QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
             app.setPalette(pal)
         self.setStyleSheet(theme_str)
         if self.centralWidget():
             self.centralWidget().setStyleSheet(theme_str)
         if hasattr(self, "btn_theme_toggle"):
-            self.btn_theme_toggle.setText("☀️ 白天模式" if self.is_dark_mode else "🌙 黑夜模式")
+            self.btn_theme_toggle.setText("")
+            self.btn_theme_toggle.setIcon(theme_toggle_icon(self.is_dark_mode))
+            self.btn_theme_toggle.setIconSize(QSize(16, 16))
             self.btn_theme_toggle.setToolTip("切换为浅色白天模式" if self.is_dark_mode else "切换为暗色黑夜模式")
         if hasattr(self, "btn_min"):
             self.btn_min.set_dark_mode(self.is_dark_mode)
@@ -2888,9 +2878,9 @@ class ModernMFGGUI(QMainWindow):
         if hasattr(self, "top_alert"):
             if self.is_dark_mode:
                 self.top_alert.setStyleSheet("""
-                    background-color: #064e3b;
-                    color: #34d399;
-                    border: 1px solid #059669;
+                    background-color: #2A2B2C;
+                    color: #34D399;
+                    border: 1px solid #3A3A3A;
                     border-radius: 10px;
                     padding: 8px 16px;
                     font-size: 13px;
@@ -2898,9 +2888,9 @@ class ModernMFGGUI(QMainWindow):
                 """)
             else:
                 self.top_alert.setStyleSheet("""
-                    background-color: #e6f9ed;
-                    color: #16a34a;
-                    border: 1px solid #bbf7d0;
+                    background-color: #F5F5F5;
+                    color: #059669;
+                    border: 1px solid #E5E5E5;
                     border-radius: 10px;
                     padding: 8px 16px;
                 """)
@@ -2945,7 +2935,7 @@ class ModernMFGGUI(QMainWindow):
             tb_layout.addWidget(tb_img)
         else:
             tb_icon = QLabel("⚡")
-            tb_icon.setStyleSheet("color: #2563eb; font-size: 16px; font-weight: bold;")
+            tb_icon.setStyleSheet("color: #2F8F5B; font-size: 16px; font-weight: bold;")
             tb_layout.addWidget(tb_icon)
 
         tb_title = QLabel("DM工具箱 - DLSS多帧生成补丁")
@@ -2954,7 +2944,10 @@ class ModernMFGGUI(QMainWindow):
         tb_layout.addStretch()
 
         # Theme switch button (图2样式)
-        self.btn_theme_toggle = QPushButton("🌙 黑夜模式" if not self.is_dark_mode else "☀️ 白天模式")
+        self.btn_theme_toggle = QPushButton("")
+        self.btn_theme_toggle.setFixedSize(30, 30)
+        self.btn_theme_toggle.setIcon(theme_toggle_icon(self.is_dark_mode))
+        self.btn_theme_toggle.setIconSize(QSize(16, 16))
         self.btn_theme_toggle.setObjectName("ThemeToggleBtn")
         self.btn_theme_toggle.setProperty("class", "theme-toggle-btn")
         self.btn_theme_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -3001,7 +2994,7 @@ class ModernMFGGUI(QMainWindow):
             logo_box.setPixmap(pix_large)
         else:
             logo_box.setText("⚡")
-            logo_box.setStyleSheet("background-color: #2563eb; color: white; border-radius: 8px; font-size: 18px; qproperty-alignment: AlignCenter;")
+            logo_box.setStyleSheet("background-color: #2F8F5B; color: white; border-radius: 8px; font-size: 18px; qproperty-alignment: AlignCenter;")
         logo_box.setFixedSize(38, 38)
 
         brand_vbox = QVBoxLayout()
@@ -3042,7 +3035,7 @@ class ModernMFGGUI(QMainWindow):
 
         # Sidebar Bottom Version Badge
         v_card = QFrame()
-        v_card.setStyleSheet("border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px;")
+        v_card.setStyleSheet("border: 1px solid #D4D4D4; border-radius: 10px; padding: 10px;")
         v_layout = QVBoxLayout(v_card)
         v_layout.setContentsMargins(4, 4, 4, 4)
         v_layout.setSpacing(3)
@@ -3123,17 +3116,17 @@ class ModernMFGGUI(QMainWindow):
         hero_text.addWidget(lbl_h2)
         hero_layout.addLayout(hero_text, 1)
 
-        badge_mfg = QLabel("RTX 40 / 30 系列\nDLSS 3x~6x / XeSS")
-        badge_mfg.setStyleSheet("""
-            background-color: #dbeafe;
-            color: #2563eb;
+        self.badge_mfg = QLabel("RTX 40 / 30 系列\nDLSS 3x~6x / XeSS")
+        self.badge_mfg.setStyleSheet("""
+            background-color: #E8E8E8;
+            color: #2F8F5B;
             font-size: 12px;
             font-weight: bold;
             border-radius: 12px;
             padding: 8px 16px;
             qproperty-alignment: AlignCenter;
         """)
-        hero_layout.addWidget(badge_mfg)
+        hero_layout.addWidget(self.badge_mfg)
         layout.addLayout(hero_layout)
 
         # 2x2 Grid Cards
@@ -3156,8 +3149,8 @@ class ModernMFGGUI(QMainWindow):
         self.badge_game = QLabel("🎯")
         self.badge_game.setFixedSize(40, 40)
         self.badge_game.setStyleSheet(f"""
-            background-color: {'#1e3a8a' if self.is_dark_mode else '#dbeafe'};
-            color: {'#60a5fa' if self.is_dark_mode else '#1d4ed8'};
+            background-color: {'#1e3a8a' if self.is_dark_mode else '#E8E8E8'};
+            color: {'#7ED9A2' if self.is_dark_mode else '#26784C'};
             border-radius: 10px;
             font-size: 18px;
             font-weight: 800;
@@ -3241,7 +3234,7 @@ class ModernMFGGUI(QMainWindow):
         arch_row.addWidget(lbl_a_title)
 
         self.lbl_info_arch = QLabel("检测中...")
-        self.lbl_info_arch.setStyleSheet("font-size: 11px; color: #2563eb; font-weight: 600;")
+        self.lbl_info_arch.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
         self.lbl_info_arch.setWordWrap(True)
         arch_row.addWidget(self.lbl_info_arch, 1)
         info_layout.addLayout(arch_row)
@@ -3287,7 +3280,7 @@ class ModernMFGGUI(QMainWindow):
         grid.addWidget(card1, 0, 0)
 
         # Card 2: 插帧引擎模式
-        card2 = self._create_card("⚙️", "#f3e8ff", "#7e22ce", "插帧引擎后端定制", "dashdogy (独立) / mavismmg (ReShade) / OptiScaler (FSR 3.1 跨卡)")
+        card2 = self._create_card("⚙️", "#F5F5F5", "#7e22ce", "插帧引擎后端定制", "dashdogy (独立) / mavismmg (ReShade) / OptiScaler (FSR 3.1 跨卡)")
         c2 = card2.layout()
         self.combo_backend = QComboBox()
         self.combo_backend.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -3308,6 +3301,8 @@ class ModernMFGGUI(QMainWindow):
         # 1. Bink2 Chain Hook Card Container
         self.card_bink = QFrame()
         self.card_bink.setObjectName("CardBink")
+        self.card_bink.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.card_bink.setCursor(Qt.CursorShape.PointingHandCursor)
         self.card_bink.setMinimumHeight(42)
         cb_layout = QVBoxLayout(self.card_bink)
         cb_layout.setContentsMargins(10, 4, 10, 4)
@@ -3324,6 +3319,8 @@ class ModernMFGGUI(QMainWindow):
         # 2. Frame Generation Guide Card Container
         self.card_guide = QFrame()
         self.card_guide.setObjectName("CardGuide")
+        self.card_guide.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.card_guide.setCursor(Qt.CursorShape.PointingHandCursor)
         self.card_guide.setMinimumHeight(42)
         cg_layout = QVBoxLayout(self.card_guide)
         cg_layout.setContentsMargins(10, 4, 10, 4)
@@ -3340,6 +3337,8 @@ class ModernMFGGUI(QMainWindow):
         # 3. Preset Multiplier Configuration Card Container
         self.card_preset = QFrame()
         self.card_preset.setObjectName("CardPreset")
+        self.card_preset.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.card_preset.setCursor(Qt.CursorShape.PointingHandCursor)
         self.card_preset.setMinimumHeight(54)
         cp_layout = QVBoxLayout(self.card_preset)
         cp_layout.setContentsMargins(10, 6, 10, 6)
@@ -3382,9 +3381,9 @@ class ModernMFGGUI(QMainWindow):
         lbl_rhi_icon.setStyleSheet("font-size: 16px; font-family: 'Segoe UI Emoji', 'Microsoft YaHei UI'; background: transparent; border: none;")
         top_row.addWidget(lbl_rhi_icon)
 
-        lbl_rhi_t = QLabel("ReShade / RHI 模组底座")
-        lbl_rhi_t.setStyleSheet("font-size: 13px; font-weight: bold; color: #ffffff; background: transparent; border: none;")
-        top_row.addWidget(lbl_rhi_t)
+        self.lbl_rhi_t = QLabel("ReShade / RHI 模组底座")
+        self.lbl_rhi_t.setStyleSheet("font-size: 13px; font-weight: bold; color: #E8E8E8; background: transparent; border: none;")
+        top_row.addWidget(self.lbl_rhi_t)
         top_row.addStretch()
         rb_layout.addLayout(top_row)
 
@@ -3599,14 +3598,14 @@ class ModernMFGGUI(QMainWindow):
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
-        card_standalone = self._create_card("A", "#dbeafe", "#1d4ed8", "模式 A: dashdogy/MFG-Unlocker 代理参数", "适用于 RTX 40 & RTX 30 系列，支持 Preset C 及 XeSS 插帧")
+        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 代理参数", "适用于 RTX 40 & RTX 30 系列，支持 Preset C 及 XeSS 插帧")
         cs_layout = card_standalone.layout()
         cs_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (优先级: version.dll > winmm.dll > dinput8.dll)"))
         cs_layout.addWidget(QLabel("• 交互菜单: 游戏内默认按 【Backspace】 呼出 ImGui 菜单"))
         cs_layout.addWidget(QLabel("• Bink 链式劫持: 将原有 bink2w64.dll 重命名为 bink2w64Hooked.dll，防反篡改屏蔽"))
         layout.addWidget(card_standalone)
 
-        card_addon = self._create_card("B", "#f3e8ff", "#7e22ce", "模式 B: mavismmg/MFGAdaUnlock-RenoDx 插件参数", "依赖 ReShade with Addon Support，集成 Blackwell 内核与抗伪影技术")
+        card_addon = self._create_card("B", "#F5F5F5", "#7e22ce", "模式 B: mavismmg/MFGAdaUnlock-RenoDx 插件参数", "依赖 ReShade with Addon Support，集成 Blackwell 内核与抗伪影技术")
         ca_layout = card_addon.layout()
         ca_layout.addWidget(QLabel("• 注入方式: ReShade.ini [ADDON] LoadFromDllMain 极早加载"))
         ca_layout.addWidget(QLabel("• 交互菜单: 游戏内按 【Home】 键在 ReShade 面板中调校"))
@@ -3642,7 +3641,7 @@ class ModernMFGGUI(QMainWindow):
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
-        card_rhi = self._create_card("🛠️", "#dbeafe", "#2563eb", "RankFTW/RHI 全能图形与 HDR 模组安装器", "一键安装 ReShade (Addon 版)、RenoDX、OptiScaler 跨架构插帧及 DLSS 核心库")
+        card_rhi = self._create_card("🛠️", "#E8E8E8", "#2F8F5B", "RankFTW/RHI 全能图形与 HDR 模组安装器", "一键安装 ReShade (Addon 版)、RenoDX、OptiScaler 跨架构插帧及 DLSS 核心库")
         c_layout = card_rhi.layout()
         c_layout.addWidget(QLabel("• 项目开源地址: https://github.com/RankFTW/RHI"))
         c_layout.addWidget(QLabel("• 核心功能: 自动化为任意游戏部署 ReShade with Addon Support、配置 RenoDX HDR 以及 DLSS/FSR 模组。"))
@@ -3771,7 +3770,7 @@ class ModernMFGGUI(QMainWindow):
         layout.addWidget(title)
 
         # Card 1: Target Game Selector for Rollback
-        card_target = self._create_card("🎯", "#dbeafe", "#1d4ed8", "选择还原目标游戏", "明确查看当前选中的游戏、补丁状态及事务清单详情")
+        card_target = self._create_card("🎯", "#E8E8E8", "#26784C", "选择还原目标游戏", "明确查看当前选中的游戏、补丁状态及事务清单详情")
         ct_layout = card_target.layout()
 
         self.combo_backup_game = QComboBox()
@@ -3847,7 +3846,7 @@ class ModernMFGGUI(QMainWindow):
         for i, btn in enumerate(self.nav_buttons):
             if i == index:
                 btn.setProperty("class", "nav-btn-active")
-                btn.setStyleSheet("background-color: #2563eb; color: #ffffff; font-weight: bold; border-radius: 10px;")
+                btn.setStyleSheet("background-color: #2F8F5B; color: #ffffff; font-weight: bold; border-radius: 10px;")
             else:
                 btn.setProperty("class", "nav-btn")
                 btn.setStyleSheet("background-color: transparent; border-radius: 10px;")
@@ -3881,7 +3880,7 @@ class ModernMFGGUI(QMainWindow):
 
         if backend_str in [BackendType.STANDALONE.value, "dashdogy"]:
             self.lbl_backend_desc.setText("模式 A (dashdogy): 零外部依赖，使用 version.dll / winmm.dll 代理注入，按 Backspace 呼出菜单")
-            self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2563eb;")
+            self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B;")
             if hasattr(self, "lbl_rhi_desc_hint"):
                 self.lbl_rhi_desc_hint.setText("当前为模式 A (无需底座) · 可在此打开 RHI 安装画质滤镜或管理模组")
         elif backend_str in [BackendType.RESHADE_ADDON.value, "mavismmg"]:
@@ -3948,211 +3947,211 @@ class ModernMFGGUI(QMainWindow):
         if is_dark:
             bink_qss = """
                 QFrame#CardBink {
-                    background-color: #2e1065;
-                    border: 1px solid #7c3aed;
+                    background-color: #2A2B2C;
+                    border: 1px solid #3A3A3A;
                     border-radius: 11px;
                     min-height: 42px;
                 }
                 QFrame#CardBink:hover {
-                    background-color: #3b0764;
-                    border: 1px solid #a855f7;
+                    background-color: #343434;
+                    border: 1px solid #4A4A4A;
                 }
             """
             guide_qss = """
                 QFrame#CardGuide {
-                    background-color: #1e3a8a;
-                    border: 1px solid #2563eb;
+                    background-color: #2A2B2C;
+                    border: 1px solid #3A3A3A;
                     border-radius: 11px;
                     min-height: 42px;
                 }
                 QFrame#CardGuide:hover {
-                    background-color: #1e40af;
-                    border: 1px solid #60a5fa;
+                    background-color: #343434;
+                    border: 1px solid #4A4A4A;
                 }
             """
             preset_qss = """
                 QFrame#CardPreset {
-                    background-color: #451a03;
-                    border: 1px solid #b45309;
+                    background-color: #2A2B2C;
+                    border: 1px solid #3A3A3A;
                     border-radius: 11px;
                     min-height: 52px;
                 }
                 QFrame#CardPreset:hover {
-                    background-color: #78350f;
-                    border: 1px solid #f59e0b;
+                    background-color: #343434;
+                    border: 1px solid #4A4A4A;
                 }
             """
-            btn_bink_qss = "QPushButton { background: transparent; color: #d8b4fe; border: none; font-size: 12px; font-weight: bold; text-align: left; } QPushButton:hover { color: #f3e8ff; }"
-            btn_guide_qss = "QPushButton { background: transparent; color: #93c5fd; border: none; font-size: 12px; font-weight: bold; text-align: left; } QPushButton:hover { color: #dbeafe; }"
-            btn_preset_qss = "QPushButton { background: transparent; color: #fde68a; border: none; font-size: 12px; font-weight: bold; text-align: left; } QPushButton:hover { color: #fef3c7; }"
-            lbl_summary_col = "#fde68a"
+            btn_bink_qss = "QPushButton { background: transparent; color: #A0A0A0; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #3A3A3A; color: #E8E8E8; } QPushButton:pressed { background-color: #444444; }"
+            btn_guide_qss = "QPushButton { background: transparent; color: #A0A0A0; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #3A3A3A; color: #E8E8E8; } QPushButton:pressed { background-color: #444444; }"
+            btn_preset_qss = "QPushButton { background: transparent; color: #A0A0A0; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #3A3A3A; color: #E8E8E8; } QPushButton:pressed { background-color: #444444; }"
+            lbl_summary_col = "#A0A0A0"
             info_qss = """
                 QFrame#CardGameInfo {
-                    background-color: #1e293b;
-                    border: 1px solid #334155;
+                    background-color: #2A2B2C;
+                    border: 1px solid #3A3A3A;
                     border-radius: 10px;
                 }
             """
             btn_pick_qss = """
                 QPushButton#BtnPickExe, QPushButton#BtnPickDir {
-                    background-color: #1e293b;
-                    color: #93c5fd;
-                    border: 1px solid #334155;
+                    background-color: #2A2B2C;
+                    color: #A7F3D0;
+                    border: 1px solid #3A3A3A;
                     border-radius: 8px;
                     font-size: 11px;
                     font-weight: 600;
                     padding: 6px 10px;
                 }
                 QPushButton#BtnPickExe:hover, QPushButton#BtnPickDir:hover {
-                    background-color: #2563eb;
+                    background-color: #2F8F5B;
                     color: #ffffff;
-                    border: 1px solid #3b82f6;
+                    border: 1px solid #3E9E69;
                 }
             """
             btn_rescan_qss = """
                 QPushButton#BtnRescanHeader {
-                    background-color: #1e293b;
-                    color: #60a5fa;
-                    border: 1px solid #334155;
+                    background-color: #2A2B2C;
+                    color: #7ED9A2;
+                    border: 1px solid #3A3A3A;
                     border-radius: 6px;
                     font-size: 11px;
                     font-weight: 600;
                     padding: 2px 10px;
                 }
                 QPushButton#BtnRescanHeader:hover {
-                    background-color: #2563eb;
+                    background-color: #2F8F5B;
                     color: #ffffff;
-                    border: 1px solid #3b82f6;
+                    border: 1px solid #3E9E69;
                 }
             """
             btn_open_dir_qss = """
                 QPushButton {
-                    background-color: #334155;
-                    color: #cbd5e1;
-                    border: 1px solid #475569;
+                    background-color: #3A3A3A;
+                    color: #D4D4D4;
+                    border: 1px solid #4A4A4A;
                     border-radius: 5px;
                     font-size: 12px;
                 }
                 QPushButton:hover {
-                    background-color: #475569;
+                    background-color: #4A4A4A;
                     color: #ffffff;
                 }
             """
             badge_game_qss = """
-                background-color: #1e3a8a;
-                color: #60a5fa;
+                background-color: #303132;
+                color: #8AB4F8;
                 border-radius: 10px;
                 font-size: 18px;
                 font-weight: 800;
                 qproperty-alignment: AlignCenter;
-                border: none;
+                border: 1px solid #3A3A3A;
             """
-            path_lbl_color = "#e2e8f0"
-            title_lbl_color = "#94a3b8"
+            path_lbl_color = "#E8E8E8"
+            title_lbl_color = "#A0A0A0"
         else:
             bink_qss = """
                 QFrame#CardBink {
-                    background-color: #faf5ff;
-                    border: 1px solid #d8b4fe;
+                    background-color: #FFFFFF;
+                    border: 1px solid #E5E5E5;
                     border-radius: 11px;
                     min-height: 42px;
                 }
                 QFrame#CardBink:hover {
-                    background-color: #f3e8ff;
-                    border: 1px solid #a855f7;
+                    background-color: #EFEFEF;
+                    border: 1px solid #D4D4D4;
                 }
             """
             guide_qss = """
                 QFrame#CardGuide {
-                    background-color: #eff6ff;
-                    border: 1px solid #bfdbfe;
+                    background-color: #FFFFFF;
+                    border: 1px solid #E5E5E5;
                     border-radius: 11px;
                     min-height: 42px;
                 }
                 QFrame#CardGuide:hover {
-                    background-color: #dbeafe;
-                    border: 1px solid #3b82f6;
+                    background-color: #EFEFEF;
+                    border: 1px solid #D4D4D4;
                 }
             """
             preset_qss = """
                 QFrame#CardPreset {
-                    background-color: #fffbeb;
-                    border: 1px solid #fde68a;
+                    background-color: #FFFFFF;
+                    border: 1px solid #E5E5E5;
                     border-radius: 11px;
                     min-height: 52px;
                 }
                 QFrame#CardPreset:hover {
-                    background-color: #fef3c7;
-                    border: 1px solid #f59e0b;
+                    background-color: #EFEFEF;
+                    border: 1px solid #D4D4D4;
                 }
             """
-            btn_bink_qss = "QPushButton { background: transparent; color: #7e22ce; border: none; font-size: 12px; font-weight: bold; text-align: left; } QPushButton:hover { color: #6b21a8; }"
-            btn_guide_qss = "QPushButton { background: transparent; color: #1d4ed8; border: none; font-size: 12px; font-weight: bold; text-align: left; } QPushButton:hover { color: #1e40af; }"
-            btn_preset_qss = "QPushButton { background: transparent; color: #b45309; border: none; font-size: 12px; font-weight: bold; text-align: left; } QPushButton:hover { color: #92400e; }"
-            lbl_summary_col = "#92400e"
+            btn_bink_qss = "QPushButton { background: transparent; color: #5A5A5A; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #E8E8E8; color: #1A1A1A; } QPushButton:pressed { background-color: #DCDCDC; }"
+            btn_guide_qss = "QPushButton { background: transparent; color: #5A5A5A; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #E8E8E8; color: #1A1A1A; } QPushButton:pressed { background-color: #DCDCDC; }"
+            btn_preset_qss = "QPushButton { background: transparent; color: #5A5A5A; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #E8E8E8; color: #1A1A1A; } QPushButton:pressed { background-color: #DCDCDC; }"
+            lbl_summary_col = "#5A5A5A"
             info_qss = """
                 QFrame#CardGameInfo {
-                    background-color: #f8fafc;
-                    border: 1px solid #e2e8f0;
+                    background-color: #F5F5F5;
+                    border: 1px solid #E5E5E5;
                     border-radius: 10px;
                 }
             """
             btn_pick_qss = """
                 QPushButton#BtnPickExe, QPushButton#BtnPickDir {
-                    background-color: #f1f5f9;
-                    color: #1d4ed8;
-                    border: 1px solid #cbd5e1;
+                    background-color: #EFEFEF;
+                    color: #26784C;
+                    border: 1px solid #D4D4D4;
                     border-radius: 8px;
                     font-size: 11px;
                     font-weight: 600;
                     padding: 6px 10px;
                 }
                 QPushButton#BtnPickExe:hover, QPushButton#BtnPickDir:hover {
-                    background-color: #dbeafe;
+                    background-color: #E8E8E8;
                     color: #1e40af;
-                    border: 1px solid #93c5fd;
+                    border: 1px solid #A7F3D0;
                 }
             """
             btn_rescan_qss = """
                 QPushButton#BtnRescanHeader {
-                    background-color: #eff6ff;
-                    color: #1d4ed8;
-                    border: 1px solid #bfdbfe;
+                    background-color: #F5F5F5;
+                    color: #26784C;
+                    border: 1px solid #D4D4D4;
                     border-radius: 6px;
                     font-size: 11px;
                     font-weight: 600;
                     padding: 2px 10px;
                 }
                 QPushButton#BtnRescanHeader:hover {
-                    background-color: #dbeafe;
+                    background-color: #E8E8E8;
                     color: #1e40af;
-                    border: 1px solid #3b82f6;
+                    border: 1px solid #3E9E69;
                 }
             """
             btn_open_dir_qss = """
                 QPushButton {
-                    background-color: #e2e8f0;
-                    color: #334155;
-                    border: 1px solid #cbd5e1;
+                    background-color: #E5E5E5;
+                    color: #3A3A3A;
+                    border: 1px solid #D4D4D4;
                     border-radius: 5px;
                     font-size: 12px;
                 }
                 QPushButton:hover {
-                    background-color: #cbd5e1;
-                    color: #0f172a;
+                    background-color: #D4D4D4;
+                    color: #292929;
                 }
             """
             badge_game_qss = """
-                background-color: #dbeafe;
-                color: #1d4ed8;
+                background-color: #EFEFEF;
+                color: #2F8F5B;
                 border-radius: 10px;
                 font-size: 18px;
                 font-weight: 800;
                 qproperty-alignment: AlignCenter;
-                border: none;
+                border: 1px solid #E5E5E5;
             """
-            path_lbl_color = "#1e293b"
-            title_lbl_color = "#64748b"
+            path_lbl_color = "#3A3A3A"
+            title_lbl_color = "#8A8A8A"
 
         if hasattr(self, "card_bink"):
             self.card_bink.setStyleSheet(bink_qss)
@@ -4190,6 +4189,40 @@ class ModernMFGGUI(QMainWindow):
             patch_text, patch_color = self._format_game_patch_status(self.selected_game)
             self.lbl_info_patch.setText(patch_text)
             self.lbl_info_patch.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {patch_color};")
+
+        # Neutral DM-style RHI banner + GPU badge (no rainbow gradients)
+        if hasattr(self, "rhi_banner") and hasattr(self, "lbl_rhi_t"):
+            if is_dark:
+                self.rhi_banner.setStyleSheet(
+                    "QFrame#RHIBanner { background-color: #2A2B2C; border: 1px solid #3A3A3A; border-radius: 10px; }"
+                )
+                self.lbl_rhi_t.setStyleSheet("font-size: 13px; font-weight: bold; color: #E8E8E8; background: transparent; border: none;")
+                self.lbl_rhi_desc_hint.setStyleSheet("font-size: 11px; color: #A0A0A0; background: transparent; border: none;")
+                self.btn_launch_rhi_quick.setStyleSheet(
+                    "QPushButton { background-color: #8FE3B0; color: #10231A; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 800; }"
+                    "QPushButton:hover { background-color: #7ED9A2; }"
+                )
+            else:
+                self.rhi_banner.setStyleSheet(
+                    "QFrame#RHIBanner { background-color: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 10px; }"
+                )
+                self.lbl_rhi_t.setStyleSheet("font-size: 13px; font-weight: bold; color: #1A1A1A; background: transparent; border: none;")
+                self.lbl_rhi_desc_hint.setStyleSheet("font-size: 11px; color: #8A8A8A; background: transparent; border: none;")
+                self.btn_launch_rhi_quick.setStyleSheet(
+                    "QPushButton { background-color: #8FE3B0; color: #10231A; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 800; }"
+                    "QPushButton:hover { background-color: #7ED9A2; }"
+                )
+        if hasattr(self, "badge_mfg"):
+            if is_dark:
+                self.badge_mfg.setStyleSheet(
+                    "background-color: #303132; color: #8FE3B0; font-size: 12px; font-weight: bold;"
+                    " border-radius: 12px; padding: 8px 16px; qproperty-alignment: AlignCenter; border: 1px solid #3A3A3A;"
+                )
+            else:
+                self.badge_mfg.setStyleSheet(
+                    "background-color: #EFEFEF; color: #2F8F5B; font-size: 12px; font-weight: bold;"
+                    " border-radius: 12px; padding: 8px 16px; qproperty-alignment: AlignCenter; border: 1px solid #E5E5E5;"
+                )
 
     def _update_ini_watcher_target(self):
         """Update file system watcher to track the selected game's directory and INI files."""
@@ -4399,7 +4432,7 @@ class ModernMFGGUI(QMainWindow):
 
             if is_manual:
                 self.lbl_rhi_status.setText(f"● 已配置手动指定 RHI 路径: {path}")
-                self.lbl_rhi_status.setStyleSheet("font-size: 13px; font-weight: bold; color: #2563eb;")
+                self.lbl_rhi_status.setStyleSheet("font-size: 13px; font-weight: bold; color: #2F8F5B;")
             else:
                 is_setup = "setup" in os.path.basename(path).lower()
                 tag_name = "安装包" if is_setup else "已安装主程序"
@@ -4449,7 +4482,7 @@ class ModernMFGGUI(QMainWindow):
                         if a.lower() == "renodx-mfgunlock.addon64":
                             formatted_addons.append(f"<span style='color: #7e22ce; font-weight: bold;'>{a} (多帧生成核心插件)</span>")
                         elif "hdr" in a.lower() or "renodx" in a.lower():
-                            formatted_addons.append(f"<span style='color: #2563eb; font-weight: bold;'>{a} (HDR 画面模组)</span>")
+                            formatted_addons.append(f"<span style='color: #2F8F5B; font-weight: bold;'>{a} (HDR 画面模组)</span>")
                         else:
                             formatted_addons.append(f"<span>{a}</span>")
                     addons_str = ", ".join(formatted_addons)
@@ -4745,11 +4778,11 @@ class ModernMFGGUI(QMainWindow):
             # 1. 平台
             src_str = g.source
             if src_str.lower() == "steam":
-                w_src = self._create_cell_badge("Steam", "#EFF6FF", "#1D4ED8", "#DBEAFE", "#1E293B", "#60A5FA", "#334155")
+                w_src = self._create_cell_badge("Steam", "#F5F5F5", "#26784C", "#E8E8E8", "#2A2B2C", "#7ED9A2", "#3A3A3A")
             elif "epic" in src_str.lower():
-                w_src = self._create_cell_badge("Epic", "#F3F4F6", "#374151", "#E5E7EB", "#1E293B", "#94A3B8", "#334155")
+                w_src = self._create_cell_badge("Epic", "#F3F4F6", "#374151", "#E5E7EB", "#2A2B2C", "#94A3B8", "#3A3A3A")
             else:
-                w_src = self._create_cell_badge(src_str, "#FEF3C7", "#92400E", "#FDE68A", "#78350F", "#FCD34D", "#B45309")
+                w_src = self._create_cell_badge(src_str, "#F5F5F5", "#92400E", "#E5E5E5", "#78350F", "#FCD34D", "#B45309")
             self.table_lib.setCellWidget(row, 1, w_src)
 
             # 2. DLSS-G 资格
@@ -4764,9 +4797,9 @@ class ModernMFGGUI(QMainWindow):
             # 3. 补丁状态
             if g.is_patched:
                 patch_str = f"已修补 [{g.patched_backend}]"
-                w_patch = self._create_cell_badge(patch_str, "#DBEAFE", "#1D4ED8", "#BFDBFE", "#1E3A8A", "#93C5FD", "#2563EB")
+                w_patch = self._create_cell_badge(patch_str, "#E8E8E8", "#26784C", "#D4D4D4", "#1E3A8A", "#A7F3D0", "#2F8F5B")
             else:
-                w_patch = self._create_cell_badge("未修补", "#F1F5F9", "#64748B", "#E2E8F0", "#1E293B", "#94A3B8", "#334155")
+                w_patch = self._create_cell_badge("未修补", "#EFEFEF", "#64748B", "#E5E5E5", "#2A2B2C", "#94A3B8", "#3A3A3A")
             self.table_lib.setCellWidget(row, 3, w_patch)
 
             # 4. 真实主程序路径

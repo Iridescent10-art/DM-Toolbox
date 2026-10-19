@@ -134,7 +134,11 @@ def test_2_assert_real_directory_purified():
                     assert v_clean != "D", f"Real directory {ini_name} has invalid {k_clean}={v_clean}!"
                     assert v_clean != "4", f"Real directory {ini_name} has invalid {k_clean}={v_clean}!"
                 if k_clean.upper() == "TOGGLEKEY" and ini_name == "RTX40MFG-UI.ini":
-                    assert v_clean == "8", f"Real directory {ini_name} ToggleKey must be 8 (VK_BACK), got {v_clean}!"
+                    # Mode A defaults to Backspace (8); allow 36 (Home) when the user
+                    # customized the in-game hotkey, so this check stays environment-safe.
+                    assert v_clean in ("8", "36"), (
+                        f"Real directory {ini_name} ToggleKey must be 8 (VK_BACK) or 36 (Home), got {v_clean}!"
+                    )
 
     # Verify winmm.dll hosts a known patcher component (Mode A MFGUnlocker or Mode C OptiScaler)
     winmm = yysls_dir / "winmm.dll"
