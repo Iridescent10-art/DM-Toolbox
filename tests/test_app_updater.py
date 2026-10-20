@@ -23,13 +23,13 @@ from common.app_updater import (
 class TestAppUpdater(unittest.TestCase):
 
     def test_version_parsing(self):
-        self.assertEqual(parse_version_tuple("v1.2.11"), (1, 2, 11))
+        self.assertEqual(parse_version_tuple("v1.2.12"), (1, 2, 12))
         self.assertEqual(parse_version_tuple("1.2.9"), (1, 2, 9))
         self.assertEqual(parse_version_tuple("v1.2.8.1"), (1, 2, 8, 1))
 
-        self.assertGreater(parse_version_tuple("v1.2.11"), parse_version_tuple("v1.2.9"))
-        self.assertGreater(parse_version_tuple("v1.2.11"), parse_version_tuple("1.2.6"))
-        self.assertEqual(parse_version_tuple(f"v{APP_VERSION}"), (1, 2, 11))
+        self.assertGreater(parse_version_tuple("v1.2.12"), parse_version_tuple("v1.2.9"))
+        self.assertGreater(parse_version_tuple("v1.2.12"), parse_version_tuple("1.2.6"))
+        self.assertEqual(parse_version_tuple(f"v{APP_VERSION}"), (1, 2, 12))
 
     def test_markdown_to_html(self):
         md = "### 核心特性\n- **特性1**: 增强插帧\n`code_block`"
@@ -86,7 +86,7 @@ class TestAppUpdater(unittest.TestCase):
         app = QApplication.instance() or QApplication(sys.argv)
         mock_releases = [
             {
-                "tag_name": "v1.2.11",
+                "tag_name": "v1.2.12",
                 "name": "DM-Toolbox v1.2.10",
                 "published_at": "2026-10-20T11:29:28Z",
                 "body": "## 更新日志\n- 强化检查更新功能",
@@ -103,7 +103,7 @@ class TestAppUpdater(unittest.TestCase):
 
         dlg = AppUpdateDialog(parent=None, is_dark=False, preloaded_releases=mock_releases)
         self.assertEqual(dlg.combo_versions.count(), 1)
-        self.assertEqual(dlg.selected_release["tag_name"], "v1.2.11")
+        self.assertEqual(dlg.selected_release["tag_name"], "v1.2.12")
         self.assertIsNotNone(dlg.selected_asset)
         self.assertEqual(dlg.selected_asset["name"], "DM-BOX.exe")
         self.assertTrue(dlg.btn_download.isEnabled())

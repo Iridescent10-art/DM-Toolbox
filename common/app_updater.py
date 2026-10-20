@@ -2,7 +2,8 @@
 """
 DM-Toolbox - Cloud Application Updater & GitHub Release Manager.
 Provides checking for updates, selecting releases, background silent checks on startup,
-downloading installers with mirror acceleration, and launching the setup wizard.
+selectable mirror acceleration sources (GHProxy, GHFast, Direct), downloading installers,
+and launching the setup wizard.
 """
 
 import os
@@ -33,11 +34,30 @@ from common.ui_theme import ModernDialog
 
 UPDATER_CONFIG_FILE = CONFIG_ROOT / "updater.json"
 
+MIRROR_SOURCES = [
+    {
+        "id": "ghproxy",
+        "name": "🚀 GHProxy 节点 (推荐 · 国内高速 CDN 加速)",
+        "prefix": "https://ghproxy.net/"
+    },
+    {
+        "id": "ghfast",
+        "name": "⚡ GHFast 节点 (备用 · 国内高速镜像)",
+        "prefix": "https://ghfast.top/"
+    },
+    {
+        "id": "direct",
+        "name": "🌐 GitHub 官方直连 (适合已开启科学上网 / 全局代理)",
+        "prefix": ""
+    }
+]
+
 
 def get_updater_config() -> Dict[str, Any]:
-    """Load updater preferences, defaults to auto_check=True, use_mirror=True."""
+    """Load updater preferences, defaults to auto_check=True, mirror_id='ghproxy'."""
     defaults = {
         "auto_check": True,
+        "mirror_id": "ghproxy",
         "use_mirror": True,
         "last_checked_tag": "",
         "last_check_time": 0
@@ -48,6 +68,8 @@ def get_updater_config() -> Dict[str, Any]:
                 data = json.load(f)
                 if isinstance(data, dict):
                     defaults.update(data)
+                    if "use_mirror" in data and "mirror_id" not in data:
+                        defaults["mirror_id"] = "ghproxy" if data.get("use_mirror", True) else "direct"
         except Exception:
             pass
     return defaults
@@ -65,7 +87,7 @@ def save_updater_config(cfg: Dict[str, Any]) -> bool:
 
 
 def parse_version_tuple(v_str: str) -> Tuple[int, ...]:
-    """Parse version string like 'v1.2.10' or '1.2.10.0' into comparable tuple of ints."""
+    """Parse version string like 'v1.2.11' or '1.2.11.0' into comparable tuple of ints."""
     clean = re.sub(r'^[vV]', '', str(v_str).strip())
     parts = []
     for p in clean.split('.'):
@@ -182,11 +204,11 @@ class DownloadInstallerWorker(QThread):
     progress = Signal(int, int, float)  # downloaded, total, speed_bytes_per_sec
     finished = Signal(bool, str, str)   # success, output_path, error_msg
 
-    def __init__(self, download_url: str, dest_path: str, use_mirror: bool = True):
+    def __init__(self, download_url: str, dest_path: str, mirror_prefix: str = ""):
         super().__init__()
         self.download_url = download_url
         self.dest_path = dest_path
-        self.use_mirror = use_mirror
+        self.mirror_prefix = mirror_prefix
         self._is_cancelled = False
 
     def cancel(self):
@@ -194,9 +216,9 @@ class DownloadInstallerWorker(QThread):
 
     def run(self):
         target_url = self.download_url
-        if self.use_mirror:
-            if not target_url.startswith("https://ghproxy.net/"):
-                target_url = f"https://ghproxy.net/{target_url}"
+        if self.mirror_prefix:
+            if not target_url.startswith(self.mirror_prefix):
+                target_url = f"{self.mirror_prefix.rstrip('/')}/{target_url.lstrip('/')}"
 
         dest_file = Path(self.dest_path)
         dest_file.parent.mkdir(parents=True, exist_ok=True)
@@ -274,7 +296,7 @@ class AppUpdateDialog(QDialog):
             self.is_dark = is_dark
 
         self.setWindowTitle("DM工具箱 - 软件更新")
-        self.setFixedSize(680, 580)
+        self.setFixedSize(700, 620)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowCloseButtonHint)
 
         self.updater_cfg = get_updater_config()
@@ -296,7 +318,7 @@ class AppUpdateDialog(QDialog):
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 18, 20, 18)
-        main_layout.setSpacing(14)
+        main_layout.setSpacing(12)
 
         # 1. Header Card (App Icon, Title, Current Version)
         h_card = QFrame()
@@ -332,7 +354,7 @@ class AppUpdateDialog(QDialog):
         ver_row = QHBoxLayout()
         ver_row.setSpacing(10)
         lbl_sel = QLabel("选择更新版本:")
-        lbl_sel.setStyleSheet("font-size: 13px; font-weight: 700;")
+        lbl_sel.setObjectName("StrongLabel")
         lbl_sel.setFixedWidth(95)
         ver_row.addWidget(lbl_sel)
 
@@ -362,32 +384,54 @@ class AppUpdateDialog(QDialog):
 
         # 4. Changelog Text Area
         lbl_notes = QLabel("📝 版本更新日志与特性:")
-        lbl_notes.setStyleSheet("font-size: 12.5px; font-weight: 700;")
+        lbl_notes.setObjectName("StrongLabel")
         main_layout.addWidget(lbl_notes)
 
         self.text_notes = QTextBrowser()
         self.text_notes.setOpenExternalLinks(True)
-        self.text_notes.setMinimumHeight(160)
+        self.text_notes.setMinimumHeight(150)
         main_layout.addWidget(self.text_notes, 1)
 
-        # 5. Mirror & Auto-check Options Row
-        opt_row = QHBoxLayout()
-        self.chk_mirror = QCheckBox("🚀 启用国内高速镜像加速下载 (GHProxy)")
-        self.chk_mirror.setChecked(self.updater_cfg.get("use_mirror", True))
-        self.chk_mirror.setStyleSheet("font-size: 12px; font-weight: 600;")
-        self.chk_mirror.stateChanged.connect(self._save_options)
-        opt_row.addWidget(self.chk_mirror)
+        # 5. Mirror Sources & Settings Card (Dedicated visible settings card)
+        settings_card = QFrame()
+        settings_card.setObjectName("SettingsCard")
+        s_layout = QVBoxLayout(settings_card)
+        s_layout.setContentsMargins(12, 10, 12, 10)
+        s_layout.setSpacing(8)
 
-        opt_row.addSpacing(16)
+        # Mirror Source Selection Row
+        mirror_row = QHBoxLayout()
+        mirror_row.setSpacing(10)
+        lbl_mirror = QLabel("🌐 下载加速镜像源:")
+        lbl_mirror.setObjectName("StrongLabel")
+        lbl_mirror.setFixedWidth(125)
+        mirror_row.addWidget(lbl_mirror)
 
-        self.chk_auto_check = QCheckBox("🔔 每次开启软件自动在后台检查更新")
+        self.combo_mirror = QComboBox()
+        self.combo_mirror.setMinimumHeight(32)
+        self.combo_mirror.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        for m in MIRROR_SOURCES:
+            self.combo_mirror.addItem(m["name"], m["id"])
+
+        saved_mirror_id = self.updater_cfg.get("mirror_id", "ghproxy")
+        idx_m = self.combo_mirror.findData(saved_mirror_id)
+        if idx_m >= 0:
+            self.combo_mirror.setCurrentIndex(idx_m)
+        self.combo_mirror.currentIndexChanged.connect(self._save_options)
+        mirror_row.addWidget(self.combo_mirror, 1)
+        s_layout.addLayout(mirror_row)
+
+        # Auto Check Checkbox Row (High contrast, clearly visible)
+        auto_row = QHBoxLayout()
+        self.chk_auto_check = QCheckBox("🔔 每次开启软件自动在后台检查更新 (发现新版将在主页顶部显眼提示)")
         self.chk_auto_check.setChecked(self.updater_cfg.get("auto_check", True))
-        self.chk_auto_check.setStyleSheet("font-size: 12px; font-weight: 600;")
+        self.chk_auto_check.setCursor(Qt.CursorShape.PointingHandCursor)
         self.chk_auto_check.stateChanged.connect(self._save_options)
-        opt_row.addWidget(self.chk_auto_check)
+        auto_row.addWidget(self.chk_auto_check)
+        auto_row.addStretch()
+        s_layout.addLayout(auto_row)
 
-        opt_row.addStretch()
-        main_layout.addLayout(opt_row)
+        main_layout.addWidget(settings_card)
 
         # 6. Download Progress Bar Area (Hidden by default)
         self.progress_frame = QFrame()
@@ -435,33 +479,45 @@ class AppUpdateDialog(QDialog):
         main_layout.addLayout(btn_row)
 
     def _save_options(self):
-        self.updater_cfg["use_mirror"] = self.chk_mirror.isChecked()
+        self.updater_cfg["mirror_id"] = self.combo_mirror.currentData()
         self.updater_cfg["auto_check"] = self.chk_auto_check.isChecked()
         save_updater_config(self.updater_cfg)
+
+    def _get_active_mirror_prefix(self) -> str:
+        m_id = self.combo_mirror.currentData()
+        for m in MIRROR_SOURCES:
+            if m["id"] == m_id:
+                return m["prefix"]
+        return "https://ghproxy.net/"
 
     def _apply_style(self):
         if self.is_dark:
             bg_color = "#202124"
             card_bg = "#292A2D"
             card_border = "#3C4043"
-            text_color = "#E8EAED"
-            sub_color = "#9AA0A6"
+            text_color = "#F3F4F6"
+            sub_color = "#9CA3AF"
             accent_green = "#8FE3B0"
             btn_text = "#10231A"
             input_bg = "#303134"
-            border_color = "#3C4043"
+            border_color = "#4B5563"
+            chk_text_color = "#F3F4F6"
             self.badge_status.setStyleSheet("color: #8FE3B0; background-color: #1E3A2F; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;")
         else:
-            bg_color = "#F8F9FA"
+            bg_color = "#F3F4F6"
             card_bg = "#FFFFFF"
             card_border = "#E5E7EB"
-            text_color = "#1F2937"
-            sub_color = "#6B7280"
+            text_color = "#111827"
+            sub_color = "#4B5563"
             accent_green = "#16A34A"
             btn_text = "#FFFFFF"
             input_bg = "#FFFFFF"
             border_color = "#D1D5DB"
+            chk_text_color = "#111827"
             self.badge_status.setStyleSheet("color: #16A34A; background-color: #DCFCE7; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;")
+
+        check_icon_p = Path(__file__).resolve().parent / "assets" / "check_white.png"
+        check_icon_url = check_icon_p.as_posix() if check_icon_p.exists() else ""
 
         self.setStyleSheet(f"""
             QDialog {{
@@ -469,13 +525,43 @@ class AppUpdateDialog(QDialog):
                 color: {text_color};
                 font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
             }}
-            QFrame#HeaderCard {{
+            QFrame#HeaderCard, QFrame#SettingsCard {{
                 background-color: {card_bg};
                 border: 1px solid {card_border};
                 border-radius: 10px;
             }}
             QLabel {{
                 color: {text_color};
+            }}
+            QLabel#StrongLabel {{
+                font-size: 13px;
+                font-weight: 700;
+                color: {text_color};
+            }}
+            QCheckBox {{
+                color: {chk_text_color} !important;
+                font-size: 12.5px;
+                font-weight: 600;
+                spacing: 8px;
+                background: transparent;
+            }}
+            QCheckBox:hover {{
+                color: {accent_green} !important;
+            }}
+            QCheckBox::indicator {{
+                width: 17px;
+                height: 17px;
+                border: 1.5px solid {'#4B5563' if self.is_dark else '#9CA3AF'};
+                border-radius: 4px;
+                background-color: {'#303134' if self.is_dark else '#FFFFFF'};
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: {accent_green};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {accent_green};
+                border-color: {accent_green};
+                image: url("{check_icon_url}");
             }}
             QComboBox {{
                 background-color: {input_bg};
@@ -501,7 +587,7 @@ class AppUpdateDialog(QDialog):
                 padding: 10px;
             }}
             QPushButton {{
-                background-color: {'#374151' if self.is_dark else '#F3F4F6'};
+                background-color: {'#374151' if self.is_dark else '#E5E7EB'};
                 color: {text_color};
                 border: 1px solid {card_border};
                 border-radius: 8px;
@@ -510,7 +596,7 @@ class AppUpdateDialog(QDialog):
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {'#4B5563' if self.is_dark else '#E5E7EB'};
+                background-color: {'#4B5563' if self.is_dark else '#D1D5DB'};
             }}
             QProgressBar {{
                 background-color: {'#374151' if self.is_dark else '#E5E7EB'};
@@ -675,10 +761,11 @@ class AppUpdateDialog(QDialog):
         self.btn_download.setEnabled(False)
         self.btn_refresh.setEnabled(False)
         self.combo_versions.setEnabled(False)
+        self.combo_mirror.setEnabled(False)
         self.btn_close.setText("取消下载")
 
-        use_mirror = self.chk_mirror.isChecked()
-        self.download_worker = DownloadInstallerWorker(download_url, dest_path, use_mirror=use_mirror)
+        mirror_prefix = self._get_active_mirror_prefix()
+        self.download_worker = DownloadInstallerWorker(download_url, dest_path, mirror_prefix=mirror_prefix)
         self.download_worker.progress.connect(self._on_download_progress)
         self.download_worker.finished.connect(self._on_download_finished)
         self.download_worker.start()
@@ -699,11 +786,12 @@ class AppUpdateDialog(QDialog):
         self.btn_download.setEnabled(True)
         self.btn_refresh.setEnabled(True)
         self.combo_versions.setEnabled(True)
+        self.combo_mirror.setEnabled(True)
         self.btn_close.setText("关闭")
 
         if not success:
             self.lbl_progress.setText(f"<span style='color: #EF4444;'>下载失败: {err}</span>")
-            ModernDialog.warning(self, "下载失败", f"更新安装包下载中断:\n{err}\n\n建议尝试切换『国内网络镜像加速下载』选项后重试。")
+            ModernDialog.warning(self, "下载失败", f"更新安装包下载中断:\n{err}\n\n建议尝试切换上方不同的『下载加速镜像源』后重试。")
             return
 
         self.lbl_progress.setText("✅ 下载完成！校验通过。")
