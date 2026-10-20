@@ -2,8 +2,8 @@
 """
 DM-Toolbox - Cloud Application Updater & GitHub Release Manager.
 Provides checking for updates, selecting releases, background silent checks on startup,
-selectable mirror acceleration sources (GHProxy, GHFast, Direct), downloading installers,
-and launching the setup wizard.
+intelligent multi-source mirror speed testing with auto-selection, automatic failover
+during downloads, safe cancellation handling to prevent crashes, and launching the setup wizard.
 """
 
 import os
@@ -15,7 +15,7 @@ import urllib.request
 import urllib.error
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple, Callable
+from typing import Optional, List, Dict, Any, Tuple, Callable, Union
 
 from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon, QPixmap, QFont, QColor
@@ -36,28 +36,38 @@ UPDATER_CONFIG_FILE = CONFIG_ROOT / "updater.json"
 
 MIRROR_SOURCES = [
     {
-        "id": "ghproxy",
-        "name": "🚀 GHProxy 节点 (推荐 · 国内高速 CDN 加速)",
-        "prefix": "https://ghproxy.net/"
+        "id": "auto",
+        "name": "⚡ 智能测速优选 (推荐 · 自动检测并选用最快节点)",
+        "prefix": ""
+    },
+    {
+        "id": "ghproxy_com",
+        "name": "🚀 GH-Proxy 节点 (国内高速 CDN 加速)",
+        "prefix": "https://gh-proxy.com/"
     },
     {
         "id": "ghfast",
-        "name": "⚡ GHFast 节点 (备用 · 国内高速镜像)",
+        "name": "⚡ GHFast 节点 (国内高速镜像备用)",
         "prefix": "https://ghfast.top/"
     },
     {
+        "id": "ghproxy_net",
+        "name": "🌐 GHProxy 节点 (公共镜像源)",
+        "prefix": "https://ghproxy.net/"
+    },
+    {
         "id": "direct",
-        "name": "🌐 GitHub 官方直连 (适合已开启科学上网 / 全局代理)",
+        "name": "🔗 GitHub 官方直连 (适合已开启科学上网 / 全局代理)",
         "prefix": ""
     }
 ]
 
 
 def get_updater_config() -> Dict[str, Any]:
-    """Load updater preferences, defaults to auto_check=True, mirror_id='ghproxy'."""
+    """Load updater preferences, defaults to auto_check=True, mirror_id='auto'."""
     defaults = {
         "auto_check": True,
-        "mirror_id": "ghproxy",
+        "mirror_id": "auto",
         "use_mirror": True,
         "last_checked_tag": "",
         "last_check_time": 0
@@ -68,8 +78,11 @@ def get_updater_config() -> Dict[str, Any]:
                 data = json.load(f)
                 if isinstance(data, dict):
                     defaults.update(data)
-                    if "use_mirror" in data and "mirror_id" not in data:
-                        defaults["mirror_id"] = "ghproxy" if data.get("use_mirror", True) else "direct"
+                    # Legacy migration: if older config had 'ghproxy' or 'ghproxy_net', recommend 'auto'
+                    if defaults.get("mirror_id") in ("ghproxy", "ghproxy_net"):
+                        defaults["mirror_id"] = "auto"
+                    elif "use_mirror" in data and "mirror_id" not in data:
+                        defaults["mirror_id"] = "auto" if data.get("use_mirror", True) else "direct"
         except Exception:
             pass
     return defaults
@@ -87,7 +100,7 @@ def save_updater_config(cfg: Dict[str, Any]) -> bool:
 
 
 def parse_version_tuple(v_str: str) -> Tuple[int, ...]:
-    """Parse version string like 'v1.2.11' or '1.2.11.0' into comparable tuple of ints."""
+    """Parse version string like 'v1.2.12' or '1.2.12.0' into comparable tuple of ints."""
     clean = re.sub(r'^[vV]', '', str(v_str).strip())
     parts = []
     for p in clean.split('.'):
@@ -168,12 +181,14 @@ def markdown_to_html(md_text: str, is_dark: bool = False) -> str:
 
 
 class CheckUpdateWorker(QThread):
-    """Asynchronous background worker to check GitHub Releases without blocking UI."""
+    """Asynchronous background worker to check GitHub Releases with multi-source fallback."""
     finished = Signal(bool, list, str)
 
     def run(self):
         urls = [
             GITHUB_API_RELEASES,
+            f"https://gh-proxy.com/{GITHUB_API_RELEASES}",
+            f"https://ghfast.top/{GITHUB_API_RELEASES}",
             f"https://ghproxy.net/{GITHUB_API_RELEASES}"
         ]
         headers = {
@@ -185,7 +200,7 @@ class CheckUpdateWorker(QThread):
         for url in urls:
             try:
                 req = urllib.request.Request(url, headers=headers)
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=8) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode("utf-8"))
                         if isinstance(data, list) and len(data) > 0:
@@ -199,27 +214,115 @@ class CheckUpdateWorker(QThread):
         self.finished.emit(False, [], last_err or "网络连接超时，无法访问 GitHub 接口")
 
 
-class DownloadInstallerWorker(QThread):
-    """Asynchronous background worker for downloading DM-BOX installer with speed & progress reporting."""
-    progress = Signal(int, int, float)  # downloaded, total, speed_bytes_per_sec
-    finished = Signal(bool, str, str)   # success, output_path, error_msg
+class MirrorSpeedTestWorker(QThread):
+    """
+    Asynchronously measures ping latency & availability to all candidate mirror sources concurrently.
+    Emits node_tested(mirror_id, latency_ms, ok) and finished(results_dict, best_mirror_id).
+    """
+    node_tested = Signal(str, int, bool)
+    finished = Signal(dict, str)
 
-    def __init__(self, download_url: str, dest_path: str, mirror_prefix: str = ""):
+    def __init__(self, mirrors: List[Dict[str, Any]], test_asset_url: str):
         super().__init__()
-        self.download_url = download_url
-        self.dest_path = dest_path
-        self.mirror_prefix = mirror_prefix
+        self.mirrors = mirrors
+        self.test_asset_url = test_asset_url
         self._is_cancelled = False
+        self._active_resps = []
 
     def cancel(self):
         self._is_cancelled = True
+        for r in getattr(self, "_active_resps", []):
+            try:
+                r.close()
+            except Exception:
+                pass
 
     def run(self):
-        target_url = self.download_url
-        if self.mirror_prefix:
-            if not target_url.startswith(self.mirror_prefix):
-                target_url = f"{self.mirror_prefix.rstrip('/')}/{target_url.lstrip('/')}"
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        results = {}
 
+        def _test_single(m):
+            if self._is_cancelled:
+                return m["id"], -1, False
+            prefix = m["prefix"]
+            url = f"{prefix}{self.test_asset_url}" if prefix else self.test_asset_url
+            t0 = time.time()
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Range": "bytes=0-100"}
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=2.2) as resp:
+                    self._active_resps.append(resp)
+                    if resp.status in (200, 206):
+                        lat = int((time.time() - t0) * 1000)
+                        return m["id"], lat, True
+            except Exception:
+                pass
+            return m["id"], -1, False
+
+        testable = [m for m in self.mirrors if m["id"] != "auto"]
+        executor = ThreadPoolExecutor(max_workers=min(len(testable), 6))
+        try:
+            future_to_mirror = {executor.submit(_test_single, m): m for m in testable}
+            for fut in as_completed(future_to_mirror):
+                if self._is_cancelled:
+                    break
+                try:
+                    m_id, lat, ok = fut.result()
+                    results[m_id] = {"latency": lat, "ok": ok}
+                    self.node_tested.emit(m_id, lat, ok)
+                except Exception:
+                    pass
+        finally:
+            executor.shutdown(wait=False)
+
+        # Determine best mirror (lowest latency among ok=True)
+        best_id = "ghproxy_com"
+        best_lat = 999999
+        for m_id, data in results.items():
+            if data["ok"] and 0 <= data["latency"] < best_lat:
+                best_lat = data["latency"]
+                best_id = m_id
+
+        if not self._is_cancelled:
+            self.finished.emit(results, best_id)
+
+
+class DownloadInstallerWorker(QThread):
+    """
+    Asynchronous background worker for downloading DM-BOX installer with speed & progress reporting.
+    Supports candidate download URLs with automatic seamless failover to fallback mirrors.
+    """
+    progress = Signal(int, int, float)  # downloaded, total, speed_bytes_per_sec
+    status_msg = Signal(str)            # status text updates (e.g. automatic failover notifications)
+    finished = Signal(bool, str, str)   # success, output_path, error_msg
+
+    def __init__(self, candidate_urls: Any, dest_path: str, mirror_prefix: str = ""):
+        super().__init__()
+        if isinstance(candidate_urls, str):
+            if mirror_prefix:
+                p = mirror_prefix.rstrip('/')
+                u = candidate_urls.lstrip('/')
+                self.candidate_urls = [f"{p}/{u}"]
+            else:
+                self.candidate_urls = [candidate_urls]
+        else:
+            self.candidate_urls = list(candidate_urls)
+
+        self.dest_path = dest_path
+        self._is_cancelled = False
+        self._active_resp = None
+
+    def cancel(self):
+        self._is_cancelled = True
+        if self._active_resp:
+            try:
+                self._active_resp.close()
+            except Exception:
+                pass
+
+    def run(self):
         dest_file = Path(self.dest_path)
         dest_file.parent.mkdir(parents=True, exist_ok=True)
         temp_file = dest_file.with_suffix(".tmp")
@@ -228,65 +331,88 @@ class DownloadInstallerWorker(QThread):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
 
-        try:
-            req = urllib.request.Request(target_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=15) as resp, open(temp_file, "wb") as f_out:
-                content_len = resp.headers.get("Content-Length")
-                total_bytes = int(content_len) if content_len and content_len.isdigit() else 0
+        last_err = ""
+        total_candidates = len(self.candidate_urls)
 
-                downloaded = 0
-                last_time = time.time()
-                last_downloaded = 0
+        for idx, target_url in enumerate(self.candidate_urls):
+            if self._is_cancelled:
+                self.finished.emit(False, "", "用户已取消下载")
+                return
 
-                while True:
-                    if self._is_cancelled:
-                        f_out.close()
-                        if temp_file.exists():
-                            try:
-                                temp_file.unlink()
-                            except Exception:
-                                pass
-                        self.finished.emit(False, "", "用户已取消下载")
-                        return
+            if idx > 0:
+                self.status_msg.emit(f"⚠️ 正在自动无缝切换至备用镜像节点 ({idx + 1}/{total_candidates})...")
 
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
+            try:
+                req = urllib.request.Request(target_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    self._active_resp = resp
+                    content_len = resp.headers.get("Content-Length")
+                    total_bytes = int(content_len) if content_len and content_len.isdigit() else 0
 
-                    f_out.write(chunk)
-                    downloaded += len(chunk)
+                    with open(temp_file, "wb") as f_out:
+                        downloaded = 0
+                        last_time = time.time()
+                        last_downloaded = 0
 
-                    now = time.time()
-                    elapsed = now - last_time
-                    if elapsed >= 0.25:
-                        speed = (downloaded - last_downloaded) / elapsed
-                        self.progress.emit(downloaded, total_bytes, speed)
-                        last_time = now
-                        last_downloaded = downloaded
+                        while True:
+                            if self._is_cancelled:
+                                f_out.close()
+                                if temp_file.exists():
+                                    try:
+                                        temp_file.unlink()
+                                    except Exception:
+                                        pass
+                                self.finished.emit(False, "", "用户已取消下载")
+                                return
 
-            # Completed download
-            if temp_file.exists():
-                if dest_file.exists():
+                            chunk = resp.read(65536)
+                            if not chunk:
+                                break
+
+                            f_out.write(chunk)
+                            downloaded += len(chunk)
+
+                            now = time.time()
+                            elapsed = now - last_time
+                            if elapsed >= 0.25:
+                                speed = (downloaded - last_downloaded) / elapsed
+                                self.progress.emit(downloaded, total_bytes, speed)
+                                last_time = now
+                                last_downloaded = downloaded
+
+                # Verification: file size > 1MB
+                if temp_file.exists() and temp_file.stat().st_size > 1024 * 1024:
+                    if dest_file.exists():
+                        try:
+                            dest_file.unlink()
+                        except Exception:
+                            pass
+                    temp_file.rename(dest_file)
+                    self.finished.emit(True, str(dest_file), "")
+                    return
+                else:
+                    last_err = "下载文件不完整或大小异常"
+            except Exception as e:
+                last_err = str(e)
+                if temp_file.exists():
                     try:
-                        dest_file.unlink()
+                        temp_file.unlink()
                     except Exception:
                         pass
-                temp_file.rename(dest_file)
+                if self._is_cancelled:
+                    self.finished.emit(False, "", "用户已取消下载")
+                    return
+                continue
 
-            self.finished.emit(True, str(dest_file), "")
-        except Exception as e:
-            if temp_file.exists():
-                try:
-                    temp_file.unlink()
-                except Exception:
-                    pass
-            self.finished.emit(False, "", f"下载中断: {e}")
+        # If all candidates failed
+        self.finished.emit(False, "", f"所有镜像源及直连均连接失败: {last_err}")
 
 
 class AppUpdateDialog(QDialog):
     """
     Modern Fluent Dialog for DM-Toolbox Application Updates.
-    Allows viewing all GitHub releases, selecting any target release, and downloading/updating.
+    Allows viewing all GitHub releases, selecting any target release, intelligent mirror speed testing,
+    auto-selection, automatic failover, and crash-proof cancellation.
     """
     def __init__(self, parent=None, is_dark: Optional[bool] = None, preloaded_releases: Optional[List[Dict[str, Any]]] = None):
         super().__init__(parent)
@@ -296,7 +422,7 @@ class AppUpdateDialog(QDialog):
             self.is_dark = is_dark
 
         self.setWindowTitle("DM工具箱 - 软件更新")
-        self.setFixedSize(700, 620)
+        self.setFixedSize(720, 640)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowCloseButtonHint)
 
         self.updater_cfg = get_updater_config()
@@ -307,6 +433,10 @@ class AppUpdateDialog(QDialog):
         self.download_worker: Optional[DownloadInstallerWorker] = None
         self.downloaded_installer_path: Optional[str] = None
 
+        self.speed_test_worker: Optional[MirrorSpeedTestWorker] = None
+        self.mirror_speed_results: Dict[str, Dict[str, Any]] = {}
+        self.best_mirror_id: str = "ghproxy_com"
+
         self._init_ui()
         self._apply_style()
 
@@ -314,6 +444,9 @@ class AppUpdateDialog(QDialog):
             self._on_releases_fetched(True, self.releases_data, "")
         else:
             self._start_fetch_releases()
+
+        # Initiate background mirror speed test
+        self.start_mirror_speed_test()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -401,7 +534,7 @@ class AppUpdateDialog(QDialog):
 
         # Mirror Source Selection Row
         mirror_row = QHBoxLayout()
-        mirror_row.setSpacing(10)
+        mirror_row.setSpacing(8)
         lbl_mirror = QLabel("🌐 下载加速镜像源:")
         lbl_mirror.setObjectName("StrongLabel")
         lbl_mirror.setFixedWidth(125)
@@ -413,13 +546,26 @@ class AppUpdateDialog(QDialog):
         for m in MIRROR_SOURCES:
             self.combo_mirror.addItem(m["name"], m["id"])
 
-        saved_mirror_id = self.updater_cfg.get("mirror_id", "ghproxy")
+        saved_mirror_id = self.updater_cfg.get("mirror_id", "auto")
         idx_m = self.combo_mirror.findData(saved_mirror_id)
         if idx_m >= 0:
             self.combo_mirror.setCurrentIndex(idx_m)
-        self.combo_mirror.currentIndexChanged.connect(self._save_options)
+        self.combo_mirror.currentIndexChanged.connect(self._on_mirror_selection_changed)
         mirror_row.addWidget(self.combo_mirror, 1)
+
+        self.btn_speed_test = QPushButton("⚡ 重新测速")
+        self.btn_speed_test.setFixedWidth(104)
+        self.btn_speed_test.setMinimumHeight(32)
+        self.btn_speed_test.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_speed_test.setToolTip("重新对所有镜像加速节点发起并行测速，并自动优选最快节点")
+        self.btn_speed_test.clicked.connect(self.start_mirror_speed_test)
+        mirror_row.addWidget(self.btn_speed_test)
         s_layout.addLayout(mirror_row)
+
+        # Mirror Status / Latency hint label
+        self.lbl_mirror_status = QLabel("⏳ 正在自动测试各镜像源延迟并优选最快可用节点...")
+        self.lbl_mirror_status.setStyleSheet("font-size: 11.5px; color: #16A34A; font-weight: 600; padding-left: 2px;")
+        s_layout.addWidget(self.lbl_mirror_status)
 
         # Auto Check Checkbox Row (High contrast, clearly visible)
         auto_row = QHBoxLayout()
@@ -464,9 +610,11 @@ class AppUpdateDialog(QDialog):
 
         btn_row.addStretch()
 
-        self.btn_download = QPushButton("⚡ 立即下载并安装更新")
+        self.btn_download = QPushButton("⬇️ 立即下载安装")
+        self.btn_download.setObjectName("PrimaryButton")
         self.btn_download.setMinimumHeight(36)
         self.btn_download.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_download.setEnabled(False)
         self.btn_download.clicked.connect(self._start_download)
         btn_row.addWidget(self.btn_download)
 
@@ -483,12 +631,129 @@ class AppUpdateDialog(QDialog):
         self.updater_cfg["auto_check"] = self.chk_auto_check.isChecked()
         save_updater_config(self.updater_cfg)
 
-    def _get_active_mirror_prefix(self) -> str:
-        m_id = self.combo_mirror.currentData()
+    def _get_mirror_name(self, mirror_id: str) -> str:
         for m in MIRROR_SOURCES:
-            if m["id"] == m_id:
-                return m["prefix"]
-        return "https://ghproxy.net/"
+            if m["id"] == mirror_id:
+                # Return clean short title
+                name = m["name"]
+                m_clean = re.sub(r'\s*\(.*?\)', '', name).strip()
+                return m_clean
+        return mirror_id
+
+    def _on_mirror_selection_changed(self):
+        self._save_options()
+        cur_id = self.combo_mirror.currentData()
+        if cur_id == "auto":
+            best_info = self.mirror_speed_results.get(self.best_mirror_id, {})
+            lat = best_info.get("latency", 0)
+            self.lbl_mirror_status.setText(f"✅ 智能测速优选已锁定最快可用节点: [{self._get_mirror_name(self.best_mirror_id)}] (延迟 {lat}ms · 即开即下)")
+        elif cur_id in self.mirror_speed_results:
+            info = self.mirror_speed_results[cur_id]
+            if info.get("ok"):
+                self.lbl_mirror_status.setText(f"🟢 当前手动指定节点 [{self._get_mirror_name(cur_id)}] 连接正常 (延迟 {info['latency']}ms)")
+            else:
+                self.lbl_mirror_status.setText(f"⚠️ 当前手动指定节点不可用或超时！下载时将自动无缝故障转移至备用可用节点")
+
+    def start_mirror_speed_test(self):
+        """Starts asynchronous concurrent testing of all candidate mirrors."""
+        if self.speed_test_worker and self.speed_test_worker.isRunning():
+            return
+
+        test_url = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/download/v{APP_VERSION}/DM-BOX.exe"
+        if self.selected_asset and self.selected_asset.get("browser_download_url"):
+            test_url = self.selected_asset["browser_download_url"]
+
+        self.btn_speed_test.setEnabled(False)
+        self.lbl_mirror_status.setText("⏳ 正在自动测试各镜像源延迟并优选最快可用节点...")
+
+        self.speed_test_worker = MirrorSpeedTestWorker(MIRROR_SOURCES, test_url)
+        self.speed_test_worker.node_tested.connect(self._on_speed_test_node_tested)
+        self.speed_test_worker.finished.connect(self._on_speed_test_finished)
+        self.speed_test_worker.start()
+
+    def _on_speed_test_node_tested(self, mirror_id: str, latency: int, ok: bool):
+        idx = self.combo_mirror.findData(mirror_id)
+        if idx >= 0:
+            base_m = next((m for m in MIRROR_SOURCES if m["id"] == mirror_id), None)
+            if base_m:
+                clean_name = re.sub(r'\s*\(.*?\)', '', base_m["name"]).strip()
+                if ok:
+                    tag = "极速" if latency <= 600 else "良好" if latency <= 1500 else "较慢"
+                    self.combo_mirror.setItemText(idx, f"{clean_name} ({latency}ms · {tag})")
+                else:
+                    self.combo_mirror.setItemText(idx, f"{clean_name} (连接超时/不可用)")
+
+    def _on_speed_test_finished(self, results: dict, best_id: str):
+        self.mirror_speed_results = results
+        self.best_mirror_id = best_id
+        self.btn_speed_test.setEnabled(True)
+
+        best_info = results.get(best_id, {})
+        best_lat = best_info.get("latency", 0)
+
+        # Update auto option text
+        idx_auto = self.combo_mirror.findData("auto")
+        if idx_auto >= 0:
+            self.combo_mirror.setItemText(idx_auto, f"⚡ 智能测速优选 (已自动优选: {self._get_mirror_name(best_id)} · {best_lat}ms)")
+
+        # Update status message
+        cur_id = self.combo_mirror.currentData()
+        if cur_id == "auto":
+            self.lbl_mirror_status.setText(f"✅ 测速完成！智能优选已锁定最快可用节点: [{self._get_mirror_name(best_id)}] (延迟 {best_lat}ms · 即开即下)")
+        elif cur_id in results and results[cur_id].get("ok"):
+            self.lbl_mirror_status.setText(f"🟢 当前手动指定节点 [{self._get_mirror_name(cur_id)}] 连接正常 (延迟 {results[cur_id]['latency']}ms)")
+        else:
+            self.lbl_mirror_status.setText(f"⚠️ 当前手动指定节点不可用！下载时将自动无缝故障转移至可用节点: [{self._get_mirror_name(best_id)}]")
+
+    def _get_download_candidate_urls(self, download_url: str) -> List[str]:
+        cur_id = self.combo_mirror.currentData()
+        candidates = []
+
+        def make_url(prefix: str) -> str:
+            if not prefix:
+                return download_url
+            return f"{prefix.rstrip('/')}/{download_url.lstrip('/')}"
+
+        # 1. If user explicitly selected a specific mirror (and not auto), put it first
+        if cur_id != "auto":
+            for m in MIRROR_SOURCES:
+                if m["id"] == cur_id and m["id"] != "auto":
+                    candidates.append(make_url(m["prefix"]))
+                    break
+
+        # 2. Add best mirror from speed test
+        best_m = next((m for m in MIRROR_SOURCES if m["id"] == self.best_mirror_id), None)
+        if best_m:
+            url = make_url(best_m["prefix"])
+            if url not in candidates:
+                candidates.append(url)
+
+        # 3. Add other working mirrors sorted by lowest latency
+        tested_ok = [
+            (m_id, data["latency"])
+            for m_id, data in self.mirror_speed_results.items()
+            if data.get("ok") and m_id != cur_id and m_id != self.best_mirror_id
+        ]
+        tested_ok.sort(key=lambda x: x[1])
+        for m_id, _ in tested_ok:
+            m = next((item for item in MIRROR_SOURCES if item["id"] == m_id), None)
+            if m:
+                url = make_url(m["prefix"])
+                if url not in candidates:
+                    candidates.append(url)
+
+        # 4. Add any remaining defined mirrors as fallback
+        for m in MIRROR_SOURCES:
+            if m["id"] != "auto":
+                url = make_url(m["prefix"])
+                if url not in candidates:
+                    candidates.append(url)
+
+        # 5. Always ensure direct GitHub download URL is in the fallback list
+        if download_url not in candidates:
+            candidates.append(download_url)
+
+        return candidates
 
     def _apply_style(self):
         if self.is_dark:
@@ -570,20 +835,21 @@ class AppUpdateDialog(QDialog):
                 border-radius: 8px;
                 padding: 4px 12px;
                 font-size: 13px;
-                font-weight: 600;
             }}
-            QComboBox QAbstractItemView {{
-                background-color: {card_bg};
-                color: {text_color};
-                border: 1px solid {card_border};
-                selection-background-color: {'#374151' if self.is_dark else '#E5E7EB'};
-                selection-color: {text_color};
+            QComboBox:hover {{
+                border-color: {accent_green};
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 25px;
+                border-left-width: 0px;
             }}
             QTextBrowser {{
                 background-color: {card_bg};
                 color: {text_color};
                 border: 1px solid {card_border};
-                border-radius: 10px;
+                border-radius: 8px;
                 padding: 10px;
             }}
             QPushButton {{
@@ -592,7 +858,7 @@ class AppUpdateDialog(QDialog):
                 border: 1px solid {card_border};
                 border-radius: 8px;
                 padding: 6px 14px;
-                font-size: 13px;
+                font-size: 12.5px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
@@ -600,175 +866,156 @@ class AppUpdateDialog(QDialog):
             }}
             QProgressBar {{
                 background-color: {'#374151' if self.is_dark else '#E5E7EB'};
-                border: none;
                 border-radius: 7px;
+                text-align: center;
             }}
             QProgressBar::chunk {{
                 background-color: {accent_green};
                 border-radius: 7px;
             }}
-        """)
-
-        # Highlight primary download button
-        self.btn_download.setStyleSheet(f"""
-            QPushButton {{
+            QPushButton#PrimaryButton {{
                 background-color: {accent_green};
                 color: {btn_text};
                 border: none;
-                border-radius: 8px;
-                padding: 6px 18px;
-                font-size: 13px;
                 font-weight: 700;
             }}
-            QPushButton:hover {{
-                background-color: {'#7ADCA0' if self.is_dark else '#15803D'};
+            QPushButton#PrimaryButton:hover {{
+                background-color: {'#A3F2C2' if self.is_dark else '#15803D'};
             }}
-            QPushButton:disabled {{
+            QPushButton#PrimaryButton:disabled {{
                 background-color: {'#4B5563' if self.is_dark else '#D1D5DB'};
                 color: {'#9CA3AF' if self.is_dark else '#9CA3AF'};
             }}
         """)
 
     def _start_fetch_releases(self):
-        self.badge_status.setText("⏳ 正在获取 GitHub 版本列表...")
         self.btn_refresh.setEnabled(False)
-        self.btn_download.setEnabled(False)
-        self.combo_versions.clear()
-        self.text_notes.setHtml("<p style='color: #888; font-size: 13px;'>正在连接 GitHub 检查版本更新，请稍候...</p>")
+        self.badge_status.setText("⏳ 正在查询 GitHub Releases...")
+        self.badge_status.setStyleSheet("color: #EAB308; background-color: #713F12; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;" if self.is_dark else "color: #D97706; background-color: #FEF3C7; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;")
 
-        self.check_worker = CheckUpdateWorker()
-        self.check_worker.finished.connect(self._on_releases_fetched)
-        self.check_worker.start()
+        self.fetch_worker = CheckUpdateWorker()
+        self.fetch_worker.finished.connect(self._on_releases_fetched)
+        self.fetch_worker.start()
 
     def _on_releases_fetched(self, success: bool, releases: list, err: str):
         self.btn_refresh.setEnabled(True)
         if not success or not releases:
             self.badge_status.setText("❌ 获取失败")
-            if self.is_dark:
-                self.badge_status.setStyleSheet("color: #F87171; background-color: #3B1C1C; padding: 4px 10px; border-radius: 8px;")
-            else:
-                self.badge_status.setStyleSheet("color: #DC2626; background-color: #FEE2E2; padding: 4px 10px; border-radius: 8px;")
-            self.text_notes.setHtml(f"<p style='color: #EF4444;'><b>检查更新失败:</b> {err}</p><p>您可以点击下方按钮直接前往 GitHub 官方 Releases 网页手动下载。</p>")
+            self.badge_status.setStyleSheet("color: #EF4444; background-color: #450A0A; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;" if self.is_dark else "color: #DC2626; background-color: #FEE2E2; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;")
+            self.text_notes.setHtml(f"<p style='color: #EF4444;'><b>获取版本列表失败:</b> {err}</p><p>请检查网络连接或稍后点击『重新检查』。</p>")
             return
 
         self.releases_data = releases
         self.combo_versions.blockSignals(True)
         self.combo_versions.clear()
 
-        curr_tuple = parse_version_tuple(APP_VERSION)
         latest_rel = releases[0]
         latest_tag = latest_rel.get("tag_name", "")
-        latest_tuple = parse_version_tuple(latest_tag)
+        has_new = parse_version_tuple(latest_tag) > parse_version_tuple(APP_VERSION)
 
-        # Populate versions dropdown
-        for idx, rel in enumerate(releases):
-            tag = rel.get("tag_name", "")
-            title = rel.get("name", tag)
-            is_latest = (idx == 0)
-            tag_display = f"{tag} (最新)" if is_latest else tag
-            self.combo_versions.addItem(f"{tag_display} · {title}", rel)
+        if has_new:
+            self.badge_status.setText(f"🎉 发现新版本 ({latest_tag})")
+            self.badge_status.setStyleSheet("color: #FBBF24; background-color: #78350F; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;" if self.is_dark else "color: #B45309; background-color: #FEF3C7; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;")
+        else:
+            self.badge_status.setText(f"🟢 已是最新版本 (v{APP_VERSION})")
+            self.badge_status.setStyleSheet("color: #8FE3B0; background-color: #1E3A2F; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;" if self.is_dark else "color: #16A34A; background-color: #DCFCE7; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;")
+
+        for idx, r in enumerate(releases):
+            tag = r.get("tag_name", "Unknown")
+            name = r.get("name", "")
+            display_text = f"{tag}"
+            if idx == 0:
+                display_text += " (最新)"
+            if name and name != tag:
+                display_text += f" · {name}"
+            self.combo_versions.addItem(display_text, r)
 
         self.combo_versions.blockSignals(False)
 
-        # Determine update status
-        if latest_tuple > curr_tuple:
-            self.badge_status.setText(f"🚀 发现新版本: {latest_tag}")
-            if self.is_dark:
-                self.badge_status.setStyleSheet("color: #60A5FA; background-color: #1E293B; padding: 4px 10px; border-radius: 8px; font-weight: 700;")
-            else:
-                self.badge_status.setStyleSheet("color: #2563EB; background-color: #DBEAFE; padding: 4px 10px; border-radius: 8px; font-weight: 700;")
-            self.btn_download.setText(f"⚡ 立即下载并升级到 {latest_tag}")
-        else:
-            self.badge_status.setText(f"🟢 已是最新版本 ({latest_tag})")
-            if self.is_dark:
-                self.badge_status.setStyleSheet("color: #8FE3B0; background-color: #1E3A2F; padding: 4px 10px; border-radius: 8px; font-weight: 700;")
-            else:
-                self.badge_status.setStyleSheet("color: #16A34A; background-color: #DCFCE7; padding: 4px 10px; border-radius: 8px; font-weight: 700;")
-            self.btn_download.setText(f"🔄 重新下载安装该版本")
-
-        # Select top release
-        self.combo_versions.setCurrentIndex(0)
-        self._on_version_selected(0)
+        # Select top release by default
+        if self.combo_versions.count() > 0:
+            self.combo_versions.setCurrentIndex(0)
+            self._on_version_selected(0)
 
     def _on_version_selected(self, index: int):
         if index < 0 or index >= len(self.releases_data):
             return
 
-        rel = self.releases_data[index]
-        self.selected_release = rel
+        release = self.combo_versions.itemData(index)
+        if not release:
+            return
 
-        tag = rel.get("tag_name", "")
-        published_at = rel.get("published_at", "")[:16].replace("T", " ")
-        self.lbl_rel_date.setText(f"发布时间: <b>{published_at}</b>")
+        self.selected_release = release
+        tag = release.get("tag_name", "")
+        pub_at = release.get("published_at", "")
+        if pub_at:
+            pub_at = pub_at.replace("T", " ").replace("Z", "")
+        self.lbl_rel_date.setText(f"发布时间: <b>{pub_at}</b>")
 
-        # Find executable installer asset
-        assets = rel.get("assets", [])
+        # Find DM-BOX.exe asset
+        assets = release.get("assets", [])
         installer_asset = None
         for a in assets:
-            a_name = a.get("name", "").lower()
-            if a_name.endswith(".exe") and "dm" in a_name:
+            if a.get("name", "").lower().endswith(".exe"):
                 installer_asset = a
                 break
-        if not installer_asset and assets:
-            for a in assets:
-                if a.get("name", "").lower().endswith(".exe"):
-                    installer_asset = a
-                    break
 
         self.selected_asset = installer_asset
         if installer_asset:
-            mb = installer_asset.get("size", 0) / (1024 * 1024)
-            self.lbl_rel_size.setText(f"安装包: <b>{installer_asset.get('name')}</b> ({mb:.2f} MB)")
+            size_mb = installer_asset.get("size", 0) / (1024 * 1024)
+            self.lbl_rel_size.setText(f"安装包: <b>{installer_asset.get('name')}</b> ({size_mb:.2f} MB)")
             self.btn_download.setEnabled(True)
+            if parse_version_tuple(tag) > parse_version_tuple(APP_VERSION):
+                self.btn_download.setText(f"🚀 立即更新到 {tag}")
+            elif parse_version_tuple(tag) == parse_version_tuple(APP_VERSION):
+                self.btn_download.setText(f"🔄 重新下载安装 {tag}")
+            else:
+                self.btn_download.setText(f"⏮️ 回退安装 {tag}")
         else:
-            self.lbl_rel_size.setText("安装包: <i>(未上传安装包资产)</i>")
+            self.lbl_rel_size.setText("安装包: <span style='color: #EF4444;'>未随此版本提供 exe</span>")
             self.btn_download.setEnabled(False)
+            self.btn_download.setText("暂无可用安装程序")
 
         # Render release notes
-        body = rel.get("body", "")
-        html = markdown_to_html(body, self.is_dark)
+        body = release.get("body", "")
+        html = markdown_to_html(body, is_dark=self.is_dark)
         self.text_notes.setHtml(html)
-
-        # Update button text based on selection vs installed
-        rel_tuple = parse_version_tuple(tag)
-        curr_tuple = parse_version_tuple(APP_VERSION)
-        if rel_tuple > curr_tuple:
-            self.btn_download.setText(f"⚡ 立即下载并升级到 {tag}")
-        elif rel_tuple == curr_tuple:
-            self.btn_download.setText(f"🔄 重新下载安装 v{APP_VERSION}")
-        else:
-            self.btn_download.setText(f"⚠️ 下载回退至旧版本 {tag}")
 
     def _start_download(self):
         if not self.selected_asset:
-            ModernDialog.warning(self, "无法下载", "选中的发布版本中未找到可执行安装包 (DM-BOX.exe)。")
+            ModernDialog.warning(self, "无法下载", "当前选中的版本没有可用的安装包资产 (DM-BOX.exe)。")
             return
 
-        download_url = self.selected_asset.get("browser_download_url", "")
+        download_url = self.selected_asset.get("browser_download_url")
         if not download_url:
-            ModernDialog.warning(self, "无法下载", "未获取到下载链接。")
+            ModernDialog.warning(self, "下载失败", "安装包下载链接无效。")
             return
 
-        tag = self.selected_release.get("tag_name", "latest")
-        target_dir = Path(CACHE_ROOT) / "updates"
+        tag = self.selected_release.get("tag_name", "update")
+        target_dir = CACHE_ROOT / "updates"
         target_dir.mkdir(parents=True, exist_ok=True)
         dest_path = str(target_dir / f"DM-BOX-{tag}.exe")
 
         # Switch UI to downloading state
         self.progress_frame.setVisible(True)
         self.bar_download.setValue(0)
-        self.lbl_progress.setText("正在连接下载服务器...")
+        self.lbl_progress.setText("正在连接下载服务器并优选最快节点...")
         self.btn_download.setEnabled(False)
         self.btn_refresh.setEnabled(False)
         self.combo_versions.setEnabled(False)
         self.combo_mirror.setEnabled(False)
+        self.btn_speed_test.setEnabled(False)
         self.btn_close.setText("取消下载")
 
-        mirror_prefix = self._get_active_mirror_prefix()
-        self.download_worker = DownloadInstallerWorker(download_url, dest_path, mirror_prefix=mirror_prefix)
+        candidate_urls = self._get_download_candidate_urls(download_url)
+        self.download_worker = DownloadInstallerWorker(candidate_urls, dest_path)
         self.download_worker.progress.connect(self._on_download_progress)
+        self.download_worker.status_msg.connect(self._on_download_status_msg)
         self.download_worker.finished.connect(self._on_download_finished)
         self.download_worker.start()
+
+    def _on_download_status_msg(self, msg: str):
+        self.lbl_progress.setText(f"<span style='color: #F59E0B;'>{msg}</span>")
 
     def _on_download_progress(self, downloaded: int, total: int, speed: float):
         if total > 0:
@@ -787,11 +1034,16 @@ class AppUpdateDialog(QDialog):
         self.btn_refresh.setEnabled(True)
         self.combo_versions.setEnabled(True)
         self.combo_mirror.setEnabled(True)
+        self.btn_speed_test.setEnabled(True)
         self.btn_close.setText("关闭")
 
         if not success:
+            if err == "用户已取消下载":
+                self.lbl_progress.setText("⏹️ 下载已取消。可随时重新点击『下载安装』。")
+                return
             self.lbl_progress.setText(f"<span style='color: #EF4444;'>下载失败: {err}</span>")
-            ModernDialog.warning(self, "下载失败", f"更新安装包下载中断:\n{err}\n\n建议尝试切换上方不同的『下载加速镜像源』后重试。")
+            warn_msg = f"更新安装包下载中断:\n{err}\n\n建议尝试点击『⚡ 重新测速』或切换不同镜像源后重试。"
+            ModernDialog.warning(self, "下载失败", warn_msg)
             return
 
         self.lbl_progress.setText("✅ 下载完成！校验通过。")
@@ -815,22 +1067,56 @@ class AppUpdateDialog(QDialog):
 
         if confirm:
             try:
-                # Launch installer detached
                 CREATE_NEW_PROCESS_GROUP = 0x00000200
                 DETACHED_PROCESS = 0x00000008
                 creation_flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
                 subprocess.Popen([file_path], creationflags=creation_flags)
-                # Quit current app completely
                 QApplication.quit()
                 sys.exit(0)
             except Exception as e:
                 ModernDialog.warning(self, "启动安装向导失败", f"无法自动启动安装程序:\n{e}\n\n请手动双击运行该文件:\n{file_path}")
 
     def _on_close_clicked(self):
+        # If currently downloading, clicking "取消下载" cancels the download without closing dialog
         if self.download_worker and self.download_worker.isRunning():
+            self.lbl_progress.setText("⏳ 正在取消下载...")
             self.download_worker.cancel()
-            self.download_worker.wait(1500)
+            return
         self.close()
+
+    def closeEvent(self, event):
+        # Disconnect worker signals to prevent C++ deleted object crashes on close
+        if self.download_worker:
+            try:
+                self.download_worker.progress.disconnect()
+            except Exception:
+                pass
+            try:
+                self.download_worker.status_msg.disconnect()
+            except Exception:
+                pass
+            try:
+                self.download_worker.finished.disconnect()
+            except Exception:
+                pass
+            if self.download_worker.isRunning():
+                self.download_worker.cancel()
+                self.download_worker.wait(2500)
+
+        if hasattr(self, "speed_test_worker") and self.speed_test_worker:
+            try:
+                self.speed_test_worker.node_tested.disconnect()
+            except Exception:
+                pass
+            try:
+                self.speed_test_worker.finished.disconnect()
+            except Exception:
+                pass
+            if self.speed_test_worker.isRunning():
+                self.speed_test_worker.cancel()
+                self.speed_test_worker.wait(2500)
+
+        super().closeEvent(event)
 
     def _open_web_releases(self):
         import webbrowser

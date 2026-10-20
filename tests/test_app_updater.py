@@ -12,6 +12,8 @@ from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir))
 
+from PySide6.QtWidgets import QApplication
+qt_app = QApplication.instance() or QApplication(sys.argv)
 from common.version import APP_VERSION, GITHUB_OWNER, GITHUB_REPO, GITHUB_API_RELEASES
 from common.app_updater import (
     parse_version_tuple, markdown_to_html,
@@ -23,13 +25,13 @@ from common.app_updater import (
 class TestAppUpdater(unittest.TestCase):
 
     def test_version_parsing(self):
-        self.assertEqual(parse_version_tuple("v1.2.12"), (1, 2, 12))
+        self.assertEqual(parse_version_tuple("v1.2.13"), (1, 2, 13))
         self.assertEqual(parse_version_tuple("1.2.9"), (1, 2, 9))
         self.assertEqual(parse_version_tuple("v1.2.8.1"), (1, 2, 8, 1))
 
-        self.assertGreater(parse_version_tuple("v1.2.12"), parse_version_tuple("v1.2.9"))
-        self.assertGreater(parse_version_tuple("v1.2.12"), parse_version_tuple("1.2.6"))
-        self.assertEqual(parse_version_tuple(f"v{APP_VERSION}"), (1, 2, 12))
+        self.assertGreater(parse_version_tuple("v1.2.13"), parse_version_tuple("v1.2.9"))
+        self.assertGreater(parse_version_tuple("v1.2.13"), parse_version_tuple("1.2.6"))
+        self.assertEqual(parse_version_tuple(f"v{APP_VERSION}"), (1, 2, 13))
 
     def test_markdown_to_html(self):
         md = "### 核心特性\n- **特性1**: 增强插帧\n`code_block`"
@@ -86,7 +88,7 @@ class TestAppUpdater(unittest.TestCase):
         app = QApplication.instance() or QApplication(sys.argv)
         mock_releases = [
             {
-                "tag_name": "v1.2.12",
+                "tag_name": "v1.2.13",
                 "name": "DM-Toolbox v1.2.10",
                 "published_at": "2026-10-20T11:29:28Z",
                 "body": "## 更新日志\n- 强化检查更新功能",
@@ -103,12 +105,56 @@ class TestAppUpdater(unittest.TestCase):
 
         dlg = AppUpdateDialog(parent=None, is_dark=False, preloaded_releases=mock_releases)
         self.assertEqual(dlg.combo_versions.count(), 1)
-        self.assertEqual(dlg.selected_release["tag_name"], "v1.2.12")
+        self.assertEqual(dlg.selected_release["tag_name"], "v1.2.13")
         self.assertIsNotNone(dlg.selected_asset)
         self.assertEqual(dlg.selected_asset["name"], "DM-BOX.exe")
         self.assertTrue(dlg.btn_download.isEnabled())
+        if dlg.speed_test_worker and dlg.speed_test_worker.isRunning():
+            dlg.speed_test_worker.cancel()
+            dlg.speed_test_worker.wait(3000)
         dlg.close()
+        app.processEvents()
 
+
+
+    def test_mirror_speed_worker(self):
+        """Verify MirrorSpeedTestWorker completes and identifies reachable nodes."""
+        from PySide6.QtWidgets import QApplication
+        from common.app_updater import MirrorSpeedTestWorker, MIRROR_SOURCES
+        app = QApplication.instance() or QApplication(sys.argv)
+        test_url = "https://github.com/Iridescent10-art/DM-Toolbox/releases/download/v1.2.13/DM-BOX.exe"
+        worker = MirrorSpeedTestWorker(MIRROR_SOURCES, test_url)
+        
+        result_holder = []
+        worker.finished.connect(lambda res, best: result_holder.append((res, best)))
+        worker.start()
+        worker.wait(8000)
+        app.processEvents()
+        self.assertEqual(len(result_holder), 1)
+        res, best = result_holder[0]
+        self.assertIn("ghproxy_com", res)
+        self.assertTrue(best in res)
+
+    def test_download_worker_cancellation(self):
+        """Verify DownloadInstallerWorker handles cancellation cleanly without throwing or crashing."""
+        from PySide6.QtWidgets import QApplication
+        from common.app_updater import DownloadInstallerWorker
+        app = QApplication.instance() or QApplication(sys.argv)
+        candidates = ["https://gh-proxy.com/https://github.com/Iridescent10-art/DM-Toolbox/releases/download/v1.2.13/DM-BOX.exe"]
+        dest = str(Path(r"C:\Users\17547\.gemini\antigravity\brain\29b03b65-5c3d-4ff1-854f-8943ec280b56\scratch\test_cancel.tmp"))
+        worker = DownloadInstallerWorker(candidates, dest)
+        
+        fin_holder = []
+        worker.finished.connect(lambda ok, path, err: fin_holder.append((ok, path, err)))
+        worker.start()
+        # Immediately cancel
+        worker.cancel()
+        worker.wait(3000)
+        app.processEvents()
+        self.assertEqual(len(fin_holder), 1)
+        ok, path, err = fin_holder[0]
+        self.assertFalse(ok)
+        self.assertEqual(err, "用户已取消下载")
 
 if __name__ == "__main__":
     unittest.main()
