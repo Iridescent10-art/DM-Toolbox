@@ -677,13 +677,38 @@ class PatchEngine:
             shutil.copy2(src_item, dst_item)
             manifest.created_files.append(item)
 
-        # 3. Deploy D3D12_Optiscaler directory if exists
+        # 3. Deploy OptiScaler subdirectory (OptiScaler 10+ backend libraries) if exists
+        opti_sub = os.path.join(opti_dir, "OptiScaler")
+        if os.path.exists(opti_sub) and os.path.isdir(opti_sub):
+            dst_opti_sub = os.path.join(target_dir, "OptiScaler")
+            if not os.path.exists(dst_opti_sub):
+                shutil.copytree(opti_sub, dst_opti_sub)
+                manifest.created_files.append("OptiScaler")
+            else:
+                for root, dirs, files in os.walk(opti_sub):
+                    rel_path = os.path.relpath(root, opti_sub)
+                    dest_path = os.path.join(dst_opti_sub, rel_path)
+                    os.makedirs(dest_path, exist_ok=True)
+                    for file in files:
+                        shutil.copy2(os.path.join(root, file), os.path.join(dest_path, file))
+
+        # 3.1 Deploy D3D12_Optiscaler directory if exists (legacy 0.9.x structure)
         d3d12_dir = os.path.join(opti_dir, "D3D12_Optiscaler")
         if os.path.exists(d3d12_dir) and os.path.isdir(d3d12_dir):
             dst_d3d12 = os.path.join(target_dir, "D3D12_Optiscaler")
             if not os.path.exists(dst_d3d12):
                 shutil.copytree(d3d12_dir, dst_d3d12)
                 manifest.created_files.append("D3D12_Optiscaler")
+
+        # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin for XeMFG multi-frame unlock
+        mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
+        if mfg_dll_path and os.path.exists(mfg_dll_path):
+            plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
+            os.makedirs(plugins_dir, exist_ok=True)
+            dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
+            shutil.copy2(mfg_dll_path, dst_asi)
+            if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
+                manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
 
         # 4. Write the ONE legal config file (OptiScaler.ini) and delete the legacy alias.
         #    v0.9.4 shows a red banner while nvngx.ini exists, and reads FG init keys at

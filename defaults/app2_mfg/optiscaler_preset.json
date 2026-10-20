@@ -5,7 +5,7 @@
   "dx12_upscaler": "auto",
   "rcas_enabled": false,
   "rcas_sharpness": 0.0,
-  "dlss_preset": "Default",
+  "dlss_preset": "K",
   "menu_key": "Insert",
   "menu_scale": 2.0
 }

@@ -889,7 +889,7 @@ class OptiScalerPresetDialog(QDialog):
                 self.preset_b.update(disk_b)
             disk_c = IniConfigManager.read_mode_c_reverse(self.game.target_dir)
             if disk_c:
-                if disk_c.get("dx12_upscaler") == "xess" and not self.preset_c.get("user_customized_upscaler", False):
+                if disk_c.get("dx12_upscaler") in ("xess", "dlss") and not self.preset_c.get("user_customized_upscaler", False):
                     disk_c["dx12_upscaler"] = "auto"
                 self.preset_c.update(disk_c)
             else:
@@ -1656,7 +1656,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_c_preset.addItem("Default (不覆盖 · 完美保留 NVIDIA 驱动注入的 M/K 模型或游戏默认)", "Default")
         self.combo_c_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_c_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
-        self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定 · 推荐)", "K")
+        self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
         self.combo_c_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 植被与铁丝网细节强化)", "J")
         self.combo_c_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
         self.combo_c_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
@@ -1957,14 +1957,15 @@ class OptiScalerPresetDialog(QDialog):
         else:
             self.combo_upscaler.setCurrentIndex(0)
 
-        c_preset = str(self.preset_c.get("dlss_preset", "Default"))
-        if str(c_preset).strip() in ("0", "", "none", "None", "default", "Default"):
-            c_preset = "Default"
+        c_preset = str(self.preset_c.get("dlss_preset", "K"))
+        if str(c_preset).strip() in ("0", "", "none", "None"):
+            c_preset = "K"
         idx_cp = self.combo_c_preset.findData(c_preset)
         if idx_cp >= 0:
             self.combo_c_preset.setCurrentIndex(idx_cp)
         else:
-            self.combo_c_preset.setCurrentIndex(0)
+            idx_k = self.combo_c_preset.findData("K")
+            self.combo_c_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
 
         c_key = str(self.preset_c.get("menu_key", "Insert"))
         idx_ck = self.combo_c_key.findData(c_key)
@@ -3455,6 +3456,17 @@ class ModernMFGGUI(QMainWindow):
         h_mirror.addWidget(self.combo_mirror)
         c4.addLayout(h_mirror)
 
+        h_channel = QHBoxLayout()
+        lbl_channel = QLabel("Opti通道:")
+        h_channel.addWidget(lbl_channel)
+        self.combo_opti_channel = QComboBox()
+        self.combo_opti_channel.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_opti_channel.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.combo_opti_channel.addItem("🔥 Nightly 预览版 (推荐 · Opti 10 / XeMFG多帧)", "nightly")
+        self.combo_opti_channel.addItem("🛡️ Stable 稳定版 (官方传统 v0.9.4)", "stable")
+        h_channel.addWidget(self.combo_opti_channel)
+        c4.addLayout(h_channel)
+
         self.lbl_cache_summary = QLabel("本地缓存: 正在读取...")
         self.lbl_cache_summary.setStyleSheet("font-size: 11px; color: #64748b;")
         self.lbl_cache_summary.setWordWrap(True)
@@ -4307,7 +4319,7 @@ class ModernMFGGUI(QMainWindow):
             cur_preset = load_optiscaler_preset()
             diff_c = {k: v for k, v in mode_c_data.items() if cur_preset.get(k) != v}
             # 防止单个旧游戏的局部反向同步将全局默认超分错误污染为 "xess"
-            if "dx12_upscaler" in diff_c and diff_c["dx12_upscaler"] == "xess" and not cur_preset.get("user_customized_upscaler", False):
+            if "dx12_upscaler" in diff_c and diff_c["dx12_upscaler"] in ("xess", "dlss") and not cur_preset.get("user_customized_upscaler", False):
                 diff_c.pop("dx12_upscaler", None)
             if diff_c:
                 cur_preset.update(diff_c)
@@ -5071,13 +5083,15 @@ class ModernMFGGUI(QMainWindow):
                 (BackendType.RESHADE_ADDON, "ReShade Addon (mavismmg)", 33, 66),
                 (BackendType.OPTISCALER_FSR, "OptiScaler / FSR 3.1", 66, 100)
             ]
+            opti_channel = self.combo_opti_channel.currentData() if hasattr(self, "combo_opti_channel") else "nightly"
             for b, name, base_pct, end_pct in backends:
                 self.signals.progress_updated.emit(
                     base_pct,
                     f"正在检查 {name} 最新版本...",
                     "查询云端 Release 资产"
                 )
-                ok, rel, err = self.updater.fetch_latest_release_info(b, mirror_prefix)
+                channel_arg = opti_channel if b == BackendType.OPTISCALER_FSR else None
+                ok, rel, err = self.updater.fetch_latest_release_info(b, mirror_prefix, channel=channel_arg)
                 if ok:
                     tag = rel.get("tag_name", "最新版")
                     def item_dl_progress(downloaded, total, b_pct=base_pct, e_pct=end_pct, b_name=name):

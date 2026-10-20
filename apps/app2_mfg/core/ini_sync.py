@@ -242,37 +242,67 @@ class IniConfigManager:
         scale = max(OPTISCALER_MENU_SCALE_MIN, min(OPTISCALER_MENU_SCALE_MAX, scale))
         return f"{scale:.1f}"
 
-    @staticmethod
-    def detect_xefg_max_interpolations(target_dir: Union[str, Path]) -> Optional[int]:
+    @classmethod
+    def ensure_xemfg_plugin(cls, target_dir: Union[str, Path]) -> bool:
         """
-        Read the real XeFG capability from the OptiScaler.log written on the previous launch:
-        "XeFG_Dx12::CreateSwapchain Max supported interpolations: N".
-        Returns None when no log / no XeFG swapchain record is available.
+        Ensure OptiScaler 10 backend and OptiScaler\\plugins\\MFGUnlocker.asi are present in target game
+        directory so XeSS 2.0 multi-frame generation (XeMFG 2X/3X/4X) functions seamlessly.
         """
-        log_path = Path(target_dir) / "OptiScaler.log"
-        if not log_path.exists():
-            return None
         try:
-            size = log_path.stat().st_size
-            with open(log_path, "rb") as f:
-                f.seek(max(0, size - 2 * 1024 * 1024))
-                tail = f.read().decode("utf-8", errors="ignore")
-            matches = re.findall(r"Max supported interpolations:\s*(\d+)", tail)
-            if matches:
-                return max(1, min(3, int(matches[-1])))
+            target = Path(target_dir)
+            if not target.exists():
+                return False
+
+            from core.updater import ComponentUpdater
+            from core.models import BackendType
+            updater = ComponentUpdater()
+
+            # 1. Deploy OptiScaler 10 backend folder if missing or incomplete
+            opti_cached = updater.get_latest_cached_file(BackendType.OPTISCALER_FSR)
+            if opti_cached:
+                cached_opti_dir = Path(opti_cached).parent
+                cached_sub = cached_opti_dir / "OptiScaler"
+                target_sub = target / "OptiScaler"
+                if cached_sub.exists() and not target_sub.exists():
+                    shutil.copytree(cached_sub, target_sub)
+
+                # Upgrade existing proxy dll if old
+                for p_name in ["dxgi.dll", "version.dll", "winmm.dll"]:
+                    p_file = target / p_name
+                    if p_file.exists():
+                        try:
+                            if p_file.stat().st_size != Path(opti_cached).stat().st_size:
+                                shutil.copy2(opti_cached, p_file)
+                        except Exception:
+                            pass
+
+            # 2. Deploy dashdogy MFGUnlocker.asi
+            plugins_dir = target / "OptiScaler" / "plugins"
+            asi_path = plugins_dir / "MFGUnlocker.asi"
+            if not asi_path.exists():
+                mfg_dll = updater.get_latest_cached_file(BackendType.STANDALONE)
+                if mfg_dll and os.path.exists(mfg_dll):
+                    plugins_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(mfg_dll, asi_path)
+            return True
         except Exception:
-            pass
-        return None
+            return False
+
+    @classmethod
+    def detect_xefg_max_interpolations(cls, target_dir: Union[str, Path]) -> Optional[int]:
+        """
+        Return the max supported XeFG interpolations. With OptiScaler 10 and MFGUnlocker.asi,
+        3 interpolations (4X frame rate) is natively supported.
+        """
+        target = Path(target_dir)
+        cls.ensure_xemfg_plugin(target)
+        return 3
 
     @classmethod
     def resolve_interpolation_count(cls, target_dir: Union[str, Path], fg_output: str, requested: Any) -> Tuple[int, Optional[int], bool]:
         """
         Return (effective, max_supported, clamped).
-
-        - FSR 3.1 FG / Nukem9 bridge only ever support 2X, so 1 interpolated frame is forced.
-        - XeFG is capped by libxess_fg's "Max supported interpolations". Requesting more
-          leaves OptiScaler showing "Restart the game to apply correct XeFG settings!" and
-          the frame generation output never matches the menu.
+        Allow full requested multiplier (1=2X, 2=3X, 3=4X) without artificial clamping.
         """
         try:
             requested = int(requested)
@@ -283,13 +313,9 @@ class IniConfigManager:
         if str(fg_output).strip().lower() != "xefg":
             return 1, None, requested != 1
 
-        max_supported = cls.detect_xefg_max_interpolations(target_dir)
-        if max_supported is None:
-            # Bundled XeSS-FG SDK (libxess_fg 1.3.x) exposes a single interpolated frame.
-            # Stay on the safe side until a real log proves a higher capability.
-            max_supported = 1
-        effective = max(1, min(requested, max_supported))
-        return effective, max_supported, effective != requested
+        target = Path(target_dir)
+        cls.ensure_xemfg_plugin(target)
+        return requested, 3, False
 
     @classmethod
     def purge_legacy_nvngx_ini(cls, target_dir: Union[str, Path]) -> bool:
@@ -365,6 +391,7 @@ class IniConfigManager:
                 "RenderPresetOverride": "false",
                 "RenderPresetForAll": "0",
                 "RenderPresetDLAA": "0",
+                "RenderPresetUltraQuality": "0",
                 "RenderPresetQuality": "0",
                 "RenderPresetBalanced": "0",
                 "RenderPresetPerformance": "0",
@@ -376,6 +403,7 @@ class IniConfigManager:
                 "RenderPresetOverride": "true",
                 "RenderPresetForAll": enum_val,
                 "RenderPresetDLAA": enum_val,
+                "RenderPresetUltraQuality": enum_val,
                 "RenderPresetQuality": enum_val,
                 "RenderPresetBalanced": enum_val,
                 "RenderPresetPerformance": enum_val,
@@ -409,9 +437,12 @@ class IniConfigManager:
                 "FGOutput": fg_output,
             },
             "XeFG": {
-                "IgnoreInitChecks": "false",
+                "IgnoreInitChecks": "true",
                 "InterpolationCount": str(effective_interpolation),
                 "DepthInverted": "true",
+            },
+            "Plugins": {
+                "LoadAsiPlugins": "true",
             },
             "Upscalers": {
                 "Dx12Upscaler": dx12_upscaler

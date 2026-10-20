@@ -12,15 +12,21 @@ from typing import Dict, Any, Optional, List, Tuple
 from core.models import BackendType
 from core.utils import http_get_json, download_file, calculate_sha256, get_app_cache_dir
 
+OPTISCALER_CHANNELS = {
+    "nightly": "https://api.github.com/repos/optiscaler/OptiScaler-nightly/releases?per_page=1",
+    "stable": "https://api.github.com/repos/optiscaler/OptiScaler/releases/latest"
+}
+
 UPSTREAM_REPOS = {
     BackendType.STANDALONE: [
-        "https://api.github.com/repos/dashdogy/RTX40MFG-Unlock/releases/latest",
-        "https://api.github.com/repos/dashdogy/MFG-Unlocker/releases/latest"
+        "https://api.github.com/repos/dashdogy/MFG-Unlocker/releases/latest",
+        "https://api.github.com/repos/dashdogy/RTX40MFG-Unlock/releases/latest"
     ],
     BackendType.RESHADE_ADDON: [
         "https://api.github.com/repos/mavismmg/MFGAdaUnlock-RenoDx/releases/latest"
     ],
     BackendType.OPTISCALER_FSR: [
+        "https://api.github.com/repos/optiscaler/OptiScaler-nightly/releases?per_page=1",
         "https://api.github.com/repos/optiscaler/OptiScaler/releases/latest"
     ]
 }
@@ -299,15 +305,21 @@ class ComponentUpdater:
         with open(self.versions_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    def fetch_latest_release_info(self, backend: BackendType, mirror_prefix: Optional[str] = None) -> Tuple[bool, Dict[str, Any], str]:
+    def fetch_latest_release_info(self, backend: BackendType, mirror_prefix: Optional[str] = None, channel: Optional[str] = None) -> Tuple[bool, Dict[str, Any], str]:
         """Fetch latest GitHub release metadata (always direct API call)."""
         urls = UPSTREAM_REPOS.get(backend, [])
+        if (backend == BackendType.OPTISCALER_FSR or str(backend) == BackendType.OPTISCALER_FSR.value) and channel:
+            if channel in OPTISCALER_CHANNELS:
+                urls = [OPTISCALER_CHANNELS[channel]]
         last_error = ""
         for url in urls:
             # GitHub API should be called directly, mirror is for asset downloads
             ok, data, err = http_get_json(url, timeout=12, mirror_prefix=None)
-            if ok and data and "tag_name" in data:
-                return True, data, ""
+            if ok and data:
+                if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict) and "tag_name" in data[0]:
+                    return True, data[0], ""
+                elif isinstance(data, dict) and "tag_name" in data:
+                    return True, data, ""
             last_error = err or "Invalid response"
         return False, {}, last_error
 

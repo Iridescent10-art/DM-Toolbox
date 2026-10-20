@@ -19,17 +19,6 @@
       }
     }
   },
-  "optiscaler": {
-    "latest_tag": "v0.9.4",
-    "cached_versions": {
-      "v0.9.4": {
-        "file": "OptiScaler.dll",
-        "path": "",
-        "dir": "",
-        "sha256": "fbfb6676b829dad7e020fb830586a16aa0ec6add78016db48ef12e2ae1803231"
-      }
-    }
-  },
   "reshade": {
     "latest_tag": "6.8.0",
     "cached_versions": {

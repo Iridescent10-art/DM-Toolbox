@@ -34,6 +34,20 @@ def step1_compile_native_launcher():
 using System.IO;
 using System.Diagnostics;
 using System.Windows.Forms;
+using System.Reflection;
+using System.Runtime.InteropServices;
+
+[assembly: AssemblyTitle("DM-Toolbox")]
+[assembly: AssemblyDescription("DM工具箱 - 一站式全能硬件深度定制与游戏优化综合工具箱")]
+[assembly: AssemblyConfiguration("")]
+[assembly: AssemblyCompany("DM Studio")]
+[assembly: AssemblyProduct("DM-Toolbox")]
+[assembly: AssemblyCopyright("Copyright (C) 2026 DM Studio. All rights reserved.")]
+[assembly: AssemblyTrademark("DM-Toolbox")]
+[assembly: AssemblyCulture("")]
+[assembly: ComVisible(false)]
+[assembly: AssemblyVersion("1.2.8.0")]
+[assembly: AssemblyFileVersion("1.2.8.0")]
 
 namespace DMBOX
 {
@@ -231,11 +245,17 @@ def step4_build_inno_installer():
     iss_content = f"""[Setup]
 ; 基本应用信息
 AppName=DM工具箱
-AppVersion=1.2.7
+AppVersion=1.2.8
 AppPublisher=DM Studio
-AppPublisherURL=https://github.com/
-AppSupportURL=https://github.com/
-AppUpdatesURL=https://github.com/
+AppPublisherURL=https://github.com/Iridescent10-art/DM-Toolbox
+AppSupportURL=https://github.com/Iridescent10-art/DM-Toolbox
+AppUpdatesURL=https://github.com/Iridescent10-art/DM-Toolbox/releases
+VersionInfoVersion=1.2.8.0
+VersionInfoCompany=DM Studio
+VersionInfoDescription=DM工具箱 安装向导
+VersionInfoProductName=DM工具箱
+VersionInfoProductVersion=1.2.8.0
+VersionInfoCopyright=Copyright (C) 2026 DM Studio
 DefaultDirName={{autopf}}\\DMBOX
 DefaultGroupName=DM工具箱
 AllowNoIcons=yes

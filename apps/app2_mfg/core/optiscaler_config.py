@@ -24,7 +24,7 @@ DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
     "dx12_upscaler": "auto",     # "auto", "xess", "dlss", "fsr31"
     "rcas_enabled": False,
     "rcas_sharpness": 0.0,
-    "dlss_preset": "Default",
+    "dlss_preset": "K",
     "menu_key": "Insert",        # "Insert", "Backspace", "Home", "F11", "End"
     "menu_scale": 2.0            # In-game ImGui menu scale: 1.0 / 1.5 / 2.0 (4K default)
 }
@@ -66,6 +66,17 @@ def load_mode_a_preset() -> Dict[str, Any]:
                     preset.update(data)
         except Exception:
             pass
+    # 兼容性修复与默认 DLSS 预设升级：
+    # 默认采用稳定锐利且杜绝重影抖动的 DLSS 4 Transformer 模型 Preset K
+    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = "K"
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
     return preset
 
 def save_mode_a_preset(preset: Dict[str, Any]) -> bool:
@@ -110,7 +121,7 @@ def load_optiscaler_preset() -> Dict[str, Any]:
     # 兼容性修复与默认超分保护：
     # 若配置中 dx12_upscaler 为旧版本残留的默认值 "xess"，且未被用户显式主动修改，
     # 强制重置为官方规范默认值 "auto" (自动继承游戏内超分)，防止首次打开/安装时错误回退到 XeSS
-    if preset.get("dx12_upscaler") == "xess" and not preset.get("user_customized_upscaler", False):
+    if preset.get("dx12_upscaler") in ("xess", "dlss") and not preset.get("user_customized_upscaler", False):
         preset["dx12_upscaler"] = "auto"
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
@@ -125,6 +136,17 @@ def load_optiscaler_preset() -> Dict[str, Any]:
     if not preset.get("user_customized_rcas", False) and preset.get("rcas_enabled") is True and round(float(preset.get("rcas_sharpness", 0.0)), 2) == 0.40:
         preset["rcas_enabled"] = False
         preset["rcas_sharpness"] = 0.0
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    # 兼容性修复与默认 DLSS 预设升级：
+    # 默认采用稳定锐利且杜绝重影抖动的 DLSS 4 Transformer 模型 Preset K
+    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = "K"
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cfg_file, "w", encoding="utf-8") as f:
@@ -206,6 +228,17 @@ def load_reshade_preset() -> Dict[str, Any]:
                     preset.update(data)
         except Exception:
             pass
+    # 兼容性修复与默认 DLSS 预设升级：
+    # 默认采用稳定锐利且杜绝重影抖动的 DLSS 4 Transformer 模型 Preset K
+    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = "K"
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
     return preset
 
 def save_reshade_preset(preset: Dict[str, Any]) -> bool:
