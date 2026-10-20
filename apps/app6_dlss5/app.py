@@ -201,7 +201,7 @@ class DLSS5Window(DMBaseWindow):
         self.banner_title.setStyleSheet("font-size: 18px; font-weight: 800;")
         t_row.addWidget(self.banner_title)
 
-        self.badge_ver = QLabel("v1.0.0 · 智能避让版")
+        self.badge_ver = QLabel("v1.0.0 · 智能共存版")
         self.badge_ver.setStyleSheet("""
             background-color: #10B981;
             color: #FFFFFF;
@@ -227,7 +227,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.banner_desc = QLabel(
             "集成最新 lecram DLSS 5 神经网络重建插件 (DLSS 5 NR Addon)，"
-            "为支持 DLSS 的游戏注入下一代神经网络画质引擎，内建 ReShade/RHI 运行底座，并与多帧生成补丁智能避让共存。"
+            "为支持 DLSS 的游戏注入下一代神经网络画质引擎，内建 ReShade/RHI 运行底座，并与多帧生成补丁 (RHI / OptiScaler) 智能避让与链式共存。"
         )
         self.banner_desc.setWordWrap(True)
         b_text_box.addWidget(self.banner_desc)
@@ -399,10 +399,10 @@ class DLSS5Window(DMBaseWindow):
         tips_text = (
             "<b>1. 游戏内热键与调校</b>：<br>"
             "启动游戏后，在游戏画面中按键盘 <code>【Home】</code> 键即可唤出 ReShade 叠加控制台。在 <code>【Add-ons】</code> 标签页中可查看已挂载的 <b>lecram-dlss5-beta10</b> 神经重构插件及其运行状态。<br><br>"
-            "<b>2. 多帧生成 (插帧) 避让共存机制</b>：<br>"
-            "• DLSS 5 插件与多帧生成补丁 (RenoDX / OptiScaler) 均依托底层 <code>dxgi.dll</code> (ReShade 64-bit Add-on 宿主) 运行。<br>"
-            "• 若目标游戏已通过「应用2：DLSS多帧生成补丁」完成注入，本程序会自动激活<b>【插帧避让】</b>，跳过底座部署，直接将 DLSS 5 并联挂载至现有 <code>ReShade.ini</code>，两套插件在同一进程中协同工作，零冲突、免二次安装。<br>"
-            "• 还原时同样具备防误删保护：仅移除 DLSS 5 插件，完整保留多帧生成环境。<br><br>"
+            "<b>2. 多帧生成 (插帧) 避让与共存机制</b>：<br>"
+            "• <b>RHI 插帧 (RenoDX) 避让机制</b>：若目标游戏已注入 RHI 插帧 (RenoDX Add-on)，其底层本身已是 ReShade 64-bit 宿主。本工具严格遵循<b>【RHI 插帧免重装避让】</b>准则，绝不覆盖或重复安装底座，仅将 DLSS 5 并联挂载至现有 <code>ReShade.ini</code>，两套插件零冲突协同运行。<br>"
+            "• <b>OptiScaler 插帧共存机制</b>：若目标游戏已注入 OptiScaler 跨卡插帧，本工具采用<b>【链式协同共存】</b>方案：在游戏根目录部署 <code>ReShade64.dll</code> 并在 <code>OptiScaler.ini</code> 中开启 <code>LoadReshade = true</code>，使 OptiScaler 自动链式唤起 ReShade 与 DLSS 5 插件，达成<b>【OptiScaler 多倍插帧 + DLSS 5 神经重构】</b>双引擎完美共存！<br>"
+            "• <b>无损还原保护</b>：卸载还原时智能识别模组归属，仅移除 DLSS 5 插件，完整保留任何已存在的多帧生成环境与配置文件。<br><br>"
             "<b>3. 联动与 RHI 生态支持</b>：<br>"
             "• 本工具与「应用2：DLSS多帧生成补丁」共享游戏扫描数据与最近游戏历史，无须反复耗时全盘扫描。<br>"
             "• 支持直接一键物理部署 ReShade 6.8 底座，或拉起 RHI 安装器直达助手（自动将游戏路径写入剪贴板，秒速定位）。"
@@ -588,7 +588,7 @@ class DLSS5Window(DMBaseWindow):
             self.btn_inject.setEnabled(False)
             self.btn_restore.setEnabled(False)
             self.btn_inject_base.setEnabled(False)
-            self.update_alert_box(False, "未选择游戏")
+            self.update_alert_box("default", "未选择游戏")
             return
 
         target_dir = self.current_game_info["target_dir"]
@@ -622,15 +622,38 @@ class DLSS5Window(DMBaseWindow):
         self.btn_inject_base.setEnabled(True)
 
         # 2. Frame Generation Block
-        if fg_info["has_fg"]:
-            self.block_fg.set_status("🟢 已检测到插帧补丁", c_green, fg_info["summary"])
-            self.btn_inject_base.setText("🛡️ ReShade 底座已由多帧生成托管")
+        if fg_info["is_rhi_fg"]:
+            self.block_fg.set_status("🟢 RHI RenoDX 插帧", c_green, "ReShade Addon (免重装底座)")
+            self.btn_inject_base.setText("🛡️ ReShade 底座已由 RHI 插帧提供 (免重装)")
+            self.btn_inject_base.setToolTip("当前游戏已由 RHI RenoDX 插帧提供 ReShade 核心底座，无需重复安装")
+        elif fg_info["is_optiscaler_fg"]:
+            self.block_fg.set_status("🟢 OptiScaler 跨卡插帧", c_green, "FSR 3.1 FG (支持链式共存)")
+            if status["has_reshade64"] and status.get("opti_reshade_enabled"):
+                self.btn_inject_base.setText("🟢 ReShade64 链式底座已就绪 (与 OptiScaler 共存)")
+                self.btn_inject_base.setToolTip("已成功部署 ReShade64.dll 且 OptiScaler.ini 已开启 LoadReshade=true")
+            else:
+                self.btn_inject_base.setText("🔗 部署 ReShade64 链式底座 (与 OptiScaler 共存)")
+                self.btn_inject_base.setToolTip("为当前 OptiScaler 游戏部署 ReShade64.dll 并开启 OptiScaler.ini 链式唤起")
+        elif fg_info["is_dashdog_fg"]:
+            self.block_fg.set_status("🟢 Dashdog 独立插帧", c_green, "独立代理 (无冲突共存)")
+            self.btn_inject_base.setText("🛠️ 一键物理注入 ReShade / RHI 底座")
+            self.btn_inject_base.setToolTip("直接为游戏物理注入 ReShade 6.8 核心底座 (dxgi.dll) 与基础配置")
         else:
             self.block_fg.set_status("⚪ 未检测到插帧", c_gray, "标准模式")
             self.btn_inject_base.setText("🛠️ 一键物理注入 ReShade / RHI 底座")
+            self.btn_inject_base.setToolTip("直接为游戏物理注入 ReShade 6.8 核心底座 (dxgi.dll) 与基础配置")
 
         # 3. ReShade / RHI Block
-        if status["is_addon_supported"]:
+        if fg_info["is_optiscaler_fg"]:
+            if status["has_reshade64"] and status.get("opti_reshade_enabled"):
+                self.block_reshade.set_status("🟢 ReShade64 链式就绪", c_green, "OptiScaler LoadReshade=true")
+            elif status["has_reshade64"]:
+                self.block_reshade.set_status("🟡 链式开关待激活", c_yellow, "需在 OptiScaler.ini 开启 LoadReshade")
+            else:
+                self.block_reshade.set_status("⚪ 待部署 ReShade64", c_gray, "点击下方按钮或一键注入即可部署")
+        elif fg_info["is_rhi_fg"]:
+            self.block_reshade.set_status("🟢 RHI 底座托管中", c_green, "ReShade 64-bit Full Addon (免重装)")
+        elif status["is_addon_supported"]:
             self.block_reshade.set_status("🟢 底座就绪", c_green, "ReShade 64-bit Full Addon")
         elif status["is_reshade"]:
             self.block_reshade.set_status("🟡 标准 ReShade 底座", c_yellow, "无插件扩展，注入时将补齐")
@@ -639,29 +662,52 @@ class DLSS5Window(DMBaseWindow):
         else:
             self.block_reshade.set_status("⚪ 缺失底座", c_gray, "注入 DLSS 5 时全自动补全")
 
-        # 4. Avoidance Block
-        if fg_info["has_fg"]:
-            self.block_avoidance.set_status("🛡️ 避让已激活", c_blue, "自动共用插帧底座，免冲突")
+        # 4. Avoidance / Coexistence Block
+        if fg_info["is_rhi_fg"]:
+            self.block_avoidance.set_status("🛡️ RHI 避让生效", c_blue, "共用现有 ReShade 底座，免重复安装")
             self.update_alert_box(
-                True,
-                f"🛡️【多帧生成避让已激活】：检测到游戏已启用多帧生成 ({fg_info['summary']})。"
-                "DLSS 5 注入时将自动复用现有宿主底座，绝不覆盖已有插帧文件，实现零冲突双插件共存！"
+                "rhi",
+                "【RHI 插帧底座避让生效】：检测到游戏已注入 RHI (RenoDX) 插帧。ReShade 底座已由 RHI 完备提供，"
+                "程序已自动跳过底座安装，直接将 DLSS 5 并联挂载，免重复安装且两套模组零冲突并存！"
+            )
+        elif fg_info["is_optiscaler_fg"]:
+            self.block_avoidance.set_status("🟢 链式共存模式", c_green, "OptiScaler 插帧 + DLSS 5 协同运行")
+            self.update_alert_box(
+                "optiscaler",
+                "【OptiScaler 链式共存模式】：检测到游戏已注入 OptiScaler 跨卡插帧。本工具通过部署 ReShade64.dll 并配置 "
+                "OptiScaler 链式唤起，实现【OptiScaler 多倍插帧 + DLSS 5 神经重构】双引擎协同共存！"
+            )
+        elif fg_info["is_dashdog_fg"]:
+            self.block_avoidance.set_status("🟢 独立共存模式", c_green, "Dashdog 插帧 + DLSS 5 协同运行")
+            self.update_alert_box(
+                "dashdog",
+                "【Dashdog 独立共存模式】：检测到当前游戏已注入 Dashdog 多帧生成补丁，支持与 ReShade/DLSS 5 协同并存运行。"
             )
         else:
             self.block_avoidance.set_status("⚪ 独立底座模式", c_gray, "独占 ReShade 6.8 底座")
             self.update_alert_box(
-                False,
-                "💡【独立底座模式】：当前游戏未注入多帧生成补丁，注入 DLSS 5 时将自动部署 ReShade 6.8 核心宿主底座与默认配置文件。"
+                "default",
+                "【标准独立底座模式】：当前游戏未注入多帧生成补丁，注入 DLSS 5 时将自动部署 ReShade 6.8 核心宿主底座与默认配置文件。"
             )
 
-    def update_alert_box(self, is_avoidance: bool, text: str):
+    def update_alert_box(self, mode: str, text: str):
         is_dark = getattr(self, "is_dark_mode", False)
         self.lbl_alert_text.setText(text)
-        if is_avoidance:
+        if mode in ["rhi", "shield"]:
             self.lbl_alert_icon.setText("🛡️")
             bg = "#1B2A32" if is_dark else "#F0F9FF"
             border = "#0284C7" if is_dark else "#BAE6FD"
             txt_color = "#38BDF8" if is_dark else "#0369A1"
+        elif mode in ["optiscaler", "green"]:
+            self.lbl_alert_icon.setText("🟢")
+            bg = "#14291E" if is_dark else "#F0FDF4"
+            border = "#10B981" if is_dark else "#BBF7D0"
+            txt_color = "#4ADE80" if is_dark else "#15803D"
+        elif mode in ["dashdog"]:
+            self.lbl_alert_icon.setText("🚀")
+            bg = "#231B32" if is_dark else "#FAF5FF"
+            border = "#8B5CF6" if is_dark else "#DDD6FE"
+            txt_color = "#A78BFA" if is_dark else "#6D28D9"
         else:
             self.lbl_alert_icon.setText("💡")
             bg = "#232426" if is_dark else "#F8FAFC"

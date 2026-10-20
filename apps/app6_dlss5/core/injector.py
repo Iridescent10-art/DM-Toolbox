@@ -121,49 +121,182 @@ def find_rhi_setup_exe() -> Optional[str]:
 
 def detect_frame_generation(target_dir: str) -> Dict[str, Any]:
     """
-    Detects whether Frame Generation (App 2) is already injected into the target directory.
-    Checks:
-    1. .mfg_patch_manifest.json (App 2 patch manifest)
-    2. renodx-mfgunlock.addon64 (Mode B RenoDX ReShade addon)
-    3. MFGUnlocker.dll (Mode A Dashdogy unlocker)
-    4. OptiScaler.dll or OptiScaler/ directory (Mode C OptiScaler)
+    Detects whether Frame Generation (App 2) is injected into the target directory.
+    Categorizes into:
+    1. is_rhi_fg: Mode B RenoDX ReShade addon (renodx-mfgunlock.addon64).
+       -> ReShade is ALREADY installed! Strictly avoids reinstalling ReShade base.
+    2. is_optiscaler_fg: Mode C OptiScaler (OptiScaler.dll, OptiScaler/, OptiScaler.ini).
+       -> OptiScaler and ReShade/DLSS 5 CO-EXIST via chain loader (LoadReshade=true + ReShade64.dll).
+    3. is_dashdog_fg: Mode A Dashdog MFGUnlocker.
+       -> Uses version.dll/winmm.dll, co-exists with dxgi.dll ReShade.
     """
     td = Path(target_dir)
-    has_mfg_manifest = (td / ".mfg_patch_manifest.json").exists()
-    has_renodx = (td / "renodx-mfgunlock.addon64").exists()
-    has_dashdog = (td / "MFGUnlocker.dll").exists()
-    has_optiscaler = (td / "OptiScaler.dll").exists() or (td / "OptiScaler").is_dir()
+    manifest_file = td / ".mfg_patch_manifest.json"
+    manifest_backend = None
+    if manifest_file.exists():
+        try:
+            with open(manifest_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                manifest_backend = data.get("active_backend") or data.get("backend")
+        except Exception:
+            manifest_backend = None
 
-    is_active = has_mfg_manifest or has_renodx or has_dashdog or has_optiscaler
+    has_renodx = (td / "renodx-mfgunlock.addon64").exists()
+    has_optiscaler = (
+        (td / "OptiScaler.dll").exists() or
+        (td / "OptiScaler").is_dir() or
+        (td / "OptiScaler.ini").exists() or
+        (td / "nvngx.ini").exists()
+    )
+    has_dashdog = (
+        (td / "MFGUnlocker.dll").exists() or
+        (td / "RTXMFG-UI.ini").exists() or
+        (td / "mfg_unlocker.ini").exists()
+    )
+
+    is_rhi_fg = has_renodx or manifest_backend in ["reshade_addon", "renodx"]
+    is_optiscaler_fg = has_optiscaler or manifest_backend in ["optiscaler", "optiscaler_fsr"]
+    is_dashdog_fg = has_dashdog or manifest_backend in ["standalone", "dashdogy"]
+
+    has_fg = is_rhi_fg or is_optiscaler_fg or is_dashdog_fg or manifest_file.exists()
+
     details = []
-    if has_renodx:
-        details.append("RenoDX 插帧插件 (renodx-mfgunlock.addon64)")
-    if has_dashdog:
-        details.append("Dashdog MFGUnlocker 驱动")
-    if has_optiscaler:
-        details.append("OptiScaler 跨架构多帧生成")
-    if has_mfg_manifest and not details:
-        details.append("DM 多帧生成补丁清单")
+    if is_rhi_fg:
+        details.append("RHI RenoDX 插帧 (ReShade Add-on)")
+    if is_optiscaler_fg:
+        details.append("OptiScaler 跨架构插帧 (Mode C)")
+    if is_dashdog_fg:
+        details.append("Dashdog MFGUnlocker (Mode A)")
+    if manifest_file.exists() and not details:
+        details.append("DM 多帧生成补丁")
 
     summary = " + ".join(details) if details else "未检测到多帧生成"
 
     return {
-        "has_fg": is_active,
+        "has_fg": has_fg,
+        "is_rhi_fg": is_rhi_fg,
+        "is_optiscaler_fg": is_optiscaler_fg,
+        "is_dashdog_fg": is_dashdog_fg,
         "has_renodx": has_renodx,
         "has_dashdog": has_dashdog,
         "has_optiscaler": has_optiscaler,
-        "has_mfg_manifest": has_mfg_manifest,
+        "has_mfg_manifest": manifest_file.exists(),
         "details": details,
         "summary": summary
     }
 
 
+def is_optiscaler_load_reshade_enabled(target_dir: str) -> bool:
+    """Checks if LoadReshade is set to true in OptiScaler.ini under [Plugins] section."""
+    ini_path = Path(target_dir) / "OptiScaler.ini"
+    if not ini_path.exists():
+        return False
+    try:
+        with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+            in_plugins = False
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("[") and stripped.endswith("]"):
+                    in_plugins = (stripped[1:-1].strip().lower() == "plugins")
+                    continue
+                if in_plugins and "=" in stripped:
+                    k, v = stripped.split("=", 1)
+                    if k.strip().lower() == "loadreshade":
+                        val = v.split(";", 1)[0].strip().lower()
+                        return val == "true"
+    except Exception:
+        pass
+    return False
+
+
+def set_optiscaler_load_reshade(target_dir: str, enable: bool = True) -> bool:
+    """
+    Configures LoadReshade in OptiScaler.ini [Plugins] section.
+    When enable=True, sets LoadReshade=true so OptiScaler chain-loads ReShade64.dll.
+    When enable=False, resets LoadReshade=auto.
+    """
+    td = Path(target_dir)
+    ini_path = td / "OptiScaler.ini"
+    val_str = "true" if enable else "auto"
+
+    if not ini_path.exists():
+        if (td / "OptiScaler").is_dir() or (td / "OptiScaler.dll").exists():
+            try:
+                with open(ini_path, "w", encoding="utf-8") as f:
+                    f.write(f"[Plugins]\nLoadReshade={val_str}\n")
+                return True
+            except Exception:
+                return False
+        return False
+
+    try:
+        with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception:
+        return False
+
+    in_plugins_sec = False
+    plugins_sec_found = False
+    load_key_found = False
+    modified = False
+    new_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            sec_name = stripped[1:-1].strip()
+            if in_plugins_sec and not load_key_found:
+                new_lines.append(f"LoadReshade={val_str}\n")
+                load_key_found = True
+                modified = True
+
+            in_plugins_sec = (sec_name.lower() == "plugins")
+            if in_plugins_sec:
+                plugins_sec_found = True
+            new_lines.append(line)
+            continue
+
+        if in_plugins_sec and "=" in stripped:
+            k, v = stripped.split("=", 1)
+            if k.strip().lower() == "loadreshade":
+                load_key_found = True
+                current_v = v.split(";", 1)[0].strip().lower()
+                if current_v != val_str.lower():
+                    comment = ""
+                    if ";" in v:
+                        comment = " ;" + v.split(";", 1)[1]
+                    new_lines.append(f"LoadReshade={val_str}{comment}\n")
+                    modified = True
+                    continue
+
+        new_lines.append(line)
+
+    if not plugins_sec_found:
+        new_lines.append("\n[Plugins]\n")
+        new_lines.append(f"LoadReshade={val_str}\n")
+        modified = True
+    elif not load_key_found:
+        new_lines.append(f"LoadReshade={val_str}\n")
+        modified = True
+
+    if modified:
+        try:
+            with open(ini_path, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            return True
+        except Exception:
+            return False
+
+    return True
+
+
 def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
-    """Comprehensive status check of DLSS 5, ReShade host, and Frame Generation avoidance."""
+    """Comprehensive status check of DLSS 5, ReShade host, OptiScaler coexistence, and RHI avoidance."""
     td = Path(target_dir)
     manifest_path = td / ".dlss5_patch_manifest.json"
     addon_path = td / "lecram-dlss5-beta10.addon64"
     dxgi_path = td / "dxgi.dll"
+    reshade64_path = td / "ReShade64.dll"
     ini_path = td / "ReShade.ini"
 
     manifest_data = None
@@ -176,9 +309,12 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
 
     has_addon = addon_path.exists()
     has_dxgi = dxgi_path.exists()
+    has_reshade64 = reshade64_path.exists()
     is_reshade = is_reshade_dll(str(dxgi_path)) if has_dxgi else False
     is_addon_supported = is_reshade_addon_dll(str(dxgi_path)) if has_dxgi else False
+    is_reshade64_addon_supported = is_reshade_addon_dll(str(reshade64_path)) if has_reshade64 else False
     fg_info = detect_frame_generation(target_dir)
+    opti_reshade_enabled = is_optiscaler_load_reshade_enabled(target_dir) if fg_info["is_optiscaler_fg"] else False
 
     is_injected = has_addon
 
@@ -186,11 +322,15 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
         "is_injected": is_injected,
         "has_addon": has_addon,
         "has_dxgi": has_dxgi,
+        "has_reshade64": has_reshade64,
         "is_reshade": is_reshade,
         "is_addon_supported": is_addon_supported,
+        "is_reshade64_addon_supported": is_reshade64_addon_supported,
         "has_ini": ini_path.exists(),
         "fg_info": fg_info,
-        "avoidance_active": fg_info["has_fg"],
+        "avoidance_active": fg_info["is_rhi_fg"],  # Only RHI FG avoids ReShade base install!
+        "optiscaler_coexisting": fg_info["is_optiscaler_fg"],
+        "opti_reshade_enabled": opti_reshade_enabled,
         "manifest": manifest_data
     }
 
@@ -349,10 +489,13 @@ class DLSS5Injector:
 
         status = check_dlss5_status(target_dir)
         fg_info = status["fg_info"]
-        has_fg = fg_info["has_fg"]
+        is_rhi_fg = fg_info.get("is_rhi_fg", False)
+        is_optiscaler_fg = fg_info.get("is_optiscaler_fg", False)
+        is_dashdog_fg = fg_info.get("is_dashdog_fg", False)
 
         addon_dest = td / "lecram-dlss5-beta10.addon64"
         dxgi_dest = td / "dxgi.dll"
+        reshade64_dest = td / "ReShade64.dll"
         ini_dest = td / "ReShade.ini"
 
         manifest: Dict[str, Any] = {
@@ -360,20 +503,42 @@ class DLSS5Injector:
             "addon_file": "lecram-dlss5-beta10.addon64",
             "injected_files": ["lecram-dlss5-beta10.addon64"],
             "reshade_injected_by_dlss5": False,
-            "frame_generation_coexisting": has_fg,
+            "reshade64_injected_by_dlss5": False,
+            "rhi_avoidance_active": is_rhi_fg,
+            "optiscaler_coexisting": is_optiscaler_fg,
+            "dashdog_coexisting": is_dashdog_fg,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         }
 
-        # Step 1: Handle ReShade base host (dxgi.dll) with strict avoidance
-        if has_fg:
-            # 🛡️ COLLISION AVOIDANCE ACTIVATED:
-            # Frame Generation (App 2) is already injected!
-            # We strictly MUST NOT replace or overwrite dxgi.dll.
+        # Step 1: Handle ReShade base host
+        if is_rhi_fg:
+            # 🛡️ RHI FRAME GENERATION: ReShade is already running as dxgi.dll!
+            # "RHI的插帧才不需要重新装" -> Strictly do NOT touch or replace dxgi.dll!
             manifest["reshade_injected_by_dlss5"] = False
+
+        elif is_optiscaler_fg:
+            # 🟢 OPTISCALER FRAME GENERATION: Co-existence mode!
+            # "opt插帧应该和RHIdlss5共存啊" -> OptiScaler stays as dxgi.dll.
+            # We deploy ReShade64.dll alongside OptiScaler and set LoadReshade=true in OptiScaler.ini!
+            if not reshade64_dest.exists() or not is_reshade_addon_dll(str(reshade64_dest)):
+                reshade_src = find_reshade_framework_dll()
+                if not reshade_src or not os.path.exists(reshade_src):
+                    return False, "未找到 ReShade64.dll 核心框架文件！\n请检查 embedded_components 或本地 RHI 缓存。"
+                try:
+                    shutil.copy2(reshade_src, reshade64_dest)
+                    manifest["injected_files"].append("ReShade64.dll")
+                    manifest["reshade64_injected_by_dlss5"] = True
+                except Exception as e:
+                    return False, f"部署 ReShade64.dll 链式底座失败: {e}"
+            else:
+                manifest["reshade64_injected_by_dlss5"] = False
+
+            # Configure OptiScaler.ini: LoadReshade = true
+            set_optiscaler_load_reshade(target_dir, enable=True)
+
         else:
-            # No Frame Generation injected in this game
+            # Clean game or Dashdogy FG (Dashdogy uses version.dll/winmm.dll, dxgi.dll is free for ReShade)
             if dxgi_dest.exists() and is_reshade_addon_dll(str(dxgi_dest)):
-                # Already has a functional ReShade Addon DLL (e.g. from RHI or manual)
                 manifest["reshade_injected_by_dlss5"] = False
             else:
                 reshade_src = find_reshade_framework_dll()
@@ -405,8 +570,7 @@ class DLSS5Injector:
         # Step 3: Register in ReShade.ini
         if not ini_dest.exists():
             _create_default_reshade_ini(ini_dest, "lecram-dlss5-beta10.addon64")
-            if not has_fg and manifest.get("reshade_injected_by_dlss5"):
-                manifest["injected_files"].append("ReShade.ini")
+            manifest["injected_files"].append("ReShade.ini")
         else:
             _ensure_addon_in_reshade_ini(ini_dest, "lecram-dlss5-beta10.addon64")
 
@@ -418,11 +582,28 @@ class DLSS5Injector:
         except Exception:
             pass
 
-        if has_fg:
+        if is_rhi_fg:
             msg = (
                 "✅ DLSS 5 神经重构插件注入成功！\n\n"
-                f"🛡️【多帧生成避让生效】：检测到当前游戏已注入插帧补丁 ({fg_info['summary']})。\n"
-                "程序已自动跳过 ReShade 底座覆盖，直接共用现有宿主，实现零冲突双插件并存！\n\n"
+                "🛡️【RHI 插帧底座避让生效】：\n"
+                "检测到当前游戏已注入 RHI (RenoDX) 插帧模组，其已完备包含 ReShade 运行底座。\n"
+                "程序已自动跳过底座安装，直接将 DLSS 5 并联挂载至现有 ReShade 环境，免重复安装且两套模组零冲突协同运行！\n\n"
+                "🎮 启动游戏后按【Home】键即可在 ReShade 叠加层中开启 DLSS 5 神经重构调校。"
+            )
+        elif is_optiscaler_fg:
+            msg = (
+                "✅ DLSS 5 神经重构插件注入成功！\n\n"
+                "🟢【OptiScaler 链式共存模式生效】：\n"
+                "检测到当前游戏已注入 OptiScaler 跨架构插帧。\n"
+                "程序已自动部署 ReShade64.dll 链式底座，并在 OptiScaler.ini 中开启 LoadReshade = true 链式唤起！\n"
+                "实现【OptiScaler 多倍插帧 + DLSS 5 神经重构】双引擎完美协同共存！\n\n"
+                "🎮 启动游戏后按【Insert】呼出 OptiScaler 菜单，按【Home】呼出 ReShade 调校 DLSS 5。"
+            )
+        elif is_dashdog_fg:
+            msg = (
+                "✅ DLSS 5 神经重构插件注入成功！\n\n"
+                "🟢【Dashdog 独立插帧共存模式】：\n"
+                "检测到当前游戏已注入 Dashdog 多帧生成补丁，已协同部署 ReShade 6.8 底座与 DLSS 5 插件。\n\n"
                 "🎮 启动游戏后按【Home】键即可在 ReShade 叠加层中开启 DLSS 5 神经重构调校。"
             )
         else:
@@ -436,20 +617,53 @@ class DLSS5Injector:
     @staticmethod
     def inject_reshade_base(target_dir: str) -> Tuple[bool, str]:
         """
-        Standalone physical injection of ReShade 6.8 (dxgi.dll) + ReShade.ini.
-        Enforces Frame Generation collision avoidance.
+        Physical injection of ReShade base.
+        - For RHI FG: Avoids re-installation since ReShade is already running.
+        - For OptiScaler FG: Deploys ReShade64.dll and enables LoadReshade=true in OptiScaler.ini for chain-loading.
+        - For Clean / Dashdog: Deploys ReShade64.dll as dxgi.dll + ReShade.ini.
         """
         td = Path(target_dir)
         if not td.exists() or not td.is_dir():
             return False, f"目标目录不存在: {target_dir}"
 
         fg_info = detect_frame_generation(target_dir)
-        if fg_info["has_fg"]:
+
+        # 1. RHI RenoDX Frame Generation:
+        if fg_info.get("is_rhi_fg"):
             return True, (
-                f"🛡️【多帧生成避让生效】：\n当前游戏已注入多帧生成补丁 ({fg_info['summary']})，"
-                "ReShade 底座已就绪并由多帧生成托管，无需重复注入！"
+                "🛡️【RHI 插帧底座避让生效】：\n"
+                "当前游戏已注入 RHI (RenoDX) 插帧补丁，ReShade 64-bit 核心底座已就绪并由 RHI 托管，\n"
+                "免重复安装！您可以直接点击【一键注入 DLSS 5】并联挂载运行。"
             )
 
+        # 2. OptiScaler Frame Generation:
+        if fg_info.get("is_optiscaler_fg"):
+            reshade_src = find_reshade_framework_dll()
+            if not reshade_src or not os.path.exists(reshade_src):
+                return False, "未找到 ReShade64.dll 核心框架文件！\n请检查 embedded_components 或本地 RHI 缓存。"
+
+            reshade64_dest = td / "ReShade64.dll"
+            ini_dest = td / "ReShade.ini"
+
+            try:
+                shutil.copy2(reshade_src, reshade64_dest)
+            except Exception as e:
+                return False, f"部署 ReShade64.dll 链式底座失败: {e}"
+
+            set_optiscaler_load_reshade(target_dir, enable=True)
+
+            if not ini_dest.exists():
+                _create_default_reshade_ini(ini_dest, "")
+
+            return True, (
+                "🟢【OptiScaler 链式共存底座部署成功】：\n\n"
+                "1. 已将 ReShade64.dll 部署至游戏目录（与 OptiScaler.dll 同级并行）；\n"
+                "2. 已在 OptiScaler.ini 中开启 LoadReshade = true 链式唤起；\n"
+                "3. 已初始化 ReShade.ini 基础配置文件。\n\n"
+                "✨ OptiScaler 插帧与 ReShade/DLSS 5 双引擎共存环境已就绪！"
+            )
+
+        # 3. Clean game or Dashdogy FG:
         dxgi_dest = td / "dxgi.dll"
         ini_dest = td / "ReShade.ini"
 
@@ -483,6 +697,7 @@ class DLSS5Injector:
         manifest_path = td / ".dlss5_patch_manifest.json"
         addon_dest = td / "lecram-dlss5-beta10.addon64"
         dxgi_dest = td / "dxgi.dll"
+        reshade64_dest = td / "ReShade64.dll"
         ini_dest = td / "ReShade.ini"
         bak_path = td / "dxgi.dll.dlss5_bak"
 
@@ -507,11 +722,29 @@ class DLSS5Injector:
 
         # 3. Check Frame Generation presence
         fg_info = detect_frame_generation(target_dir)
-        if fg_info["has_fg"]:
-            # Frame Generation is still active! Strictly keep dxgi.dll and ReShade.ini!
+        is_rhi_fg = fg_info.get("is_rhi_fg", False)
+        is_optiscaler_fg = fg_info.get("is_optiscaler_fg", False)
+
+        if is_rhi_fg:
+            # RHI frame generation: Strictly preserve dxgi.dll and ReShade.ini!
             pass
+        elif is_optiscaler_fg:
+            # OptiScaler frame generation: Keep OptiScaler intact!
+            # If ReShade64.dll was deployed by DLSS 5, remove ReShade64.dll and reset LoadReshade
+            if manifest_data and manifest_data.get("reshade64_injected_by_dlss5", False):
+                if reshade64_dest.exists():
+                    try:
+                        reshade64_dest.unlink()
+                    except Exception:
+                        pass
+                set_optiscaler_load_reshade(target_dir, enable=False)
+                if ini_dest.exists() and "ReShade.ini" in manifest_data.get("injected_files", []):
+                    try:
+                        ini_dest.unlink()
+                    except Exception:
+                        pass
         else:
-            # If DLSS 5 was the one who deployed ReShade, safely clean it up
+            # If DLSS 5 was the one who deployed ReShade as dxgi.dll, safely clean it up
             was_injected = manifest_data.get("reshade_injected_by_dlss5", False) if manifest_data else False
             if was_injected:
                 if dxgi_dest.exists():
