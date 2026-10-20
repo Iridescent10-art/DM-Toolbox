@@ -28,5 +28,16 @@
         "sha256": "0cee63f9c9f13f3ac909c5b4903f4dbb4b719a7ab3b4f13b0deaf83c814b94f7"
       }
     }
+  },
+  "optiscaler": {
+    "latest_tag": "nightly-20261020",
+    "cached_versions": {
+      "nightly-20261020": {
+        "file": "OptiScaler.dll",
+        "path": "",
+        "dir": "",
+        "sha256": "f9f5d03cd392f5e171d72745ae657677f14060c97dcb436a275cdf9b358435d1"
+      }
+    }
   }
 }
