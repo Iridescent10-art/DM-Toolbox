@@ -180,7 +180,6 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
     is_addon_supported = is_reshade_addon_dll(str(dxgi_path)) if has_dxgi else False
     fg_info = detect_frame_generation(target_dir)
 
-    # Injected state
     is_injected = has_addon
 
     return {
@@ -216,7 +215,7 @@ def _ensure_addon_in_reshade_ini(ini_path: Path, addon_name: str) -> bool:
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             sec_name = stripped[1:-1].strip()
-            if in_addon_sec and not load_key_found:
+            if in_addon_sec and not load_key_found and addon_name:
                 new_lines.append(f"LoadFromDllMain={addon_name}\n")
                 load_key_found = True
                 modified = True
@@ -231,20 +230,22 @@ def _ensure_addon_in_reshade_ini(ini_path: Path, addon_name: str) -> bool:
             k, v = stripped.split("=", 1)
             if k.strip().upper() == "LOADFROMDLLMAIN":
                 load_key_found = True
-                existing = [x.strip() for x in v.split(",") if x.strip()]
-                if addon_name.lower() not in [x.lower() for x in existing]:
-                    existing.append(addon_name)
-                    new_lines.append(f"{k.strip()}={','.join(existing)}\n")
-                    modified = True
-                    continue
+                if addon_name:
+                    existing = [x.strip() for x in v.split(",") if x.strip()]
+                    if addon_name.lower() not in [x.lower() for x in existing]:
+                        existing.append(addon_name)
+                        new_lines.append(f"{k.strip()}={','.join(existing)}\n")
+                        modified = True
+                        continue
 
         new_lines.append(line)
 
     if not addon_sec_found:
         new_lines.append("\n[ADDON]\n")
-        new_lines.append(f"LoadFromDllMain={addon_name}\n")
+        if addon_name:
+            new_lines.append(f"LoadFromDllMain={addon_name}\n")
         modified = True
-    elif not load_key_found:
+    elif not load_key_found and addon_name:
         new_lines.append(f"LoadFromDllMain={addon_name}\n")
         modified = True
 
@@ -306,8 +307,9 @@ def _remove_addon_from_reshade_ini(ini_path: Path, addon_name: str) -> bool:
     return False
 
 
-def _create_default_reshade_ini(ini_path: Path, addon_name: str):
-    """Creates a clean default ReShade.ini configured with Home key overlay and DLSS 5 addon."""
+def _create_default_reshade_ini(ini_path: Path, addon_name: str = ""):
+    """Creates a clean default ReShade.ini configured with Home key overlay and optional addon."""
+    addon_line = f"LoadFromDllMain={addon_name}\n" if addon_name else "LoadFromDllMain=\n"
     content = f"""[GENERAL]
 EffectSearchPaths=.\\
 TextureSearchPaths=.\\
@@ -320,8 +322,7 @@ ShowFPS=0
 ShowFrameTime=0
 
 [ADDON]
-LoadFromDllMain={addon_name}
-"""
+{addon_line}"""
     try:
         with open(ini_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -330,7 +331,7 @@ LoadFromDllMain={addon_name}
 
 
 class DLSS5Injector:
-    """Manages DLSS 5 injection, Frame Generation avoidance, and restoration."""
+    """Manages DLSS 5 injection, Frame Generation avoidance, RHI linkage, and restoration."""
 
     @staticmethod
     def get_status(target_dir: str) -> Dict[str, Any]:
@@ -372,7 +373,7 @@ class DLSS5Injector:
         else:
             # No Frame Generation injected in this game
             if dxgi_dest.exists() and is_reshade_addon_dll(str(dxgi_dest)):
-                # Already has a functional ReShade Addon DLL (e.g. from RHI)
+                # Already has a functional ReShade Addon DLL (e.g. from RHI or manual)
                 manifest["reshade_injected_by_dlss5"] = False
             else:
                 reshade_src = find_reshade_framework_dll()
@@ -431,6 +432,50 @@ class DLSS5Injector:
             )
 
         return True, msg
+
+    @staticmethod
+    def inject_reshade_base(target_dir: str) -> Tuple[bool, str]:
+        """
+        Standalone physical injection of ReShade 6.8 (dxgi.dll) + ReShade.ini.
+        Enforces Frame Generation collision avoidance.
+        """
+        td = Path(target_dir)
+        if not td.exists() or not td.is_dir():
+            return False, f"目标目录不存在: {target_dir}"
+
+        fg_info = detect_frame_generation(target_dir)
+        if fg_info["has_fg"]:
+            return True, (
+                f"🛡️【多帧生成避让生效】：\n当前游戏已注入多帧生成补丁 ({fg_info['summary']})，"
+                "ReShade 底座已就绪并由多帧生成托管，无需重复注入！"
+            )
+
+        dxgi_dest = td / "dxgi.dll"
+        ini_dest = td / "ReShade.ini"
+
+        if dxgi_dest.exists() and is_reshade_addon_dll(str(dxgi_dest)):
+            return True, "🟢 当前游戏目录已存在功能完备的 ReShade 64-bit (Add-on 支持) 底座，状态正常！"
+
+        reshade_src = find_reshade_framework_dll()
+        if not reshade_src or not os.path.exists(reshade_src):
+            return False, "未找到 ReShade64.dll 核心底座框架！\n请检查 embedded_components 或本地 RHI 缓存。"
+
+        if dxgi_dest.exists() and not is_reshade_dll(str(dxgi_dest)):
+            bak_path = td / "dxgi.dll.dlss5_bak"
+            try:
+                shutil.copy2(dxgi_dest, bak_path)
+            except Exception as e:
+                return False, f"备份原有 dxgi.dll 失败: {e}"
+
+        try:
+            shutil.copy2(reshade_src, dxgi_dest)
+        except Exception as e:
+            return False, f"部署 ReShade 核心底座 dxgi.dll 失败: {e}"
+
+        if not ini_dest.exists():
+            _create_default_reshade_ini(ini_dest, "")
+
+        return True, "✅ 已成功为当前游戏物理注入 ReShade 6.8 (Add-on 支持) 核心底座与基础配置！"
 
     @staticmethod
     def restore(target_dir: str) -> Tuple[bool, str]:
@@ -510,3 +555,34 @@ class DLSS5Injector:
                 return True, f"已成功启动 RHI: {os.path.basename(rhi_exe)}"
             except Exception as e:
                 return False, f"启动 RHI 失败: {e}"
+
+    @staticmethod
+    def launch_rhi_guide(game_exe_path: str = "") -> Tuple[bool, str]:
+        """
+        Launches RHI and copies game executable path to Windows clipboard for instant paste navigation.
+        """
+        copied_msg = ""
+        if game_exe_path and os.path.exists(game_exe_path):
+            try:
+                from PySide6.QtWidgets import QApplication
+                clipboard = QApplication.clipboard()
+                if clipboard:
+                    clipboard.setText(os.path.abspath(game_exe_path))
+                    copied_msg = (
+                        f"\n\n📋【路径已直达】已将游戏主程序完整路径自动复制到剪贴板：\n"
+                        f"{os.path.abspath(game_exe_path)}\n"
+                        f"在弹出的 RHI 文件选择器【文件名(N)】框内直接按【Ctrl+V】即可秒选！"
+                    )
+            except Exception:
+                pass
+
+        ok, msg = DLSS5Injector.launch_rhi()
+        if not ok:
+            return False, msg
+
+        return True, (
+            f"{msg}{copied_msg}\n\n"
+            "💡【RHI 关键配置提示】：\n"
+            "1. 渲染 API 请选择 DirectX 11/12。\n"
+            "2. 务必勾选【ReShade with full add-on support】完成安装！"
+        )

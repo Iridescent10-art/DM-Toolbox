@@ -3,13 +3,14 @@
 App 6: DLSS 5 神经重构与画质注入器 (DLSS 5 Neural Reconstruction Injector)
 ========================================================================
 集成最新 lecram DLSS 5 神经网络渲染插件 (DLSS 5 NR Addon)，
-支持一键注入至游戏根目录，附带 ReShade / RHI 运行底座与多帧生成 (插帧) 冲突智能避让。
+支持一键注入至游戏根目录，附带 ReShade / RHI 运行底座与多帧生成 (插帧) 深度联动与冲突智能避让。
 
-UI 规范：
-- 严格遵循 DMBaseWindow (DM Design System Core SDK)
-- 完美契合 Windows DWM 硬件级无锯齿圆角抗锯齿合成 (DWMWCP_ROUND=2)
-- 适配标准 DMSizeGrip (//) 缩放手柄与实时主题同步
-- 状态四分格监测：DLSS 5 状态、插帧状态、ReShade底座、智能避让判定
+联动特性：
+1. 游戏库实时联动：与「应用2：DLSS多帧生成补丁」共享游戏扫描缓存 (GameCacheManager)，
+   启动秒开、最近游戏跨应用同步、手动添加游戏双向互通。
+2. RHI / ReShade 底座联动：
+   - 支持一键物理注入 ReShade 6.8 (Add-on 支持) 核心底座（带多帧生成避让保护）
+   - 支持拉起 RHI 模组生态助手，自动将主程序绝对路径复制到剪贴板，支持 Ctrl+V 秒选游戏。
 """
 
 import os
@@ -33,7 +34,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# App 2 for GameScanner import
+# App 2 for GameScanner & GameCacheManager import
 MFG_DIR = ROOT_DIR / "apps" / "app2_mfg"
 if str(MFG_DIR) not in sys.path:
     sys.path.insert(0, str(MFG_DIR))
@@ -48,6 +49,13 @@ from apps.app6_dlss5.core.injector import (
     find_rhi_setup_exe, get_dlss5_addon_path, find_reshade_framework_dll
 )
 
+try:
+    from apps.app2_mfg.core.game_cache import GameCacheManager
+    from apps.app2_mfg.core.models import GameInfo, QualificationStatus
+except Exception:
+    GameCacheManager = None
+    GameInfo = None
+
 APP_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = APP_DIR / "assets"
 
@@ -61,6 +69,11 @@ class GameScanWorker(QThread):
             from apps.app2_mfg.core.scanner import GameScanner
             scanner = GameScanner()
             games = scanner.scan_all_libraries()
+            if GameCacheManager:
+                try:
+                    GameCacheManager.save_cache(scanned_games=games)
+                except Exception:
+                    pass
             self.games_found.emit(games)
         except Exception:
             self.games_found.emit([])
@@ -119,15 +132,19 @@ class DLSS5Window(DMBaseWindow):
         super().__init__(
             title="DM工具箱 - DLSS 5 神经重构与画质注入器",
             width=960,
-            height=740,
+            height=780,
             icon_filename="dlss5_icon.png"
         )
-        self.setMinimumSize(880, 640)
-        self.resize(960, 740)
+        self.setMinimumSize(880, 680)
+        self.resize(960, 780)
 
         self.init_content()
         self.apply_theme()
-        QTimer.singleShot(150, self.start_background_scan)
+
+        # Immediate zero-latency startup linkage from App 2 GameCacheManager
+        has_cached = self.load_from_game_cache()
+        if not has_cached:
+            QTimer.singleShot(150, self.start_background_scan)
 
         # Status check timer
         self.poll_timer = QTimer(self)
@@ -153,15 +170,15 @@ class DLSS5Window(DMBaseWindow):
         container = QWidget()
         container.setObjectName("ScrollContainer")
         vbox = QVBoxLayout(container)
-        vbox.setContentsMargins(20, 14, 20, 16)
-        vbox.setSpacing(14)
+        vbox.setContentsMargins(20, 12, 20, 14)
+        vbox.setSpacing(12)
 
         # ------------------ 1. BANNER CARD ------------------
         self.banner_card = QFrame()
         self.banner_card.setProperty("class", "GridCard")
         b_layout = QHBoxLayout(self.banner_card)
-        b_layout.setContentsMargins(20, 16, 20, 16)
-        b_layout.setSpacing(16)
+        b_layout.setContentsMargins(18, 12, 18, 12)
+        b_layout.setSpacing(14)
 
         # Icon
         self.banner_icon = QLabel()
@@ -194,6 +211,17 @@ class DLSS5Window(DMBaseWindow):
             border-radius: 6px;
         """)
         t_row.addWidget(self.badge_ver)
+
+        self.badge_link = QLabel("🔗 多帧生成深度联动")
+        self.badge_link.setStyleSheet("""
+            background-color: #0284C7;
+            color: #FFFFFF;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+        """)
+        t_row.addWidget(self.badge_link)
         t_row.addStretch()
         b_text_box.addLayout(t_row)
 
@@ -211,17 +239,17 @@ class DLSS5Window(DMBaseWindow):
         self.game_card = QFrame()
         self.game_card.setProperty("class", "GridCard")
         g_layout = QVBoxLayout(self.game_card)
-        g_layout.setContentsMargins(20, 16, 20, 16)
-        g_layout.setSpacing(14)
+        g_layout.setContentsMargins(18, 12, 18, 12)
+        g_layout.setSpacing(10)
 
         # Title row
         g_header = QHBoxLayout()
-        self.lbl_g_title = QLabel("🎮 目标游戏与运行环境监测")
+        self.lbl_g_title = QLabel("🎮 目标游戏与运行环境监测 (多帧生成联动)")
         self.lbl_g_title.setStyleSheet("font-size: 15px; font-weight: 700;")
         g_header.addWidget(self.lbl_g_title)
         g_header.addStretch()
 
-        self.lbl_scan_status = QLabel("正在扫描本地游戏库...")
+        self.lbl_scan_status = QLabel("正在连接多帧生成游戏库...")
         g_header.addWidget(self.lbl_scan_status)
         g_layout.addLayout(g_header)
 
@@ -242,7 +270,7 @@ class DLSS5Window(DMBaseWindow):
         self.btn_browse.clicked.connect(self.on_browse_game)
         sel_row.addWidget(self.btn_browse)
 
-        self.btn_rescan = QPushButton("🔄 重新扫描")
+        self.btn_rescan = QPushButton("🔄 联动全盘扫描")
         self.btn_rescan.setObjectName("BtnRescan")
         self.btn_rescan.setMinimumHeight(38)
         self.btn_rescan.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -264,7 +292,7 @@ class DLSS5Window(DMBaseWindow):
         self.block_dlss5 = StatusBlock("DLSS 5 插件状态")
         status_grid.addWidget(self.block_dlss5, 0, 0)
 
-        self.block_fg = StatusBlock("多帧生成 (插帧) 状态")
+        self.block_fg = StatusBlock("多帧生成 (插帧) 联动状态")
         status_grid.addWidget(self.block_fg, 0, 1)
 
         self.block_reshade = StatusBlock("ReShade / RHI 运行宿主")
@@ -300,45 +328,61 @@ class DLSS5Window(DMBaseWindow):
         self.action_card = QFrame()
         self.action_card.setProperty("class", "GridCard")
         act_layout = QVBoxLayout(self.action_card)
-        act_layout.setContentsMargins(20, 16, 20, 16)
-        act_layout.setSpacing(14)
+        act_layout.setContentsMargins(18, 12, 18, 12)
+        act_layout.setSpacing(10)
 
         self.lbl_act_title = QLabel("⚡ 一键操作中心")
         self.lbl_act_title.setStyleSheet("font-size: 15px; font-weight: 700;")
         act_layout.addWidget(self.lbl_act_title)
 
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
+        # Row 1: DLSS 5 Injection & Restore
+        btn_row1 = QHBoxLayout()
+        btn_row1.setSpacing(12)
 
         self.btn_inject = QPushButton("⚡ 一键注入 DLSS 5")
         self.btn_inject.setObjectName("BtnInject")
         self.btn_inject.setMinimumHeight(44)
         self.btn_inject.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_inject.clicked.connect(self.on_inject_dlss5)
-        btn_row.addWidget(self.btn_inject, 2)
+        btn_row1.addWidget(self.btn_inject, 2)
 
         self.btn_restore = QPushButton("🔄 一键还原 / 卸载")
         self.btn_restore.setObjectName("BtnRestore")
         self.btn_restore.setMinimumHeight(44)
         self.btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_restore.clicked.connect(self.on_restore_dlss5)
-        btn_row.addWidget(self.btn_restore, 1)
-
-        self.btn_rhi = QPushButton("🛠️ 启动 / 管理 RHI 底座")
-        self.btn_rhi.setObjectName("BtnRHI")
-        self.btn_rhi.setMinimumHeight(44)
-        self.btn_rhi.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_rhi.clicked.connect(self.on_launch_rhi)
-        btn_row.addWidget(self.btn_rhi, 1)
+        btn_row1.addWidget(self.btn_restore, 1)
 
         self.btn_open_dir = QPushButton("📂 打开游戏目录")
         self.btn_open_dir.setObjectName("BtnOpenDir")
         self.btn_open_dir.setMinimumHeight(44)
         self.btn_open_dir.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open_dir.clicked.connect(self.on_open_game_dir)
-        btn_row.addWidget(self.btn_open_dir, 1)
+        btn_row1.addWidget(self.btn_open_dir, 1)
 
-        act_layout.addLayout(btn_row)
+        act_layout.addLayout(btn_row1)
+
+        # Row 2: RHI / ReShade Base Integration Linkage
+        btn_row2 = QHBoxLayout()
+        btn_row2.setSpacing(12)
+
+        self.btn_inject_base = QPushButton("🛠️ 一键物理注入 ReShade / RHI 底座")
+        self.btn_inject_base.setObjectName("BtnInjectBase")
+        self.btn_inject_base.setMinimumHeight(40)
+        self.btn_inject_base.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_inject_base.setToolTip("直接为游戏物理注入 ReShade 6.8 核心底座 (dxgi.dll) 与基础配置，已带多帧生成避让")
+        self.btn_inject_base.clicked.connect(self.on_inject_reshade_base)
+        btn_row2.addWidget(self.btn_inject_base, 1)
+
+        self.btn_rhi = QPushButton("🚀 启动 RHI 模组生态助手 (自动复制路径)")
+        self.btn_rhi.setObjectName("BtnRHI")
+        self.btn_rhi.setMinimumHeight(40)
+        self.btn_rhi.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_rhi.setToolTip("自动将当前游戏主程序绝对路径复制到剪贴板，并在打开的 RHI 安装器中按 Ctrl+V 即可秒选游戏")
+        self.btn_rhi.clicked.connect(self.on_launch_rhi)
+        btn_row2.addWidget(self.btn_rhi, 1)
+
+        act_layout.addLayout(btn_row2)
         vbox.addWidget(self.action_card)
 
         # ------------------ 4. GUIDELINES & PRINCIPLE CARD ------------------
@@ -359,8 +403,9 @@ class DLSS5Window(DMBaseWindow):
             "• DLSS 5 插件与多帧生成补丁 (RenoDX / OptiScaler) 均依托底层 <code>dxgi.dll</code> (ReShade 64-bit Add-on 宿主) 运行。<br>"
             "• 若目标游戏已通过「应用2：DLSS多帧生成补丁」完成注入，本程序会自动激活<b>【插帧避让】</b>，跳过底座部署，直接将 DLSS 5 并联挂载至现有 <code>ReShade.ini</code>，两套插件在同一进程中协同工作，零冲突、免二次安装。<br>"
             "• 还原时同样具备防误删保护：仅移除 DLSS 5 插件，完整保留多帧生成环境。<br><br>"
-            "<b>3. 硬件与环境兼容性</b>：<br>"
-            "支持 NVIDIA GeForce RTX 20 / 30 / 40 / 50 全系列显卡。请确保游戏画面设置中已开启 DLSS 超分辨率技术。"
+            "<b>3. 联动与 RHI 生态支持</b>：<br>"
+            "• 本工具与「应用2：DLSS多帧生成补丁」共享游戏扫描数据与最近游戏历史，无须反复耗时全盘扫描。<br>"
+            "• 支持直接一键物理部署 ReShade 6.8 底座，或拉起 RHI 安装器直达助手（自动将游戏路径写入剪贴板，秒速定位）。"
         )
         self.lbl_tips = QLabel(tips_text)
         self.lbl_tips.setWordWrap(True)
@@ -373,6 +418,71 @@ class DLSS5Window(DMBaseWindow):
         self.scroll_area.setWidget(container)
         self.body_layout.addWidget(self.scroll_area)
 
+    def load_from_game_cache(self) -> bool:
+        """Loads cached games and last selected executable from App 2 GameCacheManager."""
+        if not GameCacheManager:
+            return False
+        try:
+            games, last_exe = GameCacheManager.get_cached_games()
+            if games:
+                self.populate_games(games, last_selected_exe=last_exe)
+                self.lbl_scan_status.setText(f"🔗 已联动【多帧生成】游戏库 (共 {len(games)} 款游戏)")
+                return True
+        except Exception:
+            pass
+        return False
+
+    def populate_games(self, games: list, last_selected_exe: Optional[str] = None):
+        """Populates game dropdown and restores last selected game."""
+        self.games_list = games
+        self.btn_rescan.setEnabled(True)
+
+        self.combo_games.blockSignals(True)
+        self.combo_games.clear()
+
+        if not games:
+            self.combo_games.addItem("未发现已安装游戏 (请点击右侧手动选择)", "")
+            self.combo_games.blockSignals(False)
+            self.refresh_current_game_status()
+            return
+
+        target_idx = 0
+        for i, g in enumerate(games):
+            name = getattr(g, "name", "未知游戏")
+            exe = getattr(g, "exe_name", getattr(g, "primary_executable", ""))
+            p_dir = getattr(g, "target_dir", getattr(g, "install_dir", ""))
+            exe_full = getattr(g, "exe_path", "")
+            is_patched = getattr(g, "is_patched", False)
+
+            # Check DLSS 5 injection on disk
+            addon_exists = (Path(p_dir) / "lecram-dlss5-beta10.addon64").exists() if p_dir else False
+
+            if is_patched and addon_exists:
+                tag = " [DLSS 5 + 插帧双就绪]"
+            elif is_patched:
+                tag = " [多帧生成已就绪]"
+            elif addon_exists:
+                tag = " [DLSS 5已注入]"
+            else:
+                tag = ""
+
+            display_text = f"{name} ({exe}){tag}" if exe else f"{name}{tag}"
+            data_dict = {
+                "name": name,
+                "target_dir": str(p_dir),
+                "exe": str(exe),
+                "exe_path": str(exe_full),
+                "game_obj": g
+            }
+            self.combo_games.addItem(display_text, data_dict)
+
+            if last_selected_exe and exe_full and exe_full.lower() == last_selected_exe.lower():
+                target_idx = i
+
+        self.combo_games.blockSignals(False)
+        self.combo_games.setCurrentIndex(target_idx)
+        self.on_game_selected(target_idx)
+
     def start_background_scan(self):
         """Starts background game library scan."""
         self.lbl_scan_status.setText("⏳ 正在快速扫描本地已安装游戏...")
@@ -383,35 +493,9 @@ class DLSS5Window(DMBaseWindow):
         self.scan_worker.start()
 
     def on_scan_completed(self, games: list):
-        """Populates game dropdown once scan completes."""
-        self.games_list = games
-        self.btn_rescan.setEnabled(True)
-        self.lbl_scan_status.setText(f"✅ 扫描完成，共识别 {len(games)} 款游戏")
-
-        self.combo_games.blockSignals(True)
-        self.combo_games.clear()
-
-        if not games:
-            self.combo_games.addItem("未发现已安装游戏 (请点击右侧手动选择)", "")
-        else:
-            for g in games:
-                name = getattr(g, "name", "未知游戏")
-                exe = getattr(g, "primary_executable", "")
-                p_dir = getattr(g, "target_dir", getattr(g, "install_dir", ""))
-                display_text = f"{name} ({exe})" if exe else name
-                self.combo_games.addItem(display_text, {
-                    "name": name,
-                    "target_dir": str(p_dir),
-                    "exe": str(exe)
-                })
-
-        self.combo_games.blockSignals(False)
-
-        if games:
-            self.combo_games.setCurrentIndex(0)
-            self.on_game_selected(0)
-        else:
-            self.refresh_current_game_status()
+        """Callback when background scan finishes."""
+        self.populate_games(games)
+        self.lbl_scan_status.setText(f"✅ 全盘扫描完成，已同步 {len(games)} 款游戏")
 
     def on_browse_game(self):
         """Opens file dialog for user to manually select a game executable."""
@@ -429,11 +513,36 @@ class DLSS5Window(DMBaseWindow):
         exe_name = p.name
         game_name = p.stem
 
+        # Try to resolve title with scanner if available
+        try:
+            from apps.app2_mfg.core.scanner import GameScanner
+            scanner = GameScanner()
+            game_name = scanner._resolve_game_title(target_dir, exe_name)
+        except Exception:
+            pass
+
         custom_data = {
             "name": f"{game_name} (自定义添加)",
             "target_dir": str(target_dir),
-            "exe": exe_name
+            "exe": exe_name,
+            "exe_path": str(p)
         }
+
+        # Sync to App 2 GameCacheManager
+        if GameCacheManager and GameInfo:
+            try:
+                g_info = GameInfo(
+                    name=game_name,
+                    source="Custom",
+                    install_dir=str(target_dir),
+                    target_dir=str(target_dir),
+                    exe_path=str(p),
+                    exe_name=exe_name,
+                    qualification=QualificationStatus.QUALIFIED
+                )
+                GameCacheManager.add_custom_game(g_info)
+            except Exception:
+                pass
 
         # Check if already in combo
         idx = -1
@@ -454,6 +563,13 @@ class DLSS5Window(DMBaseWindow):
         if isinstance(data, dict):
             self.current_game_info = data
             self.lbl_current_path.setText(f"📁 当前目标目录: {data.get('target_dir', '')}")
+            # Synchronize last selected exe to App 2 GameCacheManager
+            exe_full = data.get("exe_path", "")
+            if exe_full and GameCacheManager:
+                try:
+                    GameCacheManager.save_last_selected(exe_full)
+                except Exception:
+                    pass
         else:
             self.current_game_info = None
             self.lbl_current_path.setText("📁 当前目标目录: 未选择游戏")
@@ -471,6 +587,7 @@ class DLSS5Window(DMBaseWindow):
             self.block_avoidance.set_status("⚪ 未选择游戏", "#94A3B8")
             self.btn_inject.setEnabled(False)
             self.btn_restore.setEnabled(False)
+            self.btn_inject_base.setEnabled(False)
             self.update_alert_box(False, "未选择游戏")
             return
 
@@ -479,6 +596,7 @@ class DLSS5Window(DMBaseWindow):
             self.block_dlss5.set_status("❌ 目录不存在", "#EF4444")
             self.btn_inject.setEnabled(False)
             self.btn_restore.setEnabled(False)
+            self.btn_inject_base.setEnabled(False)
             return
 
         status = DLSS5Injector.get_status(target_dir)
@@ -501,12 +619,15 @@ class DLSS5Window(DMBaseWindow):
             self.btn_restore.setEnabled(False)
 
         self.btn_inject.setEnabled(True)
+        self.btn_inject_base.setEnabled(True)
 
         # 2. Frame Generation Block
         if fg_info["has_fg"]:
             self.block_fg.set_status("🟢 已检测到插帧补丁", c_green, fg_info["summary"])
+            self.btn_inject_base.setText("🛡️ ReShade 底座已由多帧生成托管")
         else:
             self.block_fg.set_status("⚪ 未检测到插帧", c_gray, "标准模式")
+            self.btn_inject_base.setText("🛠️ 一键物理注入 ReShade / RHI 底座")
 
         # 3. ReShade / RHI Block
         if status["is_addon_supported"]:
@@ -577,6 +698,23 @@ class DLSS5Window(DMBaseWindow):
 
         self.refresh_current_game_status()
 
+    def on_inject_reshade_base(self):
+        """Performs standalone physical injection of ReShade/RHI base with avoidance."""
+        if not self.current_game_info or not self.current_game_info.get("target_dir"):
+            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            return
+
+        target_dir = self.current_game_info["target_dir"]
+        game_name = self.current_game_info.get("name", "选中游戏")
+
+        ok, msg = DLSS5Injector.inject_reshade_base(target_dir)
+        if ok:
+            QMessageBox.information(self, f"ReShade 底座就绪 - {game_name}", msg)
+        else:
+            QMessageBox.critical(self, "底座注入失败", msg)
+
+        self.refresh_current_game_status()
+
     def on_restore_dlss5(self):
         """Restores target game cleanly without affecting Frame Generation."""
         if not self.current_game_info or not self.current_game_info.get("target_dir"):
@@ -605,9 +743,17 @@ class DLSS5Window(DMBaseWindow):
         self.refresh_current_game_status()
 
     def on_launch_rhi(self):
-        """Launches RHI-Setup.exe or installed RHI utility."""
-        ok, msg = DLSS5Injector.launch_rhi()
-        if not ok:
+        """Launches RHI-Setup.exe with game path copied to Windows clipboard for instant paste."""
+        game_exe_path = ""
+        if self.current_game_info:
+            game_exe_path = self.current_game_info.get("exe_path", "")
+            if not game_exe_path and self.current_game_info.get("target_dir") and self.current_game_info.get("exe"):
+                game_exe_path = str(Path(self.current_game_info["target_dir"]) / self.current_game_info["exe"])
+
+        ok, msg = DLSS5Injector.launch_rhi_guide(game_exe_path)
+        if ok:
+            QMessageBox.information(self, "RHI 模组生态直达助手", msg)
+        else:
             QMessageBox.warning(self, "启动 RHI", msg)
 
     def on_open_game_dir(self):
@@ -758,7 +904,14 @@ class DLSS5Window(DMBaseWindow):
             QPushButton:hover {{
                 background-color: {btn_sec_hover};
             }}
+            QPushButton:disabled {{
+                background-color: {'#374151' if is_dark else '#E2E8F0'};
+                color: {'#6B7280' if is_dark else '#94A3B8'};
+                border-color: {'#4B5563' if is_dark else '#CBD5E1'};
+            }}
         """
+        if hasattr(self, "btn_inject_base"):
+            self.btn_inject_base.setStyleSheet(sec_style)
         if hasattr(self, "btn_rhi"):
             self.btn_rhi.setStyleSheet(sec_style)
         if hasattr(self, "btn_open_dir"):
