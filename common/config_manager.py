@@ -37,7 +37,7 @@ def ensure_toolbox_root():
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
 
         # Auto-create app dedicated subdirectories in both cache and config
-        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr"]:
+        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr", "app6_dlss5"]:
             (CACHE_ROOT / app).mkdir(parents=True, exist_ok=True)
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
 
@@ -202,7 +202,7 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
 
         # Re-create subdirectories
-        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr"]:
+        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr", "app6_dlss5"]:
             (CACHE_ROOT / app).mkdir(parents=True, exist_ok=True)
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
 

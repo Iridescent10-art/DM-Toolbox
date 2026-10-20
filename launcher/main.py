@@ -99,6 +99,7 @@ APP_EXACT_TITLES = {
     "app3_autohdr": "DM工具箱 - Windows Auto HDR 管理器",
     "app4_dlss": "DM工具箱 - 全架构超分与插帧水印指示器 (DLSS / XeSS / FSR / MFG)",
     "app5_jxr": "JXR HDR 转换器 - 转 Ultra HDR / PNG",
+    "app6_dlss5": "DM工具箱 - DLSS 5 神经重构与画质注入器",
 }
 
 ALLOWED_SUBPROCESS_EXECUTABLES = {"python.exe", "pythonw.exe", "dmbox.exe", "jxrconverter.exe"}
@@ -199,6 +200,15 @@ APPS_METADATA = [
         "icon": "jxr_icon.png",
         "exe_rel": "apps/app5_jxr/JxrConverter.exe",
         "work_dir": "apps/app5_jxr"
+    },
+    {
+        "id": "app6_dlss5",
+        "name": "DLSS 5 神经重构与画质注入器",
+        "tag": "DLSS 5 · 神经渲染",
+        "desc": "集成最新 lecram DLSS 5 神经网络重建插件 (DLSS 5 NR Addon)，支持一键注入至游戏根目录，附带 ReShade / RHI 运行底座与插帧冲突智能避让。",
+        "icon": "dlss5_icon.png",
+        "script_rel": "apps/app6_dlss5/app.py",
+        "work_dir": "apps/app6_dlss5"
     }
 ]
 
