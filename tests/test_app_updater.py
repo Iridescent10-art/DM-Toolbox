@@ -31,7 +31,8 @@ class TestAppUpdater(unittest.TestCase):
 
         self.assertGreater(parse_version_tuple("v1.2.13"), parse_version_tuple("v1.2.9"))
         self.assertGreater(parse_version_tuple("v1.2.13"), parse_version_tuple("1.2.6"))
-        self.assertEqual(parse_version_tuple(f"v{APP_VERSION}"), (1, 2, 13))
+        major, minor, patch = [int(x) for x in APP_VERSION.split(".")]
+        self.assertEqual(parse_version_tuple(f"v{APP_VERSION}"), (major, minor, patch))
 
     def test_markdown_to_html(self):
         md = "### 核心特性\n- **特性1**: 增强插帧\n`code_block`"
