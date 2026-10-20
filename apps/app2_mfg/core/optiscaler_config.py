@@ -11,8 +11,8 @@ from typing import Dict, Any, Optional
 from core.ini_sync import IniConfigManager
 
 DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
-    "multiplier": 3,              # 2=2X, 3=3X, 4=4X
-    "dlss_preset": "Default",     # "Default", "M", "L", "K", "J", "E", "C", "F"
+    "multiplier": 3,              # 2=2X, 3=3X, 4=4X (默认 3X 三倍插帧)
+    "dlss_preset": "K",           # 默认采用 DLSS 4 Transformer 模型 Preset K
     "menu_key": "Backspace",      # "Backspace", "F11", "Insert", "Home", "End"
     "bink_hook": False
 }
@@ -20,11 +20,11 @@ DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
 DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
     "fg_output": "xefg",          # "xefg", "fsrfg", "nukems"
     "fg_input": "dlssg",         # "dlssg", "nukems", "auto"
-    "interpolation_count": 1,    # 1=2X, 2=3X, 3=4X (XeFG is capped by libxess_fg)
+    "interpolation_count": 2,    # 1=2X, 2=3X, 3=4X (XeFG 默认 3X 三倍插帧)
     "dx12_upscaler": "auto",     # "auto", "xess", "dlss", "fsr31"
     "rcas_enabled": False,
     "rcas_sharpness": 0.0,
-    "dlss_preset": "Default",    # "Default" -> 优先继承 NVIDIA App / 全局驱动设置模型
+    "dlss_preset": "K",          # 默认采用 DLSS 4 Transformer 模型 Preset K (杜绝 D 模型)
     "menu_key": "Insert",        # "Insert", "Backspace", "Home", "F11", "End"
     "menu_scale": 2.0            # In-game ImGui menu scale: 1.0 / 1.5 / 2.0 (4K default)
 }
@@ -67,6 +67,16 @@ def load_mode_a_preset() -> Dict[str, Any]:
         except Exception:
             pass
 
+
+        # 默认 DLSS 预设升级至 DLSS 4 Transformer 模型 Preset K
+    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = "K"
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
 
     return preset
 
@@ -135,6 +145,26 @@ def load_optiscaler_preset() -> Dict[str, Any]:
             pass
 
 
+
+        # 默认 DLSS 预设升级至 DLSS 4 Transformer 模型 Preset K (杜绝 D 模型)
+    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = "K"
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    # XeSS (XeFG) 默认升级为 3X 三倍帧生成 (interpolation_count = 2)
+    if preset.get("interpolation_count") in (1, None) and not preset.get("user_customized_interpolation", False):
+        preset["interpolation_count"] = 2
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
 
     return preset
 

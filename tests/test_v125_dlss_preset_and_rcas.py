@@ -185,7 +185,7 @@ def test_3_assert_rcas_default_disabled():
 
         assert dlg.chk_rcas.isChecked() is False, "OptiScalerPresetDialog chk_rcas must default to unchecked (False)"
         assert dlg.slider_sharp.value() == 0, "OptiScalerPresetDialog slider_sharp must default to 0"
-        assert dlg.combo_a_preset.itemText(0).startswith("Default (直通 · 优先继承 NVIDIA App"), f"Item 0 text mismatch: {dlg.combo_a_preset.itemText(0)}"
+        assert dlg.combo_a_preset.itemText(0).startswith("Default (直通 · 不覆盖游戏或驱动模型"), f"Item 0 text mismatch: {dlg.combo_a_preset.itemText(0)}"
 
         # Test reset to defaults
         dlg._reset_to_defaults()

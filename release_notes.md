@@ -1,3 +1,20 @@
+# 🎉 DM-Toolbox v1.2.10 · 默认强制锁定 DLSS 4 Preset K 模型与 XeSS 3X 三倍帧生成
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.2.10 核心更新与优化
+
+1. **默认超分模型切换为 DLSS 4 第一代 Transformer 模型 Preset K**
+   - 彻底解决部分游戏与引擎回退到旧版 D 模型导致的画面重影抖动与模糊问题；
+   - 模式 A (dashdogy) 与 模式 C (OptiScaler) 默认预设均自动锁定写入 `Preset K` (枚举值 11)；
+   - 保留 Default 与 Preset M/L/J/E/C/F 等自由切换选项。
+
+2. **XeSS 2.0 / XeMFG 默认升级为 3X 三倍帧生成**
+   - 模式 C 插帧默认倍率由 2X 提升为 **3X (InterpolationCount=2)**，配合高刷电竞显示器体验极致丝滑流体画面；
+   - 模式 A 默认倍率同步保持为 3X (Multiplier=3)。
+
+---
+
 # 🎉 DM-Toolbox v1.2.9 · dashdogy v1.6.1 升级与 Default 直通优先继承 NVIDIA App 驱动层模型
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**

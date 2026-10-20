@@ -38,12 +38,11 @@ def run_tests():
         assert secs["FrameGen"]["Enabled"] == "true"
         assert secs["FrameGen"]["FGOutput"] == "xefg"
         assert secs["FrameGen"]["FGInput"] == "dlssg"
-        # No OptiScaler log in the temp dir -> XeFG is safely capped at 2X (1 interpolation)
-        assert secs["XeFG"]["InterpolationCount"] == "1"
-        # Verify Default preset is Default (RenderPresetOverride=false, UseGenericAppIdWithDlss=false)
-        assert secs["DLSS"]["RenderPresetOverride"] == "false"
-        assert secs["DLSS"]["RenderPresetForAll"] == "0"
-        assert secs["DLSS"]["UseGenericAppIdWithDlss"] == "false"
+        # XeFG default is 3X frame generation (2 interpolations)
+        assert secs["XeFG"]["InterpolationCount"] == "2"
+        # Verify Default preset is Preset K (RenderPresetOverride=true, RenderPresetForAll=11)
+        assert secs["DLSS"]["RenderPresetOverride"] == "true"
+        assert secs["DLSS"]["RenderPresetForAll"] == "11"
         # Verify RCAS is false
         assert secs["CAS"]["Enabled"] == "false"
         # Verify Log is enabled
@@ -54,8 +53,8 @@ def run_tests():
         assert rev is not None, "read_mode_c_reverse returned None"
         assert rev["menu_key"] == "Insert", f"rev menu_key should be Insert, got {rev.get('menu_key')}"
         assert rev["fg_output"] == "xefg"
-        assert rev["interpolation_count"] == 1
-        assert rev["dlss_preset"] == "Default"
+        assert rev["interpolation_count"] == 2
+        assert rev["dlss_preset"] == "K"
         assert abs(rev["menu_scale"] - 2.0) < 1e-6
 
         # Test custom hotkey Backspace and Preset M
@@ -80,7 +79,7 @@ def run_tests():
         summary = get_preset_summary(preset)
         print("Preset summary string:", summary)
         assert "Intel XeFG 官方插帧" in summary
-        assert "2X 双倍" in summary
+        assert "3X 三倍" in summary
         assert "快捷键: Backspace" in summary
         assert "DLSS M" in summary
 

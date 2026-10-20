@@ -1,11 +1,11 @@
 {
   "fg_output": "xefg",
   "fg_input": "dlssg",
-  "interpolation_count": 1,
+  "interpolation_count": 2,
   "dx12_upscaler": "auto",
   "rcas_enabled": false,
   "rcas_sharpness": 0.0,
-  "dlss_preset": "Default",
+  "dlss_preset": "K",
   "menu_key": "Insert",
   "menu_scale": 2.0
 }

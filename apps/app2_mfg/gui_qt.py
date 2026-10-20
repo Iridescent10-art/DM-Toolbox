@@ -1385,7 +1385,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_a_preset.setMinimumHeight(36)
         self.combo_a_preset.setMinimumWidth(280)
         self.combo_a_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_a_preset.addItem("Default (直通 · 优先继承 NVIDIA App / 全局驱动设置模型)", "Default")
+        self.combo_a_preset.addItem("Default (直通 · 不覆盖游戏或驱动模型)", "Default")
         self.combo_a_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_a_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
         self.combo_a_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定 · 推荐)", "K")
@@ -1514,7 +1514,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_mult.setMinimumWidth(280)
         self.combo_mult.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.combo_mult.addItem("2X 双倍帧率 (标准平滑 · 推荐 60Hz~144Hz 显示器)", 1)
-        self.combo_mult.addItem("3X 三倍帧率 (XeFG 高刷电竞 · 推荐 165Hz~240Hz) [推荐]", 2)
+        self.combo_mult.addItem("3X 三倍帧率 (XeFG 高刷电竞 · 推荐 165Hz~240Hz) [默认推荐]", 2)
         self.combo_mult.addItem("4X 四倍帧率 (XeFG 极速流体 · 推荐 240Hz+ 超高刷)", 3)
         self.combo_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
@@ -1653,7 +1653,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_c_preset.setMinimumHeight(36)
         self.combo_c_preset.setMinimumWidth(280)
         self.combo_c_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_c_preset.addItem("Default (直通 · 优先继承 NVIDIA App / 全局驱动设置模型)", "Default")
+        self.combo_c_preset.addItem("Default (直通 · 不覆盖游戏或驱动模型)", "Default")
         self.combo_c_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_c_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
         self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
@@ -1904,14 +1904,15 @@ class OptiScalerPresetDialog(QDialog):
         if idx_am >= 0:
             self.combo_a_mult.setCurrentIndex(idx_am)
 
-        a_preset = str(self.preset_a.get("dlss_preset", "Default"))
-        if str(a_preset).strip() in ("0", "", "none", "None", "default", "Default"):
-            a_preset = "Default"
+        a_preset = str(self.preset_a.get("dlss_preset", "K"))
+        if str(a_preset).strip() in ("0", "", "none", "None"):
+            a_preset = "K"
         idx_ap = self.combo_a_preset.findData(a_preset)
         if idx_ap >= 0:
             self.combo_a_preset.setCurrentIndex(idx_ap)
         else:
-            self.combo_a_preset.setCurrentIndex(0)
+            idx_k = self.combo_a_preset.findData("K")
+            self.combo_a_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
 
         a_key = str(self.preset_a.get("menu_key", "Backspace"))
         idx_ak = self.combo_a_key.findData(a_key)
@@ -1957,14 +1958,15 @@ class OptiScalerPresetDialog(QDialog):
         else:
             self.combo_upscaler.setCurrentIndex(0)
 
-        c_preset = str(self.preset_c.get("dlss_preset", "Default"))
-        if str(c_preset).strip() in ("0", "", "none", "None", "default"):
-            c_preset = "Default"
+        c_preset = str(self.preset_c.get("dlss_preset", "K"))
+        if str(c_preset).strip() in ("0", "", "none", "None"):
+            c_preset = "K"
         idx_cp = self.combo_c_preset.findData(c_preset)
         if idx_cp >= 0:
             self.combo_c_preset.setCurrentIndex(idx_cp)
         else:
-            self.combo_c_preset.setCurrentIndex(0)
+            idx_k = self.combo_c_preset.findData("K")
+            self.combo_c_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
 
         c_key = str(self.preset_c.get("menu_key", "Insert"))
         idx_ck = self.combo_c_key.findData(c_key)
