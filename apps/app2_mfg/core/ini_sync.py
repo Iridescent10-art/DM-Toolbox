@@ -279,10 +279,10 @@ class IniConfigManager:
             # 2. Deploy dashdogy MFGUnlocker.asi
             plugins_dir = target / "OptiScaler" / "plugins"
             asi_path = plugins_dir / "MFGUnlocker.asi"
-            if not asi_path.exists():
-                mfg_dll = updater.get_latest_cached_file(BackendType.STANDALONE)
-                if mfg_dll and os.path.exists(mfg_dll):
-                    plugins_dir.mkdir(parents=True, exist_ok=True)
+            mfg_dll = updater.get_latest_cached_file(BackendType.STANDALONE)
+            if mfg_dll and os.path.exists(mfg_dll):
+                plugins_dir.mkdir(parents=True, exist_ok=True)
+                if not asi_path.exists() or asi_path.stat().st_size != Path(mfg_dll).stat().st_size:
                     shutil.copy2(mfg_dll, asi_path)
             return True
         except Exception:
@@ -389,6 +389,7 @@ class IniConfigManager:
         if is_dlss_default:
             dlss_sec = {
                 "RenderPresetOverride": "false",
+                "UseGenericAppIdWithDlss": "false",
                 "RenderPresetForAll": "0",
                 "RenderPresetDLAA": "0",
                 "RenderPresetUltraQuality": "0",
@@ -401,6 +402,7 @@ class IniConfigManager:
             enum_val = str(DLSS_PRESET_MAP.get(dlss_p, 13))
             dlss_sec = {
                 "RenderPresetOverride": "true",
+                "UseGenericAppIdWithDlss": "false",
                 "RenderPresetForAll": enum_val,
                 "RenderPresetDLAA": enum_val,
                 "RenderPresetUltraQuality": enum_val,
@@ -448,6 +450,10 @@ class IniConfigManager:
                 "Dx12Upscaler": dx12_upscaler
             },
             "DLSS": dlss_sec,
+            "DLSSD": {
+                "RenderPresetOverride": "false" if is_dlss_default else "true",
+                "RenderPresetForAll": "0" if is_dlss_default else str(DLSS_PRESET_MAP.get(dlss_p, 13)),
+            },
             "CAS": {
                 "Enabled": "true" if rcas_enabled else "false"
             },

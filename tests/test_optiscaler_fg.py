@@ -40,9 +40,10 @@ def run_tests():
         assert secs["FrameGen"]["FGInput"] == "dlssg"
         # No OptiScaler log in the temp dir -> XeFG is safely capped at 2X (1 interpolation)
         assert secs["XeFG"]["InterpolationCount"] == "1"
-        # Verify Default preset is Preset K (DLSS 4 Transformer, enum 11)
-        assert secs["DLSS"]["RenderPresetOverride"] == "true"
-        assert secs["DLSS"]["RenderPresetForAll"] == "11"
+        # Verify Default preset is Default (RenderPresetOverride=false, UseGenericAppIdWithDlss=false)
+        assert secs["DLSS"]["RenderPresetOverride"] == "false"
+        assert secs["DLSS"]["RenderPresetForAll"] == "0"
+        assert secs["DLSS"]["UseGenericAppIdWithDlss"] == "false"
         # Verify RCAS is false
         assert secs["CAS"]["Enabled"] == "false"
         # Verify Log is enabled
@@ -54,7 +55,7 @@ def run_tests():
         assert rev["menu_key"] == "Insert", f"rev menu_key should be Insert, got {rev.get('menu_key')}"
         assert rev["fg_output"] == "xefg"
         assert rev["interpolation_count"] == 1
-        assert rev["dlss_preset"] == "K"
+        assert rev["dlss_preset"] == "Default"
         assert abs(rev["menu_scale"] - 2.0) < 1e-6
 
         # Test custom hotkey Backspace and Preset M

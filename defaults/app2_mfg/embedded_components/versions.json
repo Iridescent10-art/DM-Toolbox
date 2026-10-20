@@ -1,11 +1,11 @@
 {
   "dashdogy": {
-    "latest_tag": "v1.5.0-hotfix.1",
+    "latest_tag": "v1.6.1",
     "cached_versions": {
-      "v1.5.0-hotfix.1": {
+      "v1.6.1": {
         "file": "MFGUnlocker.dll",
         "path": "",
-        "sha256": "4ac118f5cbb13a556c84979c2a2d2210a756dce172a9425ff62d870694747a2e"
+        "sha256": "24e3e6a8c07639fd9cbd79274e4eb21cc65a13f0453e1157720620c3d6286b33"
       }
     }
   },

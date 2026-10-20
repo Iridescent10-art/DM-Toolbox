@@ -95,6 +95,8 @@ def test_1_assert_never_preset_d():
         cfg_a_m = dict(cfg_a_default, dlss_preset="Preset M")
         IniConfigManager.sync_mode_a_forward(td, cfg_a_m)
 
+        opti_content_def = (td / "OptiScaler.ini").read_text(encoding="utf-8")
+        assert "UseGenericAppIdWithDlss=false" in opti_content_def, "OptiScaler.ini must set UseGenericAppIdWithDlss=false for NVApp priority!"
         opti_content = (td / "OptiScaler.ini").read_text(encoding="utf-8")
         assert "RenderPresetOverride=true" in opti_content, "OptiScaler.ini must set RenderPresetOverride=true for Preset M"
         assert "RenderPresetForAll=13" in opti_content, "OptiScaler.ini must set RenderPresetForAll=13 for Preset M"
@@ -183,7 +185,7 @@ def test_3_assert_rcas_default_disabled():
 
         assert dlg.chk_rcas.isChecked() is False, "OptiScalerPresetDialog chk_rcas must default to unchecked (False)"
         assert dlg.slider_sharp.value() == 0, "OptiScalerPresetDialog slider_sharp must default to 0"
-        assert dlg.combo_a_preset.itemText(0).startswith("Default (不覆盖 · 完美保留 NVIDIA 驱动注入"), f"Item 0 text mismatch: {dlg.combo_a_preset.itemText(0)}"
+        assert dlg.combo_a_preset.itemText(0).startswith("Default (直通 · 优先继承 NVIDIA App"), f"Item 0 text mismatch: {dlg.combo_a_preset.itemText(0)}"
 
         # Test reset to defaults
         dlg._reset_to_defaults()

@@ -1385,7 +1385,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_a_preset.setMinimumHeight(36)
         self.combo_a_preset.setMinimumWidth(280)
         self.combo_a_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_a_preset.addItem("Default (不覆盖 · 完美保留 NVIDIA 驱动注入的 M/K 模型或游戏默认)", "Default")
+        self.combo_a_preset.addItem("Default (直通 · 优先继承 NVIDIA App / 全局驱动设置模型)", "Default")
         self.combo_a_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_a_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
         self.combo_a_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定 · 推荐)", "K")
@@ -1653,7 +1653,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_c_preset.setMinimumHeight(36)
         self.combo_c_preset.setMinimumWidth(280)
         self.combo_c_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_c_preset.addItem("Default (不覆盖 · 完美保留 NVIDIA 驱动注入的 M/K 模型或游戏默认)", "Default")
+        self.combo_c_preset.addItem("Default (直通 · 优先继承 NVIDIA App / 全局驱动设置模型)", "Default")
         self.combo_c_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_c_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
         self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
@@ -1957,15 +1957,14 @@ class OptiScalerPresetDialog(QDialog):
         else:
             self.combo_upscaler.setCurrentIndex(0)
 
-        c_preset = str(self.preset_c.get("dlss_preset", "K"))
-        if str(c_preset).strip() in ("0", "", "none", "None"):
-            c_preset = "K"
+        c_preset = str(self.preset_c.get("dlss_preset", "Default"))
+        if str(c_preset).strip() in ("0", "", "none", "None", "default"):
+            c_preset = "Default"
         idx_cp = self.combo_c_preset.findData(c_preset)
         if idx_cp >= 0:
             self.combo_c_preset.setCurrentIndex(idx_cp)
         else:
-            idx_k = self.combo_c_preset.findData("K")
-            self.combo_c_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
+            self.combo_c_preset.setCurrentIndex(0)
 
         c_key = str(self.preset_c.get("menu_key", "Insert"))
         idx_ck = self.combo_c_key.findData(c_key)

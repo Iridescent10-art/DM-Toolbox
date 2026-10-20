@@ -1,3 +1,24 @@
+# 🎉 DM-Toolbox v1.2.9 · dashdogy v1.6.1 升级与 Default 直通优先继承 NVIDIA App 驱动层模型
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.2.9 核心升级与优化
+
+1. **全面升级 dashdogy (MFG-Unlocker) 至最新发布版 v1.6.1**
+   - 包含最新的 RTX 50 系原生适配与 RTX 20/30/40 系实时 DLSS 预设切换支持；
+   - 增强在第三方工具挂钩 DirectX 12 管线时的 Tensor Core 高性能帧生成稳定性；
+   - 智能同步模式 A (winmm/MFGUnlocker.dll) 与模式 C XeMFG 插件 (OptiScaler/plugins/MFGUnlocker.asi)，自动按版本与文件校验升级。
+
+2. **Default 直通项深度优化：优先继承 NVIDIA App 驱动层模型**
+   - 当用户在 DLSS 预设下拉框中选择 **Default (直通 · 优先继承 NVIDIA App / 全局驱动设置模型)** 时，自动写入 RenderPresetOverride=false、UseGenericAppIdWithDlss=false 及 RenderPresetForAll=0；
+   - 彻底解决由于伪装 AppId 导致 NVIDIA App 游戏专属配置文件失效的问题，让用户在 NVIDIA App 或驱动层全局替换的 DLSS 4/4.5 (Model M / Model K) 模型能够 100% 优先无损直通生效；
+   - 用户如需强制锁定特定模型，也可在下拉框中自由指定 Preset M / L / K / J / E / C / F。
+
+3. **内置最新版 OptiScaler 10 (Nightly-20261020)**
+   - 内置 OptiScaler 10 最新架构与完整 XeSS 2.0 / FSR 3.1 核心组件，开箱即用，无需二次下载。
+
+---
+
 # 🎉 DM-Toolbox 正式版 (Official Release)
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**

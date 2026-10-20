@@ -24,7 +24,7 @@ DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
     "dx12_upscaler": "auto",     # "auto", "xess", "dlss", "fsr31"
     "rcas_enabled": False,
     "rcas_sharpness": 0.0,
-    "dlss_preset": "K",
+    "dlss_preset": "Default",    # "Default" -> 优先继承 NVIDIA App / 全局驱动设置模型
     "menu_key": "Insert",        # "Insert", "Backspace", "Home", "F11", "End"
     "menu_scale": 2.0            # In-game ImGui menu scale: 1.0 / 1.5 / 2.0 (4K default)
 }
@@ -66,16 +66,7 @@ def load_mode_a_preset() -> Dict[str, Any]:
                     preset.update(data)
         except Exception:
             pass
-    # 兼容性修复与默认 DLSS 预设升级：
-    # 默认采用稳定锐利且杜绝重影抖动的 DLSS 4 Transformer 模型 Preset K
-    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
-        preset["dlss_preset"] = "K"
-        try:
-            cfg_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(cfg_file, "w", encoding="utf-8") as f:
-                json.dump(preset, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
+
 
     return preset
 
@@ -143,16 +134,7 @@ def load_optiscaler_preset() -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 兼容性修复与默认 DLSS 预设升级：
-    # 默认采用稳定锐利且杜绝重影抖动的 DLSS 4 Transformer 模型 Preset K
-    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
-        preset["dlss_preset"] = "K"
-        try:
-            cfg_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(cfg_file, "w", encoding="utf-8") as f:
-                json.dump(preset, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
+
 
     return preset
 
