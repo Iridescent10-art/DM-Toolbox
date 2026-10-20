@@ -168,7 +168,7 @@ QLabel#WindowTitle {
 }
 
 /* 图2右上角主题切换胶囊按钮 */
-QPushButton#ThemeToggleBtn { 
+QPushButton#ThemeToggleBtn, QPushButton#UpdateBtn { 
     background-color: transparent;
     color: #3A3A3A;
     border: none;
@@ -177,7 +177,7 @@ QPushButton#ThemeToggleBtn {
     min-height: 24px;
 }
 
-QPushButton#ThemeToggleBtn:hover { background-color: #EFEFEF; border: none; }
+QPushButton#ThemeToggleBtn:hover, QPushButton#UpdateBtn:hover { background-color: #EFEFEF; border: none; }
 
 /* 图2右上角极简窗口控制按钮 */
 QPushButton.WindowControl, QPushButton.TitleBtn {
@@ -508,7 +508,7 @@ QLabel#WindowTitle {
     font-weight: 700;
 }
 
-QPushButton#ThemeToggleBtn { 
+QPushButton#ThemeToggleBtn, QPushButton#UpdateBtn { 
     background-color: transparent;
     color: #E8E8E8;
     border: none;
@@ -517,7 +517,7 @@ QPushButton#ThemeToggleBtn {
     min-height: 24px;
 }
 
-QPushButton#ThemeToggleBtn:hover { background-color: #3A3A3A; border: none; }
+QPushButton#ThemeToggleBtn:hover, QPushButton#UpdateBtn:hover { background-color: #3A3A3A; border: none; }
 
 QPushButton.WindowControl, QPushButton.TitleBtn {
     background-color: transparent;
@@ -1734,6 +1734,16 @@ class BaseWindow(QMainWindow):
         self.btn_theme.clicked.connect(self.toggle_theme)
         tb_layout.addWidget(self.btn_theme)
 
+        # 检查更新胶囊按钮
+        self.btn_update = QPushButton("🔄")
+        self.btn_update.setFixedSize(30, 30)
+        self.btn_update.setObjectName("UpdateBtn")
+        self.btn_update.setProperty("class", "ThemeToggleBtn")
+        self.btn_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_update.setToolTip("检查软件更新 (获取 GitHub 最新版本)")
+        self.btn_update.clicked.connect(self._open_update_dialog)
+        tb_layout.addWidget(self.btn_update)
+
         # 图1对齐的高精度绘制控制按钮
         self.btn_min = CaptionButton(CaptionButtonType.MINIMIZE, self)
         self.btn_min.setToolTip("最小化")
@@ -2072,6 +2082,14 @@ class BaseWindow(QMainWindow):
                 pass
 
         return super().eventFilter(watched, event)
+
+    def _open_update_dialog(self):
+        try:
+            from common.app_updater import show_update_dialog
+            show_update_dialog(parent=self)
+        except Exception as e:
+            from common.ui_theme import ModernDialog
+            ModernDialog.warning(parent=self, title="检查更新失败", message=f"无法打开更新器:\n{e}")
 
     def closeEvent(self, event):
         qApp = QApplication.instance()

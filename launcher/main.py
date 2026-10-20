@@ -406,6 +406,11 @@ class ToolboxLauncher(BaseWindow):
         # Initial refresh
         self.update_cache_display()
 
+        # Preloaded releases cache & silent background update checker
+        self.preloaded_releases = []
+        self.silent_updater = None
+        QTimer.singleShot(2000, self.start_background_update_check)
+
     def init_launcher_ui(self):
         # Outer scroll area with NO horizontal scrollbar and responsive stretching
         scroll = QScrollArea()
@@ -429,13 +434,29 @@ class ToolboxLauncher(BaseWindow):
         left_info = QVBoxLayout()
         left_info.setSpacing(4)
 
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
         self.t_lbl = QLabel("DM工具箱")
         self.t_lbl.setStyleSheet("font-size: 19px; font-weight: 800;")
+        title_row.addWidget(self.t_lbl)
+
+        from common.version import APP_VERSION
+        self.lbl_ver = QLabel(f"v{APP_VERSION}")
+        self.lbl_ver.setStyleSheet("""
+            background-color: #8FE3B0;
+            color: #10231A;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 6px;
+        """)
+        title_row.addWidget(self.lbl_ver)
+        title_row.addStretch()
+        left_info.addLayout(title_row)
+
         self.sub_lbl = QLabel("全架构硬件深度定制 · 动态 Auto HDR 增强 · DLSS 多帧生成补丁 · DLSS 实时超分指示 · JXR→Ultra HDR 转换")
         self.sub_lbl.setWordWrap(True)
         self.sub_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
-        left_info.addWidget(self.t_lbl)
         left_info.addWidget(self.sub_lbl)
         h_layout.addLayout(left_info, 1)
 
@@ -446,6 +467,15 @@ class ToolboxLauncher(BaseWindow):
         # Cache size badge
         self.lbl_cache_size = QLabel("💾 缓存占用: 计算中...")
         right_actions.addWidget(self.lbl_cache_size)
+
+        # Check for Updates Button
+        self.btn_check_update = QPushButton("🔄 检查更新")
+        self.btn_check_update.setProperty("class", "SecondaryBtn")
+        self.btn_check_update.setMinimumHeight(35)
+        self.btn_check_update.setCursor(Qt.PointingHandCursor)
+        self.btn_check_update.setToolTip("检查 GitHub 官方发布的最新版本，可自由选择在线下载升级。")
+        self.btn_check_update.clicked.connect(self.on_check_update_clicked)
+        right_actions.addWidget(self.btn_check_update)
 
         # One-click Reset & Clean Button (Compact text, full tooltip)
         self.btn_reset = QPushButton("🧹 还原与清理")
@@ -822,6 +852,39 @@ class ToolboxLauncher(BaseWindow):
 
         QTimer.singleShot(100, run_cleanup_steps)
         progress_dlg.exec()
+
+
+    def start_background_update_check(self):
+        """Starts silent background update check if enabled in settings."""
+        try:
+            from common.app_updater import SilentUpdateChecker
+            self.silent_updater = SilentUpdateChecker(self.on_update_found_silently)
+            self.silent_updater.start_check()
+        except Exception:
+            pass
+
+    def on_update_found_silently(self, latest_tag: str, releases: list):
+        """Called when background worker discovers a newer release on GitHub."""
+        self.preloaded_releases = releases
+        self.btn_check_update.setText(f"✨ 发现新版本 {latest_tag}")
+        self.btn_check_update.setToolTip(f"发现新版本 {latest_tag} 可供更新，点击立即查看更新日志并在线安装！")
+        self.btn_check_update.setStyleSheet("""
+            background-color: #8FE3B0;
+            color: #10231A;
+            border: none;
+            border-radius: 9px;
+            padding: 7px 14px;
+            font-size: 13px;
+            font-weight: 800;
+        """)
+
+    def on_check_update_clicked(self):
+        """Opens the full update dialog allowing user to choose any GitHub release to update to."""
+        try:
+            from common.app_updater import show_update_dialog
+            show_update_dialog(parent=self, preloaded_releases=self.preloaded_releases)
+        except Exception as e:
+            ModernDialog.warning(parent=self, title="检查更新失败", message=f"无法打开更新器窗口:\n{e}")
 
     def open_toolbox_data_dir(self):
         """Opens C:/ToolboxData in Windows File Explorer."""
