@@ -78,11 +78,11 @@ class WorkerSignals(QObject):
 # ----------------- CUSTOM THEMED MODAL DIALOG -----------------
 class ModernDialog(QDialog):
     """Clean modern modal dialog with rounded corners and light/dark theme matching."""
-    def __init__(self, parent, title: str, message: str, dialog_type: str = "info", is_dark: bool = False):
+    def __init__(self, parent, title: str, message: str, dialog_type: str = "info", is_dark: bool = False, custom_buttons: Optional[List[Tuple[str, int, str]]] = None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(460)
+        self.setFixedWidth(500 if custom_buttons else 460)
 
         bg_color = "#2A2B2C" if is_dark else "#ffffff"
         border_color = "#3A3A3A" if is_dark else "#D4D4D4"
@@ -147,11 +147,48 @@ class ModernDialog(QDialog):
         lbl_msg.setWordWrap(True)
         card_layout.addWidget(lbl_msg)
 
-        # Buttons
+                # Buttons
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        if dialog_type == "question":
+        if custom_buttons:
+            for b_text, b_code, b_style in custom_buttons:
+                btn = QPushButton(b_text)
+                if b_style == "primary":
+                    btn.setStyleSheet("""
+                        background-color: #2F8F5B;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 8px 18px;
+                        font-weight: bold;
+                        font-size: 13px;
+                    """)
+                elif b_style == "secondary":
+                    btn_bg = "#3A3A3A" if is_dark else "#E2E8F0"
+                    btn_fg = "#F8FAFC" if is_dark else "#1E293B"
+                    btn.setStyleSheet(f"""
+                        background-color: {btn_bg};
+                        color: {btn_fg};
+                        border: 1px solid {'#4B5563' if is_dark else '#CBD5E1'};
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                        font-weight: 600;
+                        font-size: 13px;
+                    """)
+                else:
+                    btn.setStyleSheet("""
+                        background-color: #E5E5E5;
+                        color: #3A3A3A;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                        font-weight: 600;
+                        font-size: 13px;
+                    """)
+                btn.clicked.connect(lambda checked=False, c=b_code: self.done(c))
+                btn_row.addWidget(btn)
+        elif dialog_type == "question":
             btn_cancel = QPushButton("取消")
             btn_cancel.setStyleSheet("""
                 background-color: #E5E5E5;
@@ -218,6 +255,16 @@ class ModernDialog(QDialog):
     def confirm(cls, parent, title: str, message: str, is_dark: bool = False) -> bool:
         dlg = cls(parent, title, message, "question", is_dark)
         return dlg.exec() == QDialog.DialogCode.Accepted
+
+    @classmethod
+    def choice3(cls, parent, title: str, message: str, btn1_text: str, btn2_text: str, btn3_text: str = "取消", is_dark: bool = False) -> int:
+        buttons = [
+            (btn3_text, 0, "cancel"),
+            (btn2_text, 2, "secondary"),
+            (btn1_text, 1, "primary")
+        ]
+        dlg = cls(parent, title, message, "question", is_dark, custom_buttons=buttons)
+        return dlg.exec()
 
 
 class ModernTranslationGuideDialog(QDialog):
@@ -718,7 +765,7 @@ class ModernRHIGuideDialog(QDialog):
                 <b style="color: {'#fbbf24' if is_dark else '#b45309'}; font-size: 13px;">⚠️ 为什么在文件选择窗口顶部的地址栏粘贴会无法跳转？</b><br>
                 在 Windows 文件选择窗口中，<b>最顶部的地址栏只接受“文件夹路径”</b>。如果您把 <code>...\\yysls.exe</code> 这类包含主程序文件名的路径粘贴在顶部，Windows 会将其误当作文件夹查找而导致无法跳转或报错。
             </div>
-            
+
             <b style="color: {'#8FE3B0' if is_dark else '#0284c7'}; font-size: 13px;">✨ 正确跳转方法（两种方法 100% 成功，任选一种）：</b><br>
             <ol style="margin-top: 4px; padding-left: 20px;">
                 <li><b>方法 1（最简单秒选·强烈推荐）：</b><br>
@@ -2155,7 +2202,7 @@ LIGHT_THEME = """
     QLabel {
         color: #2A2B2C;
     }
-    
+
     /* 图2右上角标题栏按钮 */
     QPushButton.title-btn {
         background-color: transparent;
@@ -2181,7 +2228,7 @@ LIGHT_THEME = """
         background-color: #EF4444;
         color: #FFFFFF;
     }
-    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn { 
+    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn {
     background-color: transparent;
     color: #3A3A3A;
     border: none;
@@ -2458,7 +2505,7 @@ DARK_THEME = """
     QLabel {
         color: #E8E8E8;
     }
-    
+
     /* 图2右上角标题栏按钮 */
     QPushButton.title-btn {
         background-color: transparent;
@@ -2484,7 +2531,7 @@ DARK_THEME = """
         background-color: #EF4444;
         color: #FFFFFF;
     }
-    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn { 
+    QPushButton.theme-toggle-btn, QPushButton#ThemeToggleBtn {
     background-color: transparent;
     color: #E8E8E8;
     border: none;
@@ -5256,13 +5303,38 @@ class ModernMFGGUI(QMainWindow):
             ModernDialog.warning(self, "提示", "请先选择需要还原的游戏！", self.is_dark_mode)
             return
 
-        confirm = ModernDialog.confirm(
-            self, "一键还原确认",
-            f"确定要无损还原游戏 '{self.selected_game.name}' 吗？\n将安全删除注入的 DLL/Addon 并恢复原始备份。",
-            self.is_dark_mode
+        td_path = Path(self.selected_game.target_dir)
+        has_dlss5 = (
+            (td_path / "lecram-dlss5-beta10.addon64").exists() or
+            (td_path / ".dlss5_patch_manifest.json").exists()
         )
-        if not confirm:
-            return
+
+        clean_all = True
+        if has_dlss5:
+            res = ModernDialog.choice3(
+                self,
+                "多插件共存还原选择",
+                f"检测到游戏【{self.selected_game.name}】同时注入了 DLSS 5 神经重构插件。\n\n"
+                "请选择还原方案：\n"
+                "• 彻底清除全部：清除所有注入 DLL、多帧生成、DLSS 5 插件及残留日志，恢复 100% 官方纯净状态。\n"
+                "• 仅还原多帧生成：移除多帧生成补丁，保留 DLSS 5 插件与 ReShade 底座。",
+                btn1_text="彻底清除全部 (推荐)",
+                btn2_text="仅还原多帧生成",
+                btn3_text="取消",
+                is_dark=self.is_dark_mode
+            )
+            if res == 0:
+                return
+            clean_all = (res == 1)
+        else:
+            confirm = ModernDialog.confirm(
+                self, "一键还原确认",
+                f"确定要彻底还原游戏 '{self.selected_game.name}' 吗？\n将彻底清除所有注入的 DLL、配置文件、缓存及残留，恢复 100% 官方纯净状态。",
+                self.is_dark_mode
+            )
+            if not confirm:
+                return
+            clean_all = True
 
         self.lbl_status.setText(f"● 正在还原游戏 '{self.selected_game.name}'...")
 
@@ -5291,7 +5363,7 @@ class ModernMFGGUI(QMainWindow):
             progress_dlg.set_progress(70, "正在清理注入文件并还原原版备份...", "恢复原始系统依赖与清单")
             QApplication.processEvents()
 
-            ok, msg = self.rollback.rollback(self.selected_game.target_dir, self.selected_game.exe_name)
+            ok, msg = self.rollback.rollback(self.selected_game.target_dir, self.selected_game.exe_name, clean_all=clean_all)
             if not ok and "未找到修补清单" in msg:
                 # Already clean (manifest removed manually / by a previous restore): clear state.
                 ok = True

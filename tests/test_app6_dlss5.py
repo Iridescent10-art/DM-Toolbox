@@ -358,5 +358,85 @@ class TestDLSS5Injector(unittest.TestCase):
         self.assertEqual(sec_mfg.get("NRVramBuffering"), "1")
 
 
+    def test_deep_clean_coexistence_purge(self):
+        """
+        Verify that RollbackEngine.rollback(clean_all=True) and DLSS5Injector.restore(force_clean_all=True)
+        completely purge all injected proxies, mod folders, logs, crash dumps, and configs when both
+        OptiScaler (Mode C) and DLSS 5 coexist, restoring 100% pure baseline without leaving artifacts.
+        """
+        from apps.app2_mfg.core.rollback import RollbackEngine
+
+        # 1. Simulate game directory cluttered with OptiScaler + DLSS 5 + logs + crash dumps
+        (self.game_dir / "dxgi.dll").write_bytes(b"OPTISCALER_PROXY_26MB" + b"\x00" * 1024)
+        (self.game_dir / "ReShade64.dll").write_bytes(b"RESHADE_CORE" + b"\x00" * 1024)
+        (self.game_dir / "lecram-dlss5-beta10.addon64").write_bytes(b"DLSS5_ADDON" + b"\x00" * 1024)
+        (self.game_dir / "nvngx_dlssnr.dll").write_bytes(b"DLSS5_RUNTIME" + b"\x00" * 1024)
+        (self.game_dir / "fakenvapi.dll").write_bytes(b"FAKENVAPI" + b"\x00" * 1024)
+        (self.game_dir / "fakenvapi.ini").write_text("[fakenvapi]\nenabled=true", encoding="utf-8")
+        (self.game_dir / "OptiScaler.ini").write_text("[Plugins]\nLoadReshade=true", encoding="utf-8")
+        (self.game_dir / "ReShade.ini").write_text("[DLSS5]\nNRHookPoint=2", encoding="utf-8")
+        (self.game_dir / ".dlss5_config.json").write_text("{}", encoding="utf-8")
+        (self.game_dir / ".dlss5_patch_manifest.json").write_text("{}", encoding="utf-8")
+        (self.game_dir / ".mfg_patch_manifest.json").write_text(json.dumps({
+            "game_name": "TestGame",
+            "active_backend": "optiscaler",
+            "created_files": ["dxgi.dll", "OptiScaler.ini"],
+            "renamed_backups": []
+        }), encoding="utf-8")
+
+        # Mod directories
+        (self.game_dir / "OptiScaler").mkdir(exist_ok=True)
+        (self.game_dir / "OptiScaler" / "dummy.txt").write_text("dummy", encoding="utf-8")
+        (self.game_dir / "dlss5-nr-runtime").mkdir(exist_ok=True)
+        (self.game_dir / "dlss5-nr-runtime" / "dummy.txt").write_text("dummy", encoding="utf-8")
+        (self.game_dir / "XeSS").mkdir(exist_ok=True)
+        (self.game_dir / "amd_fidelityfx").mkdir(exist_ok=True)
+
+        # Logs and crash dumps
+        (self.game_dir / "dlss5-nr-crash-001.txt").write_text("CRASH DUMP", encoding="utf-8")
+        (self.game_dir / "dlss5-nr-crash-002.txt").write_text("CRASH DUMP", encoding="utf-8")
+        (self.game_dir / "RTXMFG-20261021.log").write_text("LOG", encoding="utf-8")
+        (self.game_dir / "RTXMFG-20261021.csv").write_text("CSV", encoding="utf-8")
+        (self.game_dir / "OptiScaler.log").write_text("LOG", encoding="utf-8")
+        (self.game_dir / "ReShade.log").write_text("LOG", encoding="utf-8")
+
+        # Verify cluttered state
+        self.assertTrue((self.game_dir / "dxgi.dll").exists())
+        self.assertTrue((self.game_dir / "lecram-dlss5-beta10.addon64").exists())
+        self.assertTrue((self.game_dir / "OptiScaler").is_dir())
+
+        # 2. Test DLSS5Injector.restore with force_clean_all=True
+        ok, msg = DLSS5Injector.restore(str(self.game_dir), force_clean_all=True)
+        self.assertTrue(ok, msg)
+
+        # 3. Assert EVERY SINGLE foreign file and directory is purged
+        self.assertFalse((self.game_dir / "dxgi.dll").exists(), "dxgi.dll must be deleted!")
+        self.assertFalse((self.game_dir / "ReShade64.dll").exists(), "ReShade64.dll must be deleted!")
+        self.assertFalse((self.game_dir / "lecram-dlss5-beta10.addon64").exists(), "DLSS5 addon must be deleted!")
+        self.assertFalse((self.game_dir / "nvngx_dlssnr.dll").exists(), "nvngx_dlssnr.dll must be deleted!")
+        self.assertFalse((self.game_dir / "fakenvapi.dll").exists(), "fakenvapi.dll must be deleted!")
+        self.assertFalse((self.game_dir / "fakenvapi.ini").exists(), "fakenvapi.ini must be deleted!")
+        self.assertFalse((self.game_dir / "OptiScaler.ini").exists(), "OptiScaler.ini must be deleted!")
+        self.assertFalse((self.game_dir / "ReShade.ini").exists(), "ReShade.ini must be deleted!")
+        self.assertFalse((self.game_dir / ".dlss5_config.json").exists(), ".dlss5_config.json must be deleted!")
+        self.assertFalse((self.game_dir / ".dlss5_patch_manifest.json").exists(), ".dlss5_patch_manifest.json must be deleted!")
+        self.assertFalse((self.game_dir / ".mfg_patch_manifest.json").exists(), ".mfg_patch_manifest.json must be deleted!")
+
+        self.assertFalse((self.game_dir / "OptiScaler").exists(), "OptiScaler dir must be deleted!")
+        self.assertFalse((self.game_dir / "dlss5-nr-runtime").exists(), "dlss5-nr-runtime dir must be deleted!")
+        self.assertFalse((self.game_dir / "XeSS").exists(), "XeSS dir must be deleted!")
+        self.assertFalse((self.game_dir / "amd_fidelityfx").exists(), "amd_fidelityfx dir must be deleted!")
+
+        self.assertFalse((self.game_dir / "dlss5-nr-crash-001.txt").exists(), "Crash dump must be deleted!")
+        self.assertFalse((self.game_dir / "dlss5-nr-crash-002.txt").exists(), "Crash dump must be deleted!")
+        self.assertFalse((self.game_dir / "RTXMFG-20261021.log").exists(), "RTXMFG log must be deleted!")
+        self.assertFalse((self.game_dir / "RTXMFG-20261021.csv").exists(), "RTXMFG csv must be deleted!")
+        self.assertFalse((self.game_dir / "OptiScaler.log").exists(), "OptiScaler log must be deleted!")
+        self.assertFalse((self.game_dir / "ReShade.log").exists(), "ReShade log must be deleted!")
+
+        # Game executable MUST remain intact
+        self.assertTrue((self.game_dir / "Cyberpunk2077.exe").exists(), "Game exe must remain intact!")
+
+
 if __name__ == "__main__":
     unittest.main()

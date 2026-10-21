@@ -15,8 +15,24 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+APP2_DIR = ROOT_DIR / "apps" / "app2_mfg"
+if str(APP2_DIR) not in sys.path:
+    sys.path.insert(0, str(APP2_DIR))
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+
+try:
+    from core.utils import safe_force_remove
+except Exception:
+    def safe_force_remove(path: str) -> bool:
+        p = Path(path)
+        if not p.exists():
+            return True
+        try:
+            p.unlink(missing_ok=True)
+            return True
+        except Exception:
+            return False
 
 
 def _read_dll_signature_bytes(path: str) -> bytes:
@@ -994,8 +1010,23 @@ class DLSS5Injector:
         return True, "✅ 已成功为当前游戏物理注入 ReShade 6.8 (Add-on 支持) 核心底座与基础配置！"
 
     @staticmethod
-    def restore(target_dir: str) -> Tuple[bool, str]:
+    def restore(target_dir: str, force_clean_all: bool = False) -> Tuple[bool, str]:
         td = Path(target_dir)
+        if not td.exists() or not td.is_dir():
+            return False, f"目标目录不存在: {target_dir}"
+
+        if force_clean_all:
+            # Complete 100% official pure restore: delegates to RollbackEngine with clean_all=True
+            try:
+                from core.rollback import RollbackEngine
+                return RollbackEngine().rollback(target_dir, clean_all=True)
+            except Exception:
+                try:
+                    from apps.app2_mfg.core.rollback import RollbackEngine
+                    return RollbackEngine().rollback(target_dir, clean_all=True)
+                except Exception as e:
+                    pass
+
         manifest_path = td / ".dlss5_patch_manifest.json"
         addon_dest = td / "lecram-dlss5-beta10.addon64"
         runtime_dest = td / "nvngx_dlssnr.dll"
@@ -1012,26 +1043,33 @@ class DLSS5Injector:
             except Exception:
                 manifest_data = None
 
-        # 1. Remove DLSS 5 addon file
+        # 1. Remove DLSS 5 addon files
         if addon_dest.exists():
+            safe_force_remove(str(addon_dest))
+        safe_force_remove(str(td / "dlss5-nr.addon64"))
+
+        # 2. Remove DLSS 5 runtime DLL
+        if runtime_dest.exists():
+            safe_force_remove(str(runtime_dest))
+
+        # 3. Clean DLSS 5 runtime directory
+        dlss5_runtime_dir = td / "dlss5-nr-runtime"
+        if dlss5_runtime_dir.exists() and dlss5_runtime_dir.is_dir():
             try:
-                addon_dest.unlink()
-            except Exception as e:
-                return False, f"删除 DLSS 5 插件失败: {e}"
+                shutil.rmtree(str(dlss5_runtime_dir), ignore_errors=True)
+            except Exception:
+                pass
 
-        # 2. Remove DLSS 5 runtime DLL if deployed by DLSS 5
-        if manifest_data and manifest_data.get("runtime_injected_by_dlss5", False):
-            if runtime_dest.exists():
-                try:
-                    runtime_dest.unlink()
-                except Exception:
-                    pass
+        # 4. Clean crash dumps and temp configs
+        for crash_file in td.glob("dlss5-nr-crash-*.txt"):
+            safe_force_remove(str(crash_file))
+        safe_force_remove(str(td / ".dlss5_config.json"))
 
-        # 3. Clean ReShade.ini
+        # 5. Clean ReShade.ini DLSS 5 sections
         if ini_dest.exists():
             _configure_reshade_ini_for_dlss5(ini_dest, remove=True)
 
-        # 4. Check Frame Generation presence
+        # 6. Check Frame Generation presence
         fg_info = detect_frame_generation(target_dir)
         is_rhi_fg = fg_info.get("is_rhi_fg", False)
         is_optiscaler_fg = fg_info.get("is_optiscaler_fg", False)
@@ -1041,47 +1079,32 @@ class DLSS5Injector:
             pass
         elif is_optiscaler_fg:
             # OptiScaler frame generation: Keep OptiScaler intact!
-            # If ReShade64.dll was deployed by DLSS 5, remove ReShade64.dll and reset LoadReshade
-            if manifest_data and manifest_data.get("reshade64_injected_by_dlss5", False):
-                if reshade64_dest.exists():
-                    try:
-                        reshade64_dest.unlink()
-                    except Exception:
-                        pass
-                set_optiscaler_load_reshade(target_dir, enable=False)
-                if ini_dest.exists() and "ReShade.ini" in manifest_data.get("injected_files", []):
-                    try:
-                        ini_dest.unlink()
-                    except Exception:
-                        pass
+            if reshade64_dest.exists():
+                safe_force_remove(str(reshade64_dest))
+            set_optiscaler_load_reshade(target_dir, enable=False)
+            if ini_dest.exists() and manifest_data and "ReShade.ini" in manifest_data.get("injected_files", []):
+                safe_force_remove(str(ini_dest))
         else:
-            # If DLSS 5 was the one who deployed ReShade as dxgi.dll, safely clean it up
-            was_injected = manifest_data.get("reshade_injected_by_dlss5", False) if manifest_data else False
-            if was_injected:
-                if dxgi_dest.exists():
-                    try:
-                        dxgi_dest.unlink()
-                    except Exception:
-                        pass
+            # Standalone DLSS 5 mode (no FG active)
+            was_injected = manifest_data.get("reshade_injected_by_dlss5", False) if manifest_data else True
+            if was_injected or is_reshade_dll(str(dxgi_dest)):
                 if bak_path.exists():
+                    safe_force_remove(str(dxgi_dest))
                     try:
                         shutil.move(str(bak_path), str(dxgi_dest))
                     except Exception:
                         pass
-                if ini_dest.exists() and "ReShade.ini" in manifest_data.get("injected_files", []):
-                    try:
-                        ini_dest.unlink()
-                    except Exception:
-                        pass
+                else:
+                    safe_force_remove(str(dxgi_dest))
+            if ini_dest.exists():
+                safe_force_remove(str(ini_dest))
+            safe_force_remove(str(td / "ReShade.log"))
 
-        # 5. Remove manifest
+        # 7. Remove manifest
         if manifest_path.exists():
-            try:
-                manifest_path.unlink()
-            except Exception:
-                pass
+            safe_force_remove(str(manifest_path))
 
-        return True, "✅ 已成功卸载 DLSS 5 插件并还原游戏状态！"
+        return True, "✅ 已成功卸载 DLSS 5 插件并还原游戏状态！" 
 
     @staticmethod
     def launch_rhi() -> Tuple[bool, str]:

@@ -212,10 +212,9 @@ def CleanGameDirectoryState(
     dxgi_path = td / "dxgi.dll"
     if dxgi_path.exists():
         if mode == "C":
-            # If dxgi.dll is ReShade, remove it so OptiScaler can occupy dxgi.dll
-            if is_reshade_dll_file(str(dxgi_path)):
-                safe_remove_file(dxgi_path)
-                actions_taken.append("清理 dxgi.dll (ReShade)，为模式 C OptiScaler 让出槽位")
+            # Do NOT delete dxgi.dll here: patcher._apply_optiscaler_patch transactionally
+            # backs up pre-existing ReShade dxgi.dll to dxgi.dll.reshade_bak before deploying OptiScaler!
+            pass
         elif mode in ("A", "B", ""):
             # If dxgi.dll is OptiScaler, remove it unconditionally when not in Mode C!
             if is_optiscaler_dll_file(str(dxgi_path)):
@@ -253,7 +252,8 @@ def CleanGameDirectoryState(
         "mfg_unlocker.ini",
         "RTX40MFG-UI-layout.ini",
         "MFGUnlocker.log",
-        "rtxmfg.log"
+        "rtxmfg.log",
+        "MFGUnlocker.dll"
     ]
     if mode != "A":
         for cfg in mode_a_configs:
@@ -262,15 +262,25 @@ def CleanGameDirectoryState(
                 safe_remove_file(f)
                 actions_taken.append(f"清理非模式 A 配置文件: {cfg}")
 
-    # Mode C configs:
+    # Mode C configs & runtime DLLs:
     mode_c_configs = [
+        "OptiScaler.dll",
         "OptiScaler.ini",
         "OptiScaler.log",
         "nvngx.ini",
         "dlssg_to_fsr3.log",
         "dlssg_to_fsr3_amd_is_better.dll",
         "fakenvapi.ini",
-        "fakenvapi.log"
+        "fakenvapi.log",
+        "fakenvapi.dll",
+        "amd_fidelityfx_dx12.dll",
+        "amd_fidelityfx_framegeneration_dx12.dll",
+        "amd_fidelityfx_upscaler_dx12.dll",
+        "amd_fidelityfx_vk.dll",
+        "libxell.dll",
+        "libxess.dll",
+        "libxess_dx11.dll",
+        "libxess_fg.dll"
     ]
     if mode != "C":
         for cfg in mode_c_configs:
@@ -278,25 +288,43 @@ def CleanGameDirectoryState(
             if f.exists():
                 safe_remove_file(f)
                 actions_taken.append(f"清理非模式 C 配置文件: {cfg}")
-        opti_dir = td / "OptiScaler"
-        if opti_dir.exists() and opti_dir.is_dir():
-            try:
-                shutil.rmtree(opti_dir, ignore_errors=True)
-                actions_taken.append("清理非模式 C OptiScaler 目录")
-            except Exception:
-                pass
+        for opti_d_name in ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx"]:
+            opti_dir = td / opti_d_name
+            if opti_dir.exists() and opti_dir.is_dir():
+                try:
+                    shutil.rmtree(opti_dir, ignore_errors=True)
+                    actions_taken.append(f"清理非模式 C {opti_d_name} 目录")
+                except Exception:
+                    pass
 
     # (F) DLSS 5 Addon & Runtime Protection / Removal:
     if not preserve_dlss5:
         dlss5_files = [
             "lecram-dlss5-beta10.addon64",
             "dlss5-nr.addon64",
-            "nvngx_dlssnr.dll"
+            "nvngx_dlssnr.dll",
+            ".dlss5_config.json",
+            ".dlss5_patch_manifest.json",
+            "ReShade.ini",
+            "ReShade.ini.v11-backup",
+            "ReShade.log"
         ]
         for f_name in dlss5_files:
             f = td / f_name
             if f.exists():
                 safe_remove_file(f)
                 actions_taken.append(f"清理 DLSS 5 资产: {f_name}")
+
+        dlss5_runtime_dir = td / "dlss5-nr-runtime"
+        if dlss5_runtime_dir.exists() and dlss5_runtime_dir.is_dir():
+            try:
+                shutil.rmtree(dlss5_runtime_dir, ignore_errors=True)
+                actions_taken.append("清理 DLSS 5 运行时目录")
+            except Exception:
+                pass
+
+        for crash_dump in td.glob("dlss5-nr-crash-*.txt"):
+            safe_remove_file(crash_dump)
+            actions_taken.append(f"清理 DLSS 5 崩溃日志: {crash_dump.name}")
 
     return True, actions_taken
