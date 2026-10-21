@@ -226,3 +226,145 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
         return True, f"已成功清空 AppData 缓存并还原初始配置！释放空间: {freed_mb:.2f} MB", freed_mb
     except Exception as e:
         return False, f"重置数据时发生异常: {e}", 0.0
+
+
+# ---------------------------------------------------------------------------
+# True Physical Hardware Detection via App 1 (CPU/GPU配置管理工具)
+# ---------------------------------------------------------------------------
+
+def get_real_gpu_model() -> str:
+    """
+    Retrieve the TRUE underlying physical GPU model.
+    Prioritizes reading from App 1 (CPU/GPU配置管理工具) 出厂真实硬件数据与备份快照，
+    防止因注册表/WMI中已被修改伪装（如伪装成 RTX 5090/4090 等）导致 DLSS 5 或插帧补丁识别为错误架构。
+    """
+    # 1. Check App 1 cache backup file: GPU_Backup.cfg
+    try:
+        app1_cache = get_app_cache_dir("app1_hardware")
+        primary_backup = app1_cache / "GPU_Backup.cfg"
+        if primary_backup.exists():
+            val = primary_backup.read_text(encoding="utf-8", errors="ignore").strip()
+            if val and len(val) > 2 and "unknown" not in val.lower():
+                return val
+    except Exception:
+        pass
+
+    backup_candidates = [
+        Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "cache" / "app1_hardware" / "GPU_Backup.cfg",
+        Path("C:/ToolboxData/cache/app1_hardware/GPU_Backup.cfg"),
+        Path("C:/GPU_Backup.cfg"),
+    ]
+    for p_candidate in backup_candidates:
+        if p_candidate.exists():
+            try:
+                val = p_candidate.read_text(encoding="utf-8", errors="ignore").strip()
+                if val and len(val) > 2 and "unknown" not in val.lower():
+                    return val
+            except Exception:
+                pass
+
+    # 2. Check App 1 config.json -> current_hardware.detected_gpu
+    config_candidates = [
+        get_app_config_path("app1_hardware", "config.json"),
+        Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "config" / "app1_hardware" / "config.json",
+        Path("C:/ToolboxData/config/app1_hardware/config.json"),
+        Path("C:/Users/Public/Hardware_Config.json"),
+    ]
+    try:
+        root_dir = Path(__file__).resolve().parent.parent
+        config_candidates.extend([
+            root_dir / "apps" / "app1_hardware" / "config.json",
+            root_dir / "defaults" / "app1_hardware" / "config.json",
+            Path(r"C:\Program Files\DMBOX\apps\app1_hardware\config.json"),
+            Path(r"D:\AI\整合包\apps\app1_hardware\config.json"),
+        ])
+    except Exception:
+        pass
+
+    for p_cfg in config_candidates:
+        if p_cfg.exists():
+            try:
+                with open(p_cfg, "r", encoding="utf-8", errors="ignore") as f:
+                    data = json.load(f)
+                det = data.get("current_hardware", {}).get("detected_gpu", "").strip()
+                if det and len(det) > 2 and "unknown" not in det.lower():
+                    return det
+            except Exception:
+                pass
+
+    # 3. Check Windows Hardware Enum PCI directly (Protected by Windows Kernel, unaffected by DriverDesc modifications)
+    try:
+        import winreg
+        enum_pci = r"SYSTEM\CurrentControlSet\Enum\PCI"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, enum_pci) as k:
+            num_subkeys = winreg.QueryInfoKey(k)[0]
+            for i in range(num_subkeys):
+                sub = winreg.EnumKey(k, i)
+                if "VEN_10DE" in sub.upper():  # NVIDIA Device
+                    with winreg.OpenKey(k, sub) as dev_k:
+                        for j in range(winreg.QueryInfoKey(dev_k)[0]):
+                            inst = winreg.EnumKey(dev_k, j)
+                            with winreg.OpenKey(dev_k, inst) as inst_k:
+                                try:
+                                    cls_guid, _ = winreg.QueryValueEx(inst_k, "ClassGUID")
+                                    if cls_guid.lower() == "{4d36e968-e325-11ce-bfc1-08002be10318}":
+                                        desc, _ = winreg.QueryValueEx(inst_k, "DeviceDesc")
+                                        if desc:
+                                            clean_desc = desc.split(";")[-1].strip()
+                                            if clean_desc and "NVIDIA" in clean_desc.upper():
+                                                return clean_desc
+                                except Exception:
+                                    pass
+    except Exception:
+        pass
+
+    # 4. Fallback: Registry DriverDesc (if App 1 data not found and not spoofed)
+    try:
+        import winreg
+        path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as key:
+            for i in range(12):
+                try:
+                    sub = winreg.EnumKey(key, i)
+                    with winreg.OpenKey(key, sub) as sk:
+                        name, _ = winreg.QueryValueEx(sk, "DriverDesc")
+                        s = str(name).strip()
+                        if any(k in s.upper() for k in ["NVIDIA", "GEFORCE", "RTX", "GTX", "RADEON", "INTEL ARC"]):
+                            return s
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return "NVIDIA GeForce RTX (通用)"
+
+
+def get_real_gpu_info() -> Dict[str, Any]:
+    """
+    Returns full GPU architecture & identification based on TRUE physical hardware.
+    Determines architecture (RTX 50 vs RTX 20/30/40) for DLSS 5 and Multi-Frame Generation.
+    """
+    import re
+    name = get_real_gpu_model()
+    is_50 = bool(re.search(r"rtx\s*50\d0", name, re.IGNORECASE))
+    is_40 = bool(re.search(r"rtx\s*40\d0", name, re.IGNORECASE))
+    is_30 = bool(re.search(r"rtx\s*30\d0", name, re.IGNORECASE))
+    is_20 = bool(re.search(r"rtx\s*20\d0", name, re.IGNORECASE))
+
+    if is_50:
+        arch = "rtx50"
+        arch_desc = "RTX 50 系列专用模型 (Blackwell 架构极致算力专用)"
+    elif is_40 or is_30 or is_20:
+        arch = "rtx20_30_40"
+        arch_desc = f"{name} (RTX 20/30/40 架构 · 推荐当前显卡)"
+    else:
+        arch = "rtx20_30_40"
+        arch_desc = f"{name} (通用推荐模型)"
+
+    return {
+        "gpu_name": name,
+        "arch": arch,
+        "is_nvidia": any(k in name.upper() for k in ["NVIDIA", "GEFORCE", "RTX"]),
+        "description": arch_desc,
+        "is_rtx_40_or_newer": is_50 or is_40
+    }

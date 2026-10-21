@@ -1671,7 +1671,7 @@ class DLSS5SettingsPanel(QFrame):
             gpu_name = gpu_info.get("gpu_name", "NVIDIA GPU")
         except Exception:
             gpu_name = "NVIDIA GPU"
-        self.combo_gpu_arch.addItem(f"⚡ 自动识别推荐 (当前显卡: {gpu_name})", "auto")
+        self.combo_gpu_arch.addItem(f"⚡ 自动识别推荐 (真实显卡: {gpu_name})", "auto")
         self.combo_gpu_arch.addItem("🟢 RTX 20 / 30 / 40 系列专用模型 (v310.9.16 优化版 · 276MB)", "rtx20_30_40")
         self.combo_gpu_arch.addItem("🚀 RTX 50 系列专用模型 (Blackwell 架构专用 · 266MB)", "rtx50")
         self.combo_gpu_arch.currentIndexChanged.connect(self._on_param_changed)

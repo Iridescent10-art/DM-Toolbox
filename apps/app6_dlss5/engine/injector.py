@@ -86,8 +86,17 @@ def is_optiscaler_dll(path: str) -> bool:
 
 def detect_system_gpu() -> Dict[str, Any]:
     """
-    Detects system GPU model via WMI/PowerShell, determining architecture (RTX 50 vs RTX 20/30/40).
+    Detects the TRUE system GPU model, prioritizing App 1 (CPU/GPU配置管理工具)
+    出厂真实硬件数据与备份快照，防止因注册表/WMI中已被修改伪装（如伪装成 RTX 5090 等）导致选错架构模型。
     """
+    try:
+        from common.config_manager import get_real_gpu_info
+        info = get_real_gpu_info()
+        if info and info.get("gpu_name"):
+            return info
+    except Exception:
+        pass
+
     name = ""
     try:
         cmd = ["powershell", "-NoProfile", "-Command", "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"]
@@ -112,24 +121,19 @@ def detect_system_gpu() -> Dict[str, Any]:
     if is_50:
         arch = "rtx50"
         arch_desc = "RTX 50 系列专用模型 (Blackwell 架构极致算力专用)"
-    elif is_40:
+    elif is_40 or is_30 or is_20:
         arch = "rtx20_30_40"
-        arch_desc = "RTX 20 / 30 / 40 系列专用模型 (310.9.16 · 推荐当前显卡)"
-    elif is_30:
-        arch = "rtx20_30_40"
-        arch_desc = "RTX 20 / 30 / 40 系列专用模型 (310.9.16 · 推荐当前显卡)"
-    elif is_20:
-        arch = "rtx20_30_40"
-        arch_desc = "RTX 20 / 30 / 40 系列专用模型 (310.9.16 · 推荐当前显卡)"
+        arch_desc = f"{name} (RTX 20/30/40 架构 · 推荐当前显卡)"
     else:
         arch = "rtx20_30_40"
-        arch_desc = "RTX 20 / 30 / 40 系列专用模型 (310.9.16 · 通用推荐)"
+        arch_desc = f"{name} (通用推荐模型)"
 
     return {
         "gpu_name": name,
         "arch": arch,
         "is_nvidia": any(k in name.lower() for k in ["nvidia", "geforce", "rtx"]),
-        "description": arch_desc
+        "description": arch_desc,
+        "is_rtx_40_or_newer": is_50 or is_40
     }
 
 

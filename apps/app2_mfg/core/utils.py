@@ -406,7 +406,18 @@ def get_app_cache_dir() -> Path:
 
 
 def get_system_gpu_name() -> str:
-    """Detects active GPU name via Windows registry without external dependencies."""
+    """
+    Detects active TRUE physical GPU name, prioritizing App 1 (CPU/GPU配置管理工具)
+    出厂真实硬件数据与备份快照，防止因注册表/WMI中已被修改伪装（如伪装成 RTX 5090 等）导致插帧补丁识别为错误架构。
+    """
+    try:
+        from common.config_manager import get_real_gpu_model
+        gpu = get_real_gpu_model()
+        if gpu and gpu != "Unknown GPU":
+            return gpu
+    except Exception:
+        pass
+
     try:
         import winreg
         path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"

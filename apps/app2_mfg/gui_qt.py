@@ -3845,12 +3845,12 @@ class ModernMFGGUI(QMainWindow):
         else:
             gpu_name = get_system_gpu_name()
             if not is_rtx_40_or_newer(gpu_name):
-                self.lbl_backend_desc.setText(f"智能推荐 ({gpu_name}): 检测为 RTX 20/30 系或非 40/50 显卡，将自动应用模式 C (OptiScaler/FSR 3.1)")
+                self.lbl_backend_desc.setText(f"智能推荐 (真实显卡: {gpu_name}): 检测为 RTX 20/30 系或非 40/50 显卡，将自动应用模式 C (OptiScaler/FSR 3.1)")
                 self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #ea580c;")
                 if hasattr(self, "lbl_rhi_desc_hint"):
                     self.lbl_rhi_desc_hint.setText("智能模式推荐 C · 可点击右侧打开 RHI 模组生态助手")
             else:
-                self.lbl_backend_desc.setText(f"智能推荐 ({gpu_name}): 发现 40/50 系显卡，将自动应用高画质模式 B (ReShade 6.8 + RenoDX 一键完整注入)")
+                self.lbl_backend_desc.setText(f"智能推荐 (真实显卡: {gpu_name}): 发现 40/50 系显卡，将自动应用高画质模式 B (ReShade 6.8 + RenoDX 一键完整注入)")
                 self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #16a34a;")
                 if hasattr(self, "lbl_rhi_desc_hint"):
                     self.lbl_rhi_desc_hint.setText("✅ 智能模式匹配高画质模式 B · 内置完整 ReShade 框架与 RenoDX 插件")
