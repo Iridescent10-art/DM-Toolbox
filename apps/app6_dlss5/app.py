@@ -1780,6 +1780,16 @@ class DLSS5SettingsPanel(QFrame):
 
         layout.addLayout(header)
 
+        # Target Game Banner
+        self.target_banner = QFrame()
+        self.target_banner.setObjectName("DLSS5TargetBanner")
+        tb_layout = QHBoxLayout(self.target_banner)
+        tb_layout.setContentsMargins(14, 6, 14, 6)
+        self.lbl_target_game = QLabel("🎯 当前调校游戏: 未选择游戏 (请先在上方游戏选择栏指定目标游戏)")
+        self.lbl_target_game.setStyleSheet("font-size: 13px; font-weight: 700; color: #3B82F6;")
+        tb_layout.addWidget(self.lbl_target_game)
+        layout.addWidget(self.target_banner)
+
         # 2. Main Parameters Frame
         self.params_frame = QFrame()
         self.params_frame.setObjectName("DLSS5ParamsContainer")
@@ -1930,7 +1940,7 @@ class DLSS5SettingsPanel(QFrame):
         p_layout.addLayout(ss_box, 6, 1)
 
         self.chk_auto_mask = QCheckBox("启用人物与HUD自动蒙版保护 (Auto Mask)")
-        self.chk_auto_mask.setChecked(False)
+        self.chk_auto_mask.setChecked(True)
         self.chk_auto_mask.setCursor(Qt.CursorShape.PointingHandCursor)
         self.chk_auto_mask.stateChanged.connect(self._on_param_changed)
         p_layout.addWidget(self.chk_auto_mask, 6, 2, 1, 2)
@@ -2055,6 +2065,17 @@ class DLSS5SettingsPanel(QFrame):
             "runtime_path": r".\nvngx_dlssnr.dll"
         }
 
+    def set_target_game(self, game_name: str, target_dir: str):
+        self.current_target_dir = target_dir
+        if target_dir:
+            self.lbl_target_game.setText(f"🎯 当前调校游戏: {game_name}  |  路径: {target_dir}")
+            self.lbl_target_game.setStyleSheet("font-size: 13px; font-weight: 700; color: #10B981;")
+            self.load_config(target_dir)
+        else:
+            self.lbl_target_game.setText("🎯 当前调校游戏: 未选择游戏 (请先在上方游戏选择栏指定目标游戏)")
+            self.lbl_target_game.setStyleSheet("font-size: 13px; font-weight: 700; color: #EF4444;")
+            self.load_config(None)
+
     def set_params(self, cfg: Dict[str, Any]):
         self._is_loading = True
         try:
@@ -2139,7 +2160,7 @@ class DLSS5SettingsPanel(QFrame):
             self.lbl_skin_structure_val.setText(f"{ss:.2f}")
 
             # Auto mask
-            self.chk_auto_mask.setChecked(bool(cfg.get("auto_mask", 0)))
+            self.chk_auto_mask.setChecked(bool(cfg.get("auto_mask", 1)))
 
             self.lbl_sync_tag.setText("● 参数已就绪")
             self.lbl_sync_tag.setStyleSheet("font-size: 11px; font-weight: 600; color: #10B981;")
@@ -2319,17 +2340,17 @@ class DLSS5Window(DMBaseWindow):
 
             title="DM工具箱 - DLSS 5 神经重构与画质注入器",
 
-            width=960,
+            width=1080,
 
-            height=780,
+            height=920,
 
             icon_filename="dlss5_icon.png"
 
         )
 
-        self.setMinimumSize(880, 680)
+        self.setMinimumSize(960, 750)
 
-        self.resize(960, 780)
+        self.resize(1080, 920)
 
 
 
@@ -3233,7 +3254,9 @@ class DLSS5Window(DMBaseWindow):
 
             td = self.current_game_info.get("target_dir", "") if self.current_game_info else ""
 
-            self.dlss5_panel.load_config(td)
+            game_name = self.current_game_info.get("name", "选中游戏") if self.current_game_info else ""
+
+            self.dlss5_panel.set_target_game(game_name, td)
 
 
 
@@ -3575,31 +3598,15 @@ class DLSS5Window(DMBaseWindow):
 
 
 
-        # If MultiFrameGenPanel is available, perform transactional unified deployment
+        # Standalone DLSS 5 injection: ONLY injects DLSS 5 (Multi-Frame Generation is only deployed via '一键全套部署')
 
-        if hasattr(self, "mfg_panel") and self.mfg_panel and self.mfg_panel.isEnabled():
+        dlss5_cfg = self.dlss5_panel.get_params() if hasattr(self, "dlss5_panel") else None
 
-            params = self.mfg_panel.get_params()
+        ok, msg = DLSS5Injector.inject(target_dir, dlss5_config=dlss5_cfg)
 
-            if hasattr(self, "dlss5_panel"):
+        if hasattr(self, "dlss5_panel"):
 
-                params["dlss5_params"] = self.dlss5_panel.get_params()
-
-                self.dlss5_panel.save_config(target_dir)
-
-            mode = self.mfg_panel.active_mode
-
-            ok, msg = ConfigSyncService.apply_unified_configuration(target_dir, game_exe, mode, params)
-
-        else:
-
-            dlss5_cfg = self.dlss5_panel.get_params() if hasattr(self, "dlss5_panel") else None
-
-            ok, msg = DLSS5Injector.inject(target_dir, dlss5_config=dlss5_cfg)
-
-            if hasattr(self, "dlss5_panel"):
-
-                self.dlss5_panel.save_config(target_dir)
+            self.dlss5_panel.save_config(target_dir)
 
 
 

@@ -198,7 +198,7 @@ class ConfigSyncService:
 
         elif mode == "C":
             preset_c = load_optiscaler_preset()
-            preset_c["interpolation_count"] = max(1, int(params.get("multiplier", 3)) - 1)
+            preset_c["interpolation_count"] = int(params.get("interpolation_count", max(1, int(params.get("multiplier", 3)) - 1)))
             preset_c["dlss_preset"] = params.get("dlss_preset", "K")
             preset_c["menu_key"] = params.get("menu_key", "Insert")
             preset_c["fg_output"] = params.get("fg_output", "xefg")

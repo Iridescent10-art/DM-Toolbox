@@ -113,8 +113,10 @@ class IniConfigManager:
                         if current_sec not in result:
                             result[current_sec] = {}
                         continue
-                    if "=" in stripped and current_sec:
+                    if "=" in stripped:
                         k, v = stripped.split("=", 1)
+                        if current_sec not in result:
+                            result[current_sec] = {}
                         result[current_sec][k.strip()] = v.strip()
         except Exception:
             pass
@@ -146,7 +148,7 @@ class IniConfigManager:
         }
 
         out_lines: List[str] = []
-        current_sec_upper: Optional[str] = None
+        current_sec_upper: Optional[str] = ""
         written_keys: Dict[str, set] = {sec_u: set() for sec_u in updates_normalized}
 
         def flush_missing_keys(sec_upper: str):
@@ -160,14 +162,14 @@ class IniConfigManager:
         for line in lines:
             stripped = line.strip()
             if stripped.startswith("[") and "]" in stripped:
-                if current_sec_upper:
+                if current_sec_upper is not None:
                     flush_missing_keys(current_sec_upper)
                 sec_name = stripped[1:stripped.index("]")].strip()
                 current_sec_upper = sec_name.upper()
                 out_lines.append(line)
                 continue
 
-            if current_sec_upper and current_sec_upper in updates_normalized:
+            if current_sec_upper is not None and current_sec_upper in updates_normalized:
                 if "=" in stripped and not stripped.startswith(";") and not stripped.startswith("#"):
                     k, v = stripped.split("=", 1)
                     k_clean = k.strip().upper()
@@ -182,7 +184,7 @@ class IniConfigManager:
             out_lines.append(line)
 
         # Flush keys for the trailing section
-        if current_sec_upper:
+        if current_sec_upper is not None:
             flush_missing_keys(current_sec_upper)
 
         # Append completely new sections that were never encountered in the file
@@ -190,7 +192,8 @@ class IniConfigManager:
             if not any(k in written_keys[sec_upper] for k in kv_map):
                 if out_lines and not out_lines[-1].endswith("\n\n"):
                     out_lines.append("\n")
-                out_lines.append(f"[{orig_sec}]\n")
+                if orig_sec:
+                    out_lines.append(f"[{orig_sec}]\n")
                 for k_upper, (orig_k, val) in kv_map.items():
                     out_lines.append(f"{orig_k}={val}\n")
                     written_keys[sec_upper].add(k_upper)
@@ -387,7 +390,7 @@ class IniConfigManager:
 
         fg_output = str(preset.get("fg_output", "xefg")).strip().lower()
         fg_input = str(preset.get("fg_input", "dlssg")).strip().lower()
-        requested_interpolation = preset.get("interpolation_count", 1)
+        requested_interpolation = preset.get("interpolation_count", 2)
         try:
             requested_interpolation = int(requested_interpolation)
         except (TypeError, ValueError):

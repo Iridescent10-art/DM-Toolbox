@@ -720,6 +720,13 @@ def _configure_reshade_ini_for_dlss5(
                 modified = True
                 continue
 
+        if current_sec == "" and remove and "=" in stripped:
+            k = stripped.split("=", 1)[0].strip()
+            ku = k.upper()
+            if ku.startswith("DIRECTNEURAL") or ku.startswith("DLSSNR.") or ku.startswith("DLSSPRESET") or ku in ("DLSSQUALITYMODE", "DLSSAUTOEXPOSURE"):
+                modified = True
+                continue
+
         if current_sec == "ADDON" and "=" in stripped:
             k, v = stripped.split("=", 1)
             key = k.strip()

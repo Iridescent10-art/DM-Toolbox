@@ -29,7 +29,7 @@ DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
     "style": 2,                # 模型样式: 0=模型A(原生), 1=模型B(锐度), 2=模型C(电影柔和·抑噪)
     "local_structure": 1.00,   # 结构强度 (DirectNeuralRenderingLocalStructureStrength)
     "local_tone": 1.00,        # 局部色调 (DirectNeuralRenderingLocalToneStrength)
-    "auto_mask": 0,            # 角色蒙版 (DirectNeuralRenderingAutoMask)
+    "auto_mask": 1,            # 角色蒙版 (DirectNeuralRenderingAutoMask · 默认开启保护角色与UI)
     "skin_structure": 1.00,    # 皮肤结构 (DirectNeuralRenderingSkinStructureStrength)
     "processing_scale": 0.67,  # 重构分辨率缩放 (DirectNeuralRenderingProcessingScale)
     "pass_count": 1,           # 推理遍数 1 Pass (DirectNeuralRenderingPassCount)
@@ -110,8 +110,11 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
     except Exception:
         return config
 
-    # Check modern RenoDX / DLSS sections
-    mod_sec = sections.get("RenoDX") or sections.get("DLSS") or sections.get("RenoDX.DLSS") or {}
+    # Check root section (ReShade nullptr section) and modern RenoDX / DLSS sections
+    root_sec = sections.get("", {})
+    mod_sec = dict(sections.get("RenoDX") or sections.get("DLSS") or sections.get("RenoDX.DLSS") or {})
+    # Prioritize root_sec values as ReShade gets/sets them at root
+    mod_sec.update(root_sec)
     legacy_sec = sections.get("RenoDX.DLSS5") or sections.get("DLSS5") or sections.get("DLSS5-NR") or {}
 
     # Modern RenoDX Keys
@@ -366,6 +369,19 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DLSSPresetPerformance": str(dlss_preset_val),
         "DLSSPresetUltraQuality": str(dlss_preset_val),
         "DLSSPresetUltraPerformance": str(dlss_preset_val),
+        # Internal evaluator and runtime keys (DLSSNR.*)
+        "DLSSNR.Enabled": str(status_val),
+        "DLSSNR.Intensity": f"{intensity_val:.6f}",
+        "DLSSNR.Style": str(style_val),
+        "DLSSNR.LocalToneStrength": f"{local_tone_val:.6f}",
+        "DLSSNR.LocalStructureStrength": f"{local_struct_val:.6f}",
+        "DLSSNR.SkinStructureStrength": f"{skin_struct_val:.6f}",
+        "DLSSNR.GlobalToneStrength": f"{local_tone_val:.6f}",
+        "DLSSNR.UseAutoMask": str(auto_mask_val),
+        "DLSSNR.UICorrection": str(ui_corr_val),
+        "DLSSNR.Scale": f"{proc_scale_val:.6f}",
+        "DLSSNR.ScalingRatio": f"{proc_scale_val:.6f}",
+        "DLSSNR.Hint.Render.Preset": str(dlss_preset_val),
     }
 
     # 2. [DLSS] section dictionary (includes OptiScaler / ReShade standard keys)
@@ -395,6 +411,7 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     }
 
     updates: Dict[str, Dict[str, Any]] = {
+        "": renodx_dict,  # Root / global section (ReShade nullptr section, 100% in-game effective)
         "RenoDX": renodx_dict,
         "DLSS": dlss_section_dict,
         "RenoDX.DLSS": renodx_dict,
