@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
 
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 
-    QPushButton, QFrame, QScrollArea, QMessageBox, QGridLayout,
+    QPushButton, QFrame, QScrollArea, QGridLayout,
 
     QComboBox, QLineEdit, QFileDialog, QSizePolicy, QRadioButton,
 
@@ -1211,7 +1211,7 @@ class MultiFrameGenPanel(QFrame):
 
         if not self.current_game_info or not self.current_game_info.get("target_dir"):
 
-            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            ModernDialog.warning(self, "提示", "请先选择目标游戏！")
 
             return
 
@@ -1307,7 +1307,7 @@ class MultiFrameGenPanel(QFrame):
 
 
 
-        QMessageBox.information(
+        ModernDialog.success(
 
             self,
 
@@ -1333,7 +1333,7 @@ class MultiFrameGenPanel(QFrame):
 
         if not self.current_game_info or not self.current_game_info.get("target_dir"):
 
-            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            ModernDialog.warning(self, "提示", "请先选择目标游戏！")
 
             return
 
@@ -1357,11 +1357,11 @@ class MultiFrameGenPanel(QFrame):
 
         if ok:
 
-            QMessageBox.information(self, "部署成功", msg)
+            ModernDialog.success(self, "部署成功", msg)
 
         else:
 
-            QMessageBox.critical(self, "部署失败", msg)
+            ModernDialog.error(self, "部署失败", msg)
 
 
 
@@ -1403,7 +1403,7 @@ class MultiFrameGenPanel(QFrame):
 
         except Exception as e:
 
-            QMessageBox.warning(self, "打开高级预设", f"打开高级预设面板异常: {e}")
+            ModernDialog.error(self, "打开高级预设", f"打开高级预设面板异常: {e}")
 
 
 
@@ -2055,11 +2055,11 @@ class DLSS5SettingsPanel(QFrame):
 
     def on_save_clicked(self):
         if not self.current_target_dir or not os.path.exists(self.current_target_dir):
-            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            ModernDialog.warning(self, "提示", "请先选择目标游戏！")
             return
         ok = self.save_config(self.current_target_dir)
         if ok:
-            QMessageBox.information(
+            ModernDialog.success(
                 self,
                 "保存成功",
                 "✅ DLSS 5 核心参数已成功同步写入游戏的 ReShade.ini！\n\n"
@@ -2073,14 +2073,14 @@ class DLSS5SettingsPanel(QFrame):
                 "💡 启动游戏后按【Home】键即可生效调校。"
             )
         else:
-            QMessageBox.critical(self, "保存失败", "写入游戏 ReShade.ini 配置文件失败，请检查文件读写权限。")
+            ModernDialog.error(self, "保存失败", "写入游戏 ReShade.ini 配置文件失败，请检查文件读写权限。")
 
     def on_read_clicked(self):
         if not self.current_target_dir or not os.path.exists(self.current_target_dir):
-            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            ModernDialog.warning(self, "提示", "请先选择目标游戏！")
             return
         self.load_config(self.current_target_dir)
-        QMessageBox.information(self, "读取成功", "已从当前游戏目录的 ReShade.ini 成功加载 DLSS 5 参数！")
+        ModernDialog.success(self, "读取成功", "已从当前游戏目录的 ReShade.ini 成功加载 DLSS 5 参数！")
 
     def on_reset_clicked(self):
         self.set_params(DEFAULT_DLSS5_CONFIG)
@@ -3435,7 +3435,7 @@ class DLSS5Window(DMBaseWindow):
 
         if not self.current_game_info or not self.current_game_info.get("target_dir"):
 
-            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            ModernDialog.warning(self, "提示", "请先选择目标游戏！")
 
             return
 
@@ -3463,11 +3463,11 @@ class DLSS5Window(DMBaseWindow):
 
         if ok:
 
-            QMessageBox.information(self, f"注入成功 - {game_name}", msg)
+            ModernDialog.success(self, f"注入成功 - {game_name}", msg, self.is_dark_mode)
 
         else:
 
-            QMessageBox.critical(self, "注入失败", msg)
+            ModernDialog.error(self, "注入失败", msg, self.is_dark_mode)
 
 
 
@@ -3481,7 +3481,7 @@ class DLSS5Window(DMBaseWindow):
 
         if not self.current_game_info or not self.current_game_info.get("target_dir"):
 
-            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            ModernDialog.warning(self, "提示", "请先选择目标游戏！")
 
             return
 
@@ -3497,11 +3497,11 @@ class DLSS5Window(DMBaseWindow):
 
         if ok:
 
-            QMessageBox.information(self, f"ReShade 底座就绪 - {game_name}", msg)
+            ModernDialog.success(self, f"ReShade 底座就绪 - {game_name}", msg, self.is_dark_mode)
 
         else:
 
-            QMessageBox.critical(self, "底座注入失败", msg)
+            ModernDialog.error(self, "底座注入失败", msg, self.is_dark_mode)
 
 
 
@@ -3534,80 +3534,43 @@ class DLSS5Window(DMBaseWindow):
 
 
         force_clean_all = False
-
         if has_fg:
-
-            box = QMessageBox(self)
-
-            box.setWindowTitle("确认还原 / 卸载")
-
-            box.setIcon(QMessageBox.Icon.Question)
-
-            box.setText(
-
+            msg_restore = (
                 f"检测到游戏【{game_name}】同时存在多帧生成补丁 ({fg_info.get('summary', '')})。\n\n"
-
                 "请选择还原方案：\n"
-
                 "• 彻底清除全部：清除所有注入 DLL、多帧生成、DLSS 5 插件及残留日志，恢复 100% 官方纯净状态。\n"
-
                 "• 仅卸载 DLSS 5：仅移除 DLSS 5 插件，保留多帧生成环境与 ReShade 底座。"
-
             )
-
-            btn_clean_all = box.addButton("彻底清除全部 (推荐)", QMessageBox.ButtonRole.AcceptRole)
-
-            btn_dlss5_only = box.addButton("仅卸载 DLSS 5", QMessageBox.ButtonRole.ActionRole)
-
-            btn_cancel = box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
-
-            box.setDefaultButton(btn_clean_all)
-
-            box.exec()
-
-
-
-            clicked = box.clickedButton()
-
-            if clicked == btn_cancel or clicked is None:
-
-                return
-
-            force_clean_all = (clicked == btn_clean_all)
-
-        else:
-
-            reply = QMessageBox.question(
-
+            res = ModernDialog.choice3(
                 self,
-
-                "确认还原",
-
-                f"确定要卸载游戏【{game_name}】中的 DLSS 5 插件并彻底还原游戏吗？\n将恢复官方纯净状态。",
-
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-
-                QMessageBox.StandardButton.Yes
-
+                "确认还原 / 卸载",
+                msg_restore,
+                btn1_text="彻底清除全部 (推荐)",
+                btn2_text="仅卸载 DLSS 5",
+                btn3_text="取消",
+                is_dark=self.is_dark_mode
             )
-
-            if reply != QMessageBox.StandardButton.Yes:
-
+            if res == 0:
                 return
-
+            force_clean_all = (res == 1)
+        else:
+            msg_confirm = f"确定要卸载游戏【{game_name}】中的 DLSS 5 插件并彻底还原游戏吗？\n将恢复官方纯净状态。"
+            if not ModernDialog.confirm(
+                self,
+                "确认还原",
+                msg_confirm,
+                is_dark=self.is_dark_mode,
+                ok_text="确认卸载",
+                cancel_text="取消"
+            ):
+                return
             force_clean_all = True
 
-
-
         ok, msg = DLSS5Injector.restore(target_dir, force_clean_all=force_clean_all)
-
         if ok:
-
-            QMessageBox.information(self, f"还原成功 - {game_name}", msg)
-
+            ModernDialog.success(self, f"还原成功 - {game_name}", msg, self.is_dark_mode)
         else:
-
-            QMessageBox.critical(self, "还原失败", msg)
+            ModernDialog.error(self, "还原失败", msg, self.is_dark_mode)
 
 
 
@@ -3635,11 +3598,11 @@ class DLSS5Window(DMBaseWindow):
 
         if ok:
 
-            QMessageBox.information(self, "RHI 模组生态直达助手", msg)
+            ModernDialog.info(self, "RHI 模组生态直达助手", msg, self.is_dark_mode)
 
         else:
 
-            QMessageBox.warning(self, "启动 RHI", msg)
+            ModernDialog.warning(self, "启动 RHI", msg, self.is_dark_mode)
 
 
 

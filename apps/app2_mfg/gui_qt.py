@@ -47,7 +47,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.config_manager import get_global_theme, set_global_theme
 from common.ui_theme import CaptionButton, CaptionButtonType, ModernProgressDialog, ProgressSignalBridge, theme_toggle_icon
-from common.dm_ui_core import DMSizeGrip, apply_dm_window_frame
+from common.dm_ui_core import DMSizeGrip, apply_dm_window_frame, ModernDialog, SCROLLBAR_LIGHT_QSS, SCROLLBAR_DARK_QSS
 
 # Core modules
 from core.models import BackendType, QualificationStatus, GameInfo
@@ -76,196 +76,7 @@ class WorkerSignals(QObject):
     progress_updated = Signal(int, str, str)  # val (0-100), text, detail
 
 # ----------------- CUSTOM THEMED MODAL DIALOG -----------------
-class ModernDialog(QDialog):
-    """Clean modern modal dialog with rounded corners and light/dark theme matching."""
-    def __init__(self, parent, title: str, message: str, dialog_type: str = "info", is_dark: bool = False, custom_buttons: Optional[List[Tuple[str, int, str]]] = None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(500 if custom_buttons else 460)
-
-        bg_color = "#2A2B2C" if is_dark else "#ffffff"
-        border_color = "#3A3A3A" if is_dark else "#D4D4D4"
-        text_color = "#F5F5F5" if is_dark else "#292929"
-        msg_color = "#94a3b8" if is_dark else "#4A4A4A"
-
-        type_map = {
-            "info": ("ℹ", "#E8E8E8", "#26784C"),
-            "success": ("✓", "#dcfce7", "#16a34a"),
-            "warning": ("⚠", "#F5F5F5", "#d97706"),
-            "error": ("✕", "#fee2e2", "#dc2626"),
-            "question": ("?", "#ede9fe", "#7c3aed")
-        }
-        icon_char, b_bg, b_fg = type_map.get(dialog_type, ("ℹ", "#E8E8E8", "#26784C"))
-
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-
-        card = QFrame()
-        card.setStyleSheet(f"""
-            background-color: {bg_color};
-            border: 1px solid {border_color};
-            border-radius: 14px;
-        """)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(22, 20, 22, 20)
-        card_layout.setSpacing(14)
-
-        # Header
-        header = QHBoxLayout()
-        header.setSpacing(12)
-
-        badge = QLabel(icon_char)
-        badge.setFixedSize(36, 36)
-        badge.setStyleSheet(f"""
-            background-color: {b_bg};
-            color: {b_fg};
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: bold;
-            qproperty-alignment: AlignCenter;
-            border: none;
-        """)
-        header.addWidget(badge)
-
-        lbl_title = QLabel(title)
-        lbl_title.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {text_color}; border: none;")
-        header.addWidget(lbl_title)
-        header.addStretch()
-
-        btn_x = QPushButton("✕")
-        btn_x.setFixedSize(28, 28)
-        btn_x.setStyleSheet(f"background: transparent; color: {msg_color}; border: none; font-size: 14px; font-weight: bold;")
-        btn_x.clicked.connect(self.reject)
-        header.addWidget(btn_x)
-
-        card_layout.addLayout(header)
-
-        # Body Message
-        lbl_msg = QLabel(message)
-        lbl_msg.setStyleSheet(f"font-size: 13px; color: {msg_color}; line-height: 1.4; border: none;")
-        lbl_msg.setWordWrap(True)
-        card_layout.addWidget(lbl_msg)
-
-                # Buttons
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-
-        if custom_buttons:
-            for b_text, b_code, b_style in custom_buttons:
-                btn = QPushButton(b_text)
-                if b_style == "primary":
-                    btn.setStyleSheet("""
-                        background-color: #2F8F5B;
-                        color: #ffffff;
-                        border: none;
-                        border-radius: 8px;
-                        padding: 8px 18px;
-                        font-weight: bold;
-                        font-size: 13px;
-                    """)
-                elif b_style == "secondary":
-                    btn_bg = "#3A3A3A" if is_dark else "#E2E8F0"
-                    btn_fg = "#F8FAFC" if is_dark else "#1E293B"
-                    btn.setStyleSheet(f"""
-                        background-color: {btn_bg};
-                        color: {btn_fg};
-                        border: 1px solid {'#4B5563' if is_dark else '#CBD5E1'};
-                        border-radius: 8px;
-                        padding: 8px 16px;
-                        font-weight: 600;
-                        font-size: 13px;
-                    """)
-                else:
-                    btn.setStyleSheet("""
-                        background-color: #E5E5E5;
-                        color: #3A3A3A;
-                        border: none;
-                        border-radius: 8px;
-                        padding: 8px 16px;
-                        font-weight: 600;
-                        font-size: 13px;
-                    """)
-                btn.clicked.connect(lambda checked=False, c=b_code: self.done(c))
-                btn_row.addWidget(btn)
-        elif dialog_type == "question":
-            btn_cancel = QPushButton("取消")
-            btn_cancel.setStyleSheet("""
-                background-color: #E5E5E5;
-                color: #3A3A3A;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 20px;
-                font-weight: 600;
-                font-size: 13px;
-            """)
-            btn_cancel.clicked.connect(self.reject)
-            btn_row.addWidget(btn_cancel)
-
-            btn_ok = QPushButton("确认执行")
-            btn_ok.setStyleSheet("""
-                background-color: #2F8F5B;
-                color: #ffffff;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 22px;
-                font-weight: bold;
-                font-size: 13px;
-            """)
-            btn_ok.clicked.connect(self.accept)
-            btn_row.addWidget(btn_ok)
-        else:
-            btn_ok = QPushButton("我知道了")
-            btn_ok.setStyleSheet("""
-                background-color: #2F8F5B;
-                color: #ffffff;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 24px;
-                font-weight: bold;
-                font-size: 13px;
-            """)
-            btn_ok.clicked.connect(self.accept)
-            btn_row.addWidget(btn_ok)
-
-        card_layout.addLayout(btn_row)
-        main_layout.addWidget(card)
-
-    @classmethod
-    def info(cls, parent, title: str, message: str, is_dark: bool = False):
-        dlg = cls(parent, title, message, "info", is_dark)
-        return dlg.exec()
-
-    @classmethod
-    def success(cls, parent, title: str, message: str, is_dark: bool = False):
-        dlg = cls(parent, title, message, "success", is_dark)
-        return dlg.exec()
-
-    @classmethod
-    def warning(cls, parent, title: str, message: str, is_dark: bool = False):
-        dlg = cls(parent, title, message, "warning", is_dark)
-        return dlg.exec()
-
-    @classmethod
-    def error(cls, parent, title: str, message: str, is_dark: bool = False):
-        dlg = cls(parent, title, message, "error", is_dark)
-        return dlg.exec()
-
-    @classmethod
-    def confirm(cls, parent, title: str, message: str, is_dark: bool = False) -> bool:
-        dlg = cls(parent, title, message, "question", is_dark)
-        return dlg.exec() == QDialog.DialogCode.Accepted
-
-    @classmethod
-    def choice3(cls, parent, title: str, message: str, btn1_text: str, btn2_text: str, btn3_text: str = "取消", is_dark: bool = False) -> int:
-        buttons = [
-            (btn3_text, 0, "cancel"),
-            (btn2_text, 2, "secondary"),
-            (btn1_text, 1, "primary")
-        ]
-        dlg = cls(parent, title, message, "question", is_dark, custom_buttons=buttons)
-        return dlg.exec()
-
+# ModernDialog is now globally centralized in common.dm_ui_core for 100% unified design system.
 
 class ModernTranslationGuideDialog(QDialog):
     """
@@ -1033,16 +844,33 @@ class OptiScalerPresetDialog(QDialog):
     def mouseReleaseEvent(self, event):
         self._is_dragging = False
 
+    def _wrap_tab_in_scroll(self, tab_widget: QWidget, is_dark: bool) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea > QWidget > QWidget {{
+                background: transparent;
+            }}
+            {SCROLLBAR_DARK_QSS if is_dark else SCROLLBAR_LIGHT_QSS}
+        """)
+        scroll.setWidget(tab_widget)
+        return scroll
+
     def _build_ui(self):
         is_dark = self.is_dark
         bg_color = "#2A2B2C" if is_dark else "#ffffff"
-        border_color = "#3A3A3A" if is_dark else "#D4D4D4"
-        text_color = "#F5F5F5" if is_dark else "#292929"
-        sub_text = "#94a3b8" if is_dark else "#64748b"
-        card_bg = "#292929" if is_dark else "#F5F5F5"
-        card_border = "#3A3A3A" if is_dark else "#E5E5E5"
+        border_color = "#3A3A3A" if is_dark else "#CBD5E1"
+        text_color = "#F8FAFC" if is_dark else "#0F172A"
+        sub_text = "#94a3b8" if is_dark else "#475569"
+        card_bg = "#292929" if is_dark else "#F8FAFC"
+        card_border = "#3A3A3A" if is_dark else "#E2E8F0"
         combo_bg = "#2A2B2C" if is_dark else "#ffffff"
-        combo_border = "#4A4A4A" if is_dark else "#D4D4D4"
+        combo_border = "#4A4A4A" if is_dark else "#CBD5E1"
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
@@ -1200,15 +1028,15 @@ class OptiScalerPresetDialog(QDialog):
 
         # Add Tab 0: Mode A
         tab_mode_a = self._build_mode_a_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
-        self.stacked_widget.addWidget(tab_mode_a)
+        self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_a, is_dark))
 
         # Add Tab 1: Mode B
         tab_mode_b = self._build_mode_b_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
-        self.stacked_widget.addWidget(tab_mode_b)
+        self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_b, is_dark))
 
         # Add Tab 2: Mode C
         tab_mode_c = self._build_mode_c_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
-        self.stacked_widget.addWidget(tab_mode_c)
+        self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_c, is_dark))
 
         card_layout.addWidget(self.stacked_widget, 1)
 

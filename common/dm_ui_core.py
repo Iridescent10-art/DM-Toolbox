@@ -20,7 +20,7 @@ import os
 import ctypes
 from ctypes import wintypes
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Tuple
 
 from PySide6.QtCore import (
     Qt, QPoint, QTimer, QRectF, QPointF, QEvent,
@@ -1000,3 +1000,366 @@ class DMBaseWindow(QMainWindow):
             except Exception:
                 pass
         super().closeEvent(event)
+
+
+# =========================================================================
+# 标准现代化圆角模态对话框 (ModernDialog)
+# 与 DM 工具箱设计语言 100% 对齐，支持亮色 (白天) / 暗色 (夜间) 高对比度自适应
+# =========================================================================
+class ModernDialog(QDialog):
+    """
+    DM 通用设计语言标准模态对话框。
+    具备：
+    1. Windows 11 DWM 硬件级圆角与半透明浮层微阴影。
+    2. 白天 (Light) 与夜间 (Dark) 高对比度自适应配色方案，保证白天烈日/强光下文字与按钮 100% 清晰可见。
+    3. 支持 info, success, warning, error, question 五种状态指示器及高对比度圆角徽章。
+    4. 智能支持长文本滚动、可复制文本 (TextSelectableByMouse)。
+    5. 支持原生现代按钮、多分支决策 (choice3)、确认对话 (confirm)。
+    """
+    def __init__(
+        self,
+        parent=None,
+        title: str = "提示",
+        message: str = "",
+        dialog_type: str = "info",
+        is_dark: Optional[bool] = None,
+        custom_buttons: Optional[List[Tuple[str, int, str]]] = None,
+        ok_text: str = "我知道了",
+        cancel_text: str = "取消"
+    ):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setModal(True)
+
+        self.is_dark = self._resolve_is_dark(parent, is_dark)
+        is_dark_eff = self.is_dark
+
+        # 配色系统：严格遵循 WCAG 2.1 AAA 高对比度规范
+        if is_dark_eff:
+            bg_color = "#1E293B"      # 深深蓝灰卡片底色
+            border_color = "#334155"  # 深灰边框
+            text_color = "#F8FAFC"    # 标题文字 (纯净高亮白)
+            msg_color = "#CBD5E1"     # 正文文字 (浅灰蓝，对比度 > 9:1)
+            btn_sec_bg = "#334155"
+            btn_sec_border = "#475569"
+            btn_sec_text = "#F8FAFC"
+            btn_sec_hover = "#475569"
+            btn_can_bg = "#0F172A"
+            btn_can_border = "#334155"
+            btn_can_text = "#94A3B8"
+            btn_can_hover = "#1E293B"
+            btn_can_hover_text = "#F8FAFC"
+            badge_map = {
+                "success": ("✓", "#064E3B", "#34D399"),
+                "info": ("ℹ", "#0C4A6E", "#38BDF8"),
+                "warning": ("⚠", "#78350F", "#FBBF24"),
+                "error": ("✕", "#7F1D1D", "#F87171"),
+                "question": ("?", "#4C1D95", "#A78BFA")
+            }
+        else:
+            # 白天模式：彻底消除白字泛白、浅灰模糊，确保极其清晰锐利
+            bg_color = "#FFFFFF"      # 纯白卡片底色
+            border_color = "#CBD5E1"  # 明亮利落边框
+            text_color = "#0F172A"    # 标题文字 (深岩灰，极强对比度)
+            msg_color = "#334155"     # 正文文字 (深墨蓝灰，对比度 > 9.5:1)
+            btn_sec_bg = "#F1F5F9"
+            btn_sec_border = "#CBD5E1"
+            btn_sec_text = "#1E293B"  # 深色文字，绝非泛白
+            btn_sec_hover = "#E2E8F0"
+            btn_can_bg = "#F8FAFC"
+            btn_can_border = "#CBD5E1"
+            btn_can_text = "#334155"  # 深岩灰文字，清晰易辨
+            btn_can_hover = "#E2E8F0"
+            btn_can_hover_text = "#0F172A"
+            badge_map = {
+                "success": ("✓", "#DCFCE7", "#16A34A"),
+                "info": ("ℹ", "#E0F2FE", "#0284C7"),
+                "warning": ("⚠", "#FEF3C7", "#D97706"),
+                "error": ("✕", "#FEE2E2", "#DC2626"),
+                "question": ("?", "#EDE9FE", "#7C3AED")
+            }
+
+        icon_char, b_bg, b_fg = badge_map.get(dialog_type, badge_map["info"])
+
+        # 尺寸自适应
+        dialog_width = 540 if (custom_buttons and len(custom_buttons) >= 3) else 480
+        self.setFixedWidth(dialog_width)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+
+        # 卡片容器
+        card = QFrame()
+        card.setObjectName("ModernDialogCard")
+        card.setStyleSheet(f"""
+            QFrame#ModernDialogCard {{
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 14px;
+            }}
+        """)
+
+        # 浮动微阴影
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 80 if is_dark_eff else 30))
+        card.setGraphicsEffect(shadow)
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(22, 18, 22, 18)
+        card_layout.setSpacing(14)
+
+        # 1. Header (图标徽章 + 标题 + 关闭按钮)
+        header = QHBoxLayout()
+        header.setSpacing(12)
+
+        badge = QLabel(icon_char)
+        badge.setFixedSize(36, 36)
+        badge.setStyleSheet(f"""
+            background-color: {b_bg};
+            color: {b_fg};
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            qproperty-alignment: AlignCenter;
+            border: none;
+        """)
+        header.addWidget(badge)
+
+        lbl_title = QLabel(title)
+        lbl_title.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {text_color}; border: none;")
+        header.addWidget(lbl_title, 1)
+
+        btn_x = QPushButton("✕")
+        btn_x.setFixedSize(28, 28)
+        btn_x.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_x.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {'#94A3B8' if is_dark_eff else '#64748B'};
+                border: none;
+                font-size: 13px;
+                font-weight: bold;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: #EF4444;
+                color: #FFFFFF;
+            }}
+        """)
+        btn_x.clicked.connect(self.reject)
+        header.addWidget(btn_x)
+
+        card_layout.addLayout(header)
+
+        # 2. Body Message
+        # 若内容较长则开启精致滚动区，防止溢出屏幕
+        needs_scroll = len(message) > 280 or message.count("\n") >= 6
+
+        lbl_msg = QLabel(message)
+        lbl_msg.setStyleSheet(f"font-size: 13px; color: {msg_color}; line-height: 1.5; border: none; font-weight: 500;")
+        lbl_msg.setWordWrap(True)
+        lbl_msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+        if needs_scroll:
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setMaximumHeight(260)
+            scroll.setStyleSheet(f"""
+                QScrollArea {{
+                    background: transparent;
+                    border: none;
+                }}
+                QScrollArea > QWidget > QWidget {{
+                    background: transparent;
+                }}
+                {SCROLLBAR_DARK_QSS if is_dark_eff else SCROLLBAR_LIGHT_QSS}
+            """)
+            msg_container = QWidget()
+            msg_layout = QVBoxLayout(msg_container)
+            msg_layout.setContentsMargins(0, 0, 8, 0)
+            msg_layout.addWidget(lbl_msg)
+            scroll.setWidget(msg_container)
+            card_layout.addWidget(scroll)
+        else:
+            card_layout.addWidget(lbl_msg)
+
+        # 3. Action Buttons
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.setSpacing(10)
+
+        # 按钮样式定义
+        primary_btn_style = """
+            QPushButton {
+                background-color: #10B981;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 22px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #059669;
+            }
+            QPushButton:pressed {
+                background-color: #047857;
+            }
+        """
+
+        secondary_btn_style = f"""
+            QPushButton {{
+                background-color: {btn_sec_bg};
+                color: {btn_sec_text};
+                border: 1px solid {btn_sec_border};
+                border-radius: 8px;
+                padding: 8px 18px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {btn_sec_hover};
+            }}
+        """
+
+        cancel_btn_style = f"""
+            QPushButton {{
+                background-color: {btn_can_bg};
+                color: {btn_can_text};
+                border: 1px solid {btn_can_border};
+                border-radius: 8px;
+                padding: 8px 18px;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {btn_can_hover};
+                color: {btn_can_hover_text};
+            }}
+        """
+
+        if custom_buttons:
+            for b_text, b_code, b_style in custom_buttons:
+                btn = QPushButton(b_text)
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.setMinimumHeight(34)
+                if b_style == "primary":
+                    btn.setStyleSheet(primary_btn_style)
+                elif b_style == "secondary":
+                    btn.setStyleSheet(secondary_btn_style)
+                else:
+                    btn.setStyleSheet(cancel_btn_style)
+                btn.clicked.connect(lambda checked=False, c=b_code: self.done(c))
+                btn_row.addWidget(btn)
+        elif dialog_type == "question":
+            btn_c = QPushButton(cancel_text)
+            btn_c.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_c.setMinimumHeight(34)
+            btn_c.setStyleSheet(cancel_btn_style)
+            btn_c.clicked.connect(self.reject)
+            btn_row.addWidget(btn_c)
+
+            btn_ok = QPushButton(ok_text if ok_text != "我知道了" else "确认执行")
+            btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_ok.setMinimumHeight(34)
+            btn_ok.setStyleSheet(primary_btn_style)
+            btn_ok.clicked.connect(self.accept)
+            btn_row.addWidget(btn_ok)
+        else:
+            btn_ok = QPushButton(ok_text)
+            btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_ok.setMinimumHeight(34)
+            btn_ok.setStyleSheet(primary_btn_style)
+            btn_ok.clicked.connect(self.accept)
+            btn_row.addWidget(btn_ok)
+
+        card_layout.addLayout(btn_row)
+        main_layout.addWidget(card)
+
+        # DWM Rounded Frame
+        try:
+            apply_dm_window_frame(self, is_dark_eff)
+        except Exception:
+            pass
+
+        # 智能居中于父窗口或主屏幕
+        self._center_window(parent)
+
+    def _center_window(self, parent):
+        try:
+            target_rect = None
+            if parent and hasattr(parent, "window") and parent.window():
+                p_win = parent.window()
+                if p_win.isVisible() and not p_win.isMinimized():
+                    target_rect = p_win.geometry()
+            if not target_rect:
+                screen = QGuiApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
+                if screen:
+                    target_rect = screen.availableGeometry()
+            if target_rect:
+                self.move(
+                    target_rect.left() + max(0, (target_rect.width() - self.width()) // 2),
+                    target_rect.top() + max(0, (target_rect.height() - self.height()) // 2)
+                )
+        except Exception:
+            pass
+
+    @classmethod
+    def _resolve_is_dark(cls, parent=None, is_dark: Optional[bool] = None) -> bool:
+        if is_dark is not None:
+            return bool(is_dark)
+        if parent:
+            if hasattr(parent, "is_dark_mode"):
+                return bool(parent.is_dark_mode)
+            if hasattr(parent, "is_dark"):
+                return bool(parent.is_dark)
+            p_win = parent.window() if hasattr(parent, "window") else None
+            if p_win:
+                if hasattr(p_win, "is_dark_mode"):
+                    return bool(p_win.is_dark_mode)
+                if hasattr(p_win, "is_dark"):
+                    return bool(p_win.is_dark)
+        try:
+            from common.config_manager import get_global_theme
+            return get_global_theme() == "dark"
+        except Exception:
+            return False
+
+    @classmethod
+    def info(cls, parent, title: str, message: str, is_dark: Optional[bool] = None, ok_text: str = "我知道了"):
+        dlg = cls(parent, title, message, "info", is_dark, ok_text=ok_text)
+        return dlg.exec()
+
+    @classmethod
+    def success(cls, parent, title: str, message: str, is_dark: Optional[bool] = None, ok_text: str = "我知道了"):
+        dlg = cls(parent, title, message, "success", is_dark, ok_text=ok_text)
+        return dlg.exec()
+
+    @classmethod
+    def warning(cls, parent, title: str, message: str, is_dark: Optional[bool] = None, ok_text: str = "我知道了"):
+        dlg = cls(parent, title, message, "warning", is_dark, ok_text=ok_text)
+        return dlg.exec()
+
+    @classmethod
+    def error(cls, parent, title: str, message: str, is_dark: Optional[bool] = None, ok_text: str = "我知道了"):
+        dlg = cls(parent, title, message, "error", is_dark, ok_text=ok_text)
+        return dlg.exec()
+
+    @classmethod
+    def confirm(cls, parent, title: str, message: str, is_dark: Optional[bool] = None, ok_text: str = "确认", cancel_text: str = "取消") -> bool:
+        dlg = cls(parent, title, message, "question", is_dark, ok_text=ok_text, cancel_text=cancel_text)
+        return dlg.exec() == QDialog.DialogCode.Accepted
+
+    @classmethod
+    def choice3(cls, parent, title: str, message: str, btn1_text: str, btn2_text: str, btn3_text: str = "取消", is_dark: Optional[bool] = None) -> int:
+        buttons = [
+            (btn3_text, 0, "cancel"),
+            (btn2_text, 2, "secondary"),
+            (btn1_text, 1, "primary")
+        ]
+        dlg = cls(parent, title, message, "question", is_dark, custom_buttons=buttons)
+        return dlg.exec()
