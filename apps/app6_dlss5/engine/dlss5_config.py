@@ -30,8 +30,8 @@ DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
     "local_structure": 1.00,   # 结构强度 (DirectNeuralRenderingLocalStructureStrength)
     "local_tone": 1.00,        # 局部色调 (DirectNeuralRenderingLocalToneStrength)
     "auto_mask": 1,            # 角色蒙版 (DirectNeuralRenderingAutoMask · 默认开启保护角色与UI)
-    "skin_structure": 0.50,    # 皮肤结构 0.50 (DirectNeuralRenderingSkinStructureStrength)
-    "processing_scale": 1.00,  # 重构分辨率缩放 100% (DirectNeuralRenderingProcessingScale)
+    "skin_structure": 0.80,    # 皮肤结构 0.80 (DirectNeuralRenderingSkinStructureStrength)
+    "processing_scale": 0.67,  # 重构分辨率缩放 67% (DirectNeuralRenderingProcessingScale)
     "pass_count": 1,           # 推理遍数 1 Pass (DirectNeuralRenderingPassCount)
     "encoding": 0,             # 色彩编码 0: 自动 (DirectNeuralRenderingEncoding)
     "signal_encoding": 0,      # NR 信号编码 0: sRGB (DirectNeuralRenderingSignalEncoding)
@@ -49,7 +49,7 @@ DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
     "uplift": 1,
     "hook_point": 2,
     "passes": 1,
-    "res_scale": 1.00,
+    "res_scale": 0.67,
     "vram": "Reduced",
     "non_blocking": 1,
     "hdr": 0,
@@ -112,7 +112,13 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
 
     # Check root section (ReShade nullptr section) and modern RenoDX / DLSS sections
     root_sec = sections.get("", {})
-    mod_sec = dict(sections.get("RenoDX") or sections.get("DLSS") or sections.get("RenoDX.DLSS") or {})
+    mod_sec = {}
+    for s_name in [
+        "RENODX-DLSS", "renodx", "RenoDX", "DLSS", "RenoDX.DLSS",
+        "RENODX-DLSS-preset1", "renodx-preset1", "RenoDX-preset1", "RenoDX_DLSS-preset1", "RenoDX_DLSS"
+    ]:
+        if s_name in sections:
+            mod_sec.update(sections[s_name])
     # Prioritize root_sec values as ReShade gets/sets them at root
     mod_sec.update(root_sec)
     legacy_sec = sections.get("RenoDX.DLSS5") or sections.get("DLSS5") or sections.get("DLSS5-NR") or {}
@@ -127,8 +133,11 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
 
     if "DirectNeuralRenderingHookStage" in mod_sec:
         try:
-            config["hook_stage"] = int(mod_sec["DirectNeuralRenderingHookStage"])
-            config["hook_point"] = config["hook_stage"]
+            hs = int(mod_sec["DirectNeuralRenderingHookStage"])
+            if hs == 3:
+                hs = 2
+            config["hook_stage"] = hs
+            config["hook_point"] = hs
         except Exception:
             pass
 
@@ -182,8 +191,11 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
 
     if "DirectNeuralRenderingProcessingScale" in mod_sec:
         try:
-            config["processing_scale"] = float(mod_sec["DirectNeuralRenderingProcessingScale"])
-            config["res_scale"] = config["processing_scale"]
+            val = float(mod_sec["DirectNeuralRenderingProcessingScale"])
+            if val > 1.0:
+                val = val / 100.0
+            config["processing_scale"] = val
+            config["res_scale"] = val
         except Exception:
             pass
 
@@ -326,14 +338,16 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     status_val = int(config.get("status", config.get("uplift", 1)))
     intensity_val = float(config.get("intensity", 1.0))
     style_val = int(config.get("style", 2))
-    proc_scale_val = float(config.get("processing_scale", config.get("res_scale", 1.00)))
+    proc_scale_val = float(config.get("processing_scale", config.get("res_scale", 0.67)))
+    if proc_scale_val > 1.0:
+        proc_scale_val = proc_scale_val / 100.0
     pass_cnt_val = int(config.get("pass_count", config.get("passes", 1)))
     encoding_val = int(config.get("encoding", config.get("hdr", 0)))
     dlss_preset_val = int(config.get("dlss_preset", 0))
     local_struct_val = float(config.get("local_structure", 1.0))
     local_tone_val = float(config.get("local_tone", 1.0))
     auto_mask_val = int(config.get("auto_mask", 1))
-    skin_struct_val = float(config.get("skin_structure", 0.50))
+    skin_struct_val = float(config.get("skin_structure", 0.80))
     reuse_up_val = int(config.get("reuse_upscaling", 1))
     ui_corr_val = int(config.get("ui_correction", 0))
     block_hud_val = int(config.get("block_hudless", 0))
@@ -341,10 +355,64 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     exp_val = float(config.get("exposure", 1.0))
     white_nits_val = float(config.get("diffuse_white", 100.0))
 
-    # 1. Modern RenoDX / ShortFuse direct dictionary
+    # In RenoDX ShortFuse: 0=Off, 1=渲染 (Render), 2=超分 (Upscale), 3=呈现 (Present)
+    # UI hook_stage 2 or 3 maps to RenoDX ShortFuse stage 3 (Present)
+    if status_val == 0:
+        renodx_hook_stage = 0
+    elif effective_hp in (2, 3):
+        renodx_hook_stage = 3
+    elif effective_hp == 1:
+        renodx_hook_stage = 2
+    else:
+        renodx_hook_stage = 1
+
+    proc_scale_pct = int(round(proc_scale_val * 100))
+    skin_str = f"{skin_struct_val:.1f}" if (round(skin_struct_val * 10, 4)).is_integer() else f"{skin_struct_val:.2f}"
+
+    # 1. RenoDX Global section ([RENODX-DLSS])
+    renodx_global_dict = {
+        "DirectNeuralRenderingHookStage": str(renodx_hook_stage),
+        "DirectNeuralRenderingReuseDlssUpscalingResources": str(reuse_up_val),
+        "DirectNeuralRenderingUiCorrectionMode": str(ui_corr_val),
+        "DirectNeuralRenderingEncoding": str(encoding_val),
+        "DirectNeuralRenderingDiffuseWhiteNits": str(int(round(white_nits_val))),
+        "DirectNeuralRenderingDiffuseWhiteOverride": "0",
+        "DLSSQualityMode": str(config.get("dlss_quality_mode", 0)),
+        "DLSSAutoExposure": str(config.get("dlss_auto_exposure", 0)),
+        "DLSSPresetQuality": str(dlss_preset_val),
+        "DLSSPresetDLAA": str(dlss_preset_val),
+        "DLSSPresetBalanced": str(dlss_preset_val),
+        "DLSSPresetPerformance": str(dlss_preset_val),
+        "DLSSPresetUltraQuality": str(dlss_preset_val),
+        "DLSSPresetUltraPerformance": str(dlss_preset_val),
+        "OptionsMode": "0",
+    }
+
+    # 2. RenoDX Preset sections ([RENODX-DLSS-preset1/2/3], [renodx-preset1/2/3])
+    renodx_preset_dict = {
+        "DirectNeuralRenderingStyle": str(style_val),
+        "DirectNeuralRenderingLocalStructureStrength": str(int(local_struct_val)) if local_struct_val.is_integer() else f"{local_struct_val:.6f}",
+        "DirectNeuralRenderingLocalToneStrength": str(int(local_tone_val)) if local_tone_val.is_integer() else f"{local_tone_val:.6f}",
+        "DirectNeuralRenderingSkinStructureStrength": skin_str,
+        "DirectNeuralRenderingProcessingScale": str(proc_scale_pct),
+        "DirectNeuralRenderingIntensity": str(int(intensity_val)) if intensity_val.is_integer() else f"{intensity_val:.6f}",
+        "DirectNeuralRenderingAutoMask": str(auto_mask_val),
+        "DirectNeuralRenderingPassCount": str(pass_cnt_val),
+        "DirectNeuralRenderingPreset": str(dlss_preset_val),
+        "DirectNeuralRenderingSignalEncoding": str(config.get("signal_encoding", 0)),
+        "DirectNeuralRenderingBlockHudless": str(block_hud_val),
+        "DirectNeuralRenderingExposure": str(int(exp_val)) if exp_val.is_integer() else f"{exp_val:.6f}",
+        "DirectNeuralRenderingExposureMode": str(exp_mode_val),
+        "DirectNeuralRenderingFilterDomain": "0",
+        "DirectNeuralRenderingDownsampleFilter": "0",
+        "DirectNeuralRenderingUpsampleFilter": "0",
+        "DirectNeuralRenderingScaleReconstruction": "0",
+    }
+
+    # 3. RenoDX / ShortFuse direct dictionary
     renodx_dict = {
         "DirectNeuralRenderingStatus": str(status_val),
-        "DirectNeuralRenderingHookStage": str(effective_hp),
+        "DirectNeuralRenderingHookStage": str(renodx_hook_stage),
         "DirectNeuralRenderingReuseDlssUpscalingResources": str(reuse_up_val),
         "DirectNeuralRenderingUiCorrectionMode": str(ui_corr_val),
         "DirectNeuralRenderingIntensity": f"{intensity_val:.6f}",
@@ -352,8 +420,8 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DirectNeuralRenderingLocalStructureStrength": f"{local_struct_val:.6f}",
         "DirectNeuralRenderingLocalToneStrength": f"{local_tone_val:.6f}",
         "DirectNeuralRenderingAutoMask": str(auto_mask_val),
-        "DirectNeuralRenderingSkinStructureStrength": f"{skin_struct_val:.6f}",
-        "DirectNeuralRenderingProcessingScale": f"{proc_scale_val:.6f}",
+        "DirectNeuralRenderingSkinStructureStrength": skin_str,
+        "DirectNeuralRenderingProcessingScale": str(proc_scale_pct),
         "DirectNeuralRenderingPassCount": str(pass_cnt_val),
         "DirectNeuralRenderingEncoding": str(encoding_val),
         "DirectNeuralRenderingSignalEncoding": str(config.get("signal_encoding", 0)),
@@ -375,7 +443,7 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DLSSNR.Style": str(style_val),
         "DLSSNR.LocalToneStrength": f"{local_tone_val:.6f}",
         "DLSSNR.LocalStructureStrength": f"{local_struct_val:.6f}",
-        "DLSSNR.SkinStructureStrength": f"{skin_struct_val:.6f}",
+        "DLSSNR.SkinStructureStrength": skin_str,
         "DLSSNR.GlobalToneStrength": f"{local_tone_val:.6f}",
         "DLSSNR.UseAutoMask": str(auto_mask_val),
         "DLSSNR.UICorrection": str(ui_corr_val),
@@ -384,9 +452,14 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DLSSNR.Hint.Render.Preset": str(dlss_preset_val),
     }
 
-    # 2. [DLSS] section dictionary (includes OptiScaler / ReShade standard keys)
+    # Combined dictionary for general/root/RenoDX sections
+    renodx_combined_dict = dict(renodx_dict)
+    renodx_combined_dict.update(renodx_global_dict)
+    renodx_combined_dict.update(renodx_preset_dict)
+
+    # 4. [DLSS] section dictionary (includes OptiScaler / ReShade standard keys)
     # When dlss_preset_val is 0 (Default), do NOT override native game models (RenderPresetOverride=false)
-    dlss_section_dict = dict(renodx_dict)
+    dlss_section_dict = dict(renodx_combined_dict)
     if dlss_preset_val == 0:
         dlss_section_dict.update({
             "RenderPresetOverride": "false",
@@ -409,7 +482,7 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "EditorFontSize": "16",
     }
 
-    # 3. Legacy compatibility dictionary
+    # 5. Legacy compatibility dictionary
     legacy_dlss5_dict = {
         "ConfigVersion": "11",
         "EnableHooks": "2",
@@ -428,12 +501,20 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     }
 
     updates: Dict[str, Dict[str, Any]] = {
-        "": renodx_dict,  # Root / global section (ReShade nullptr section, 100% in-game effective)
+        "": renodx_combined_dict,  # Root / global section (ReShade nullptr section, 100% in-game effective)
         "OVERLAY": overlay_dict,  # ReShade 6.x Official Simplified Chinese UI
         "GENERAL": {"TutorialProgress": "4"},  # Bypass ReShade tutorial directly into Chinese UI
-        "RenoDX": renodx_dict,
+        "RenoDX": renodx_combined_dict,
+        "RENODX-DLSS": renodx_global_dict,
+        "RENODX-DLSS-preset1": renodx_preset_dict,
+        "RENODX-DLSS-preset2": renodx_preset_dict,
+        "RENODX-DLSS-preset3": renodx_preset_dict,
+        "RenoDX-preset1": renodx_preset_dict,
+        "RenoDX_DLSS": renodx_combined_dict,
+        "RenoDX_DLSS-preset1": renodx_preset_dict,
         "DLSS": dlss_section_dict,
-        "RenoDX.DLSS": renodx_dict,
+        "DLSS-NR": renodx_combined_dict,
+        "RenoDX.DLSS": renodx_combined_dict,
         "RenoDX.DLSS5": legacy_dlss5_dict,
         "DLSS5": legacy_dlss5_dict,
         "DLSS5-NR": legacy_dlss5_dict,

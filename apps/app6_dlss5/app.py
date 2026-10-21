@@ -1867,8 +1867,8 @@ class DLSS5SettingsPanel(QFrame):
         self.lbl_res_scale = QLabel("重构分辨率缩放:")
         self.slider_res_scale = QSlider(Qt.Orientation.Horizontal)
         self.slider_res_scale.setRange(50, 100)
-        self.slider_res_scale.setValue(100)
-        self.lbl_res_scale_val = QLabel("1.00")
+        self.slider_res_scale.setValue(67)
+        self.lbl_res_scale_val = QLabel("0.67")
         self.slider_res_scale.valueChanged.connect(self._on_slider_res_scale_changed)
         res_box = QHBoxLayout()
         res_box.addWidget(self.slider_res_scale, 1)
@@ -1907,8 +1907,8 @@ class DLSS5SettingsPanel(QFrame):
         self.lbl_skin_structure = QLabel("皮肤结构保护:")
         self.slider_skin_structure = QSlider(Qt.Orientation.Horizontal)
         self.slider_skin_structure.setRange(0, 200)
-        self.slider_skin_structure.setValue(50)
-        self.lbl_skin_structure_val = QLabel("0.50")
+        self.slider_skin_structure.setValue(80)
+        self.lbl_skin_structure_val = QLabel("0.80")
         self.slider_skin_structure.valueChanged.connect(self._on_slider_skin_structure_changed)
         ss_box = QHBoxLayout()
         ss_box.addWidget(self.slider_skin_structure, 1)
@@ -2117,7 +2117,9 @@ class DLSS5SettingsPanel(QFrame):
             self.lbl_intensity_val.setText(f"{intensity:.2f}")
 
             # Res Scale / Processing Scale (default 0.67)
-            res_scale = float(cfg.get("processing_scale", cfg.get("res_scale", 1.00)))
+            res_scale = float(cfg.get("processing_scale", cfg.get("res_scale", 0.67)))
+            if res_scale > 1.0:
+                res_scale = res_scale / 100.0
             self.slider_res_scale.setValue(int(res_scale * 100))
             self.lbl_res_scale_val.setText(f"{res_scale:.2f}")
 
@@ -2132,7 +2134,7 @@ class DLSS5SettingsPanel(QFrame):
             self.lbl_local_tone_val.setText(f"{lt:.2f}")
 
             # Skin Structure
-            ss = float(cfg.get("skin_structure", 0.50))
+            ss = float(cfg.get("skin_structure", 0.80))
             self.slider_skin_structure.setValue(int(ss * 100))
             self.lbl_skin_structure_val.setText(f"{ss:.2f}")
 

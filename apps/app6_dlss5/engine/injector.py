@@ -702,7 +702,13 @@ def _configure_reshade_ini_for_dlss5(
     current_sec = ""
     modified = False
     new_lines = []
-    remove_sections = ["DLSS5", "DLSS5-NR", "RENODX.DLSS5", "RENODX", "RENODX.DLSS", "DLSS"]
+    remove_sections = [
+        "DLSS5", "DLSS5-NR", "RENODX.DLSS5", "RENODX", "RENODX.DLSS", "DLSS",
+        "DLSS-NR", "RENODX-DLSS", "RENODX-DLSS-PRESET1", "RENODX-DLSS-PRESET2", "RENODX-DLSS-PRESET3",
+        "RENODX-PRESET1", "RENODX-PRESET2", "RENODX-PRESET3",
+        "RENODX_DLSS", "RENODX_DLSS-PRESET1", "RENODX_DLSS-PRESET2", "RENODX_DLSS-PRESET3",
+        "RENODX-PRESET1"
+    ]
 
     for line in lines_in:
         stripped = line.strip()
@@ -723,7 +729,7 @@ def _configure_reshade_ini_for_dlss5(
         if current_sec == "" and remove and "=" in stripped:
             k = stripped.split("=", 1)[0].strip()
             ku = k.upper()
-            if ku.startswith("DIRECTNEURAL") or ku.startswith("DLSSNR.") or ku.startswith("DLSSPRESET") or ku in ("DLSSQUALITYMODE", "DLSSAUTOEXPOSURE"):
+            if ku.startswith("DIRECTNEURAL") or ku.startswith("DLSSNR.") or ku.startswith("DLSSPRESET") or ku in ("DLSSQUALITYMODE", "DLSSAUTOEXPOSURE", "OPTIONSMODE"):
                 modified = True
                 continue
 
@@ -762,6 +768,12 @@ def _configure_reshade_ini_for_dlss5(
 
 def _create_default_reshade_ini(ini_path: Path):
     """Creates a clean default ReShade.ini preloaded with safe ShortFuse Chinese UI and DLSS 5 configuration."""
+    try:
+        from apps.app6_dlss5.engine.dlss5_config import write_game_dlss5_config, load_dlss5_preset
+        if write_game_dlss5_config(ini_path, load_dlss5_preset()):
+            return
+    except Exception:
+        pass
     content = r"""DirectNeuralRenderingStatus=1
 DirectNeuralRenderingHookStage=2
 DirectNeuralRenderingReuseDlssUpscalingResources=1
