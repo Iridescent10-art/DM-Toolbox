@@ -146,197 +146,100 @@ ASSETS_DIR = APP_DIR / "assets"
 
 
 
-def make_combo_style(is_dark: bool, min_height: int = 34, font_size: int = 12) -> str:
-
+def make_combo_style(is_dark: bool, min_height: int = 26, font_size: int = 11) -> str:
     """
-
-    Returns unified modern card QComboBox styling with integrated anti-aliased chevron,
-
+    Returns unified modern compact card QComboBox styling with integrated chevron,
     comfortable padding, elegant borders, and styled popup dropdown view.
-
-    Eliminates awkward/abrupt arrows and raw rectangular boxes.
-
+    Eliminates awkward/abrupt arrows and oversized rectangular boxes.
     """
-
     try:
-
         from common.ui_theme import get_combo_arrow_url
-
         arrow_url = get_combo_arrow_url(is_dark)
-
     except Exception:
-
         arrow_url = ""
 
-
-
     bg = "#1A1C1E" if is_dark else "#FFFFFF"
-
     border = "#383B40" if is_dark else "#CBD5E1"
-
     border_hover = "#10B981" if is_dark else "#059669"
-
     text = "#F1F5F9" if is_dark else "#0F172A"
-
     disabled_bg = "#141517" if is_dark else "#F1F5F9"
-
     disabled_text = "#64748B" if is_dark else "#94A3B8"
-
     disabled_border = "#2A2C30" if is_dark else "#E2E8F0"
-
     popup_bg = "#1E2023" if is_dark else "#FFFFFF"
-
     popup_border = "#383B40" if is_dark else "#CBD5E1"
-
     item_hover_bg = "#26292D" if is_dark else "#F1F5F9"
-
     item_hover_text = "#FFFFFF" if is_dark else "#0F172A"
-
     item_sel_bg = "#10B981" if is_dark else "#059669"
 
-
-
     arrow_css = f"""
-
         QComboBox::down-arrow {{
-
             image: url("{arrow_url}");
-
-            width: 11px;
-
-            height: 7px;
-
-            margin-right: 9px;
-
+            width: 8px;
+            height: 5px;
+            margin-right: 6px;
         }}
-
     """ if arrow_url else ""
 
-
-
     return f"""
-
         QComboBox {{
-
             background-color: {bg};
-
             color: {text};
-
             border: 1px solid {border};
-
-            border-radius: 7px;
-
-            padding: 4px 32px 4px 12px;
-
+            border-radius: 5px;
+            padding: 1px 20px 1px 7px;
             min-height: {min_height}px;
-
+            max-height: {min_height + 2}px;
             font-size: {font_size}px;
-
             font-weight: 500;
-
         }}
-
         QComboBox:hover {{
-
             border: 1px solid {border_hover};
-
             background-color: {'#202226' if is_dark else '#FFFFFF'};
-
         }}
-
         QComboBox:focus {{
-
             border: 1px solid {border_hover};
-
         }}
-
         QComboBox:disabled {{
-
             background-color: {disabled_bg};
-
             color: {disabled_text};
-
             border-color: {disabled_border};
-
         }}
-
         QComboBox::drop-down {{
-
             subcontrol-origin: padding;
-
             subcontrol-position: top right;
-
-            width: 30px;
-
+            width: 20px;
             border: none;
-
             background: transparent;
-
         }}
-
         {arrow_css}
-
         QComboBox QAbstractItemView,
-
         QComboBox QListView {{
-
             background-color: {popup_bg};
-
             color: {text};
-
             selection-background-color: {item_sel_bg};
-
             selection-color: #FFFFFF;
-
             border: 1px solid {popup_border};
-
-            border-radius: 8px;
-
-            padding: 4px;
-
+            border-radius: 6px;
+            padding: 2px;
             outline: none;
-
         }}
-
         QComboBox QAbstractItemView::item,
-
         QComboBox QListView::item {{
-
-            min-height: 28px;
-
-            padding: 4px 10px;
-
+            padding: 3px 6px;
+            min-height: 20px;
             border-radius: 4px;
-
-            color: {text};
-
         }}
-
         QComboBox QAbstractItemView::item:hover,
-
         QComboBox QListView::item:hover {{
-
             background-color: {item_hover_bg};
-
             color: {item_hover_text};
-
         }}
-
         QComboBox QAbstractItemView::item:selected,
-
         QComboBox QListView::item:selected {{
-
             background-color: {item_sel_bg};
-
             color: #FFFFFF;
-
         }}
-
     """
-
-
-
-
 
 def make_slider_style(is_dark: bool) -> str:
 
@@ -435,44 +338,27 @@ class GameScanWorker(QThread):
 
 
 class StatusBlock(QFrame):
-
-    """Reusable mini-card block for 4-quadrant status monitor."""
-
+    """Reusable compact horizontal mini-card block for 4-quadrant status monitor."""
     def __init__(self, title: str, parent=None):
-
         super().__init__(parent)
-
         self.setObjectName("StatusBlock")
-
-        layout = QVBoxLayout(self)
-
-        layout.setContentsMargins(14, 12, 14, 12)
-
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 5, 10, 5)
         layout.setSpacing(6)
 
-
-
         self.lbl_title = QLabel(title)
-
+        self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600;")
         layout.addWidget(self.lbl_title)
 
-
+        layout.addStretch()
 
         self.lbl_val = QLabel("⚪ 检测中...")
-
-        self.lbl_val.setWordWrap(True)
-
+        self.lbl_val.setStyleSheet("font-size: 11.5px; font-weight: 700;")
         layout.addWidget(self.lbl_val)
 
-
-
         self.lbl_sub = QLabel("")
-
-        self.lbl_sub.setWordWrap(True)
-
+        self.lbl_sub.setStyleSheet("font-size: 10px; color: #94A3B8;")
         layout.addWidget(self.lbl_sub)
-
-
 
     def set_status(self, val_text: str, val_color: str, sub_text: str = ""):
 
@@ -1956,14 +1842,14 @@ class DLSS5SettingsPanel(QFrame):
         self.btn_read_game = QPushButton("🔄 从游戏读取")
         self.btn_read_game.setObjectName("BtnReadGame")
         self.btn_read_game.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_read_game.setMinimumHeight(34)
+        self.btn_read_game.setMinimumHeight(28)
         self.btn_read_game.clicked.connect(self.on_read_clicked)
         action_row.addWidget(self.btn_read_game)
 
         self.btn_save_dlss5 = QPushButton("💾 保存 DLSS 5 参数 (同步写入当前游戏)")
         self.btn_save_dlss5.setObjectName("BtnSaveDLSS5")
         self.btn_save_dlss5.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_save_dlss5.setMinimumHeight(34)
+        self.btn_save_dlss5.setMinimumHeight(28)
         self.btn_save_dlss5.clicked.connect(self.on_save_clicked)
         action_row.addWidget(self.btn_save_dlss5)
 
@@ -2213,23 +2099,23 @@ class DLSS5SettingsPanel(QFrame):
         btn_sec_hover = "#475569" if is_dark else "#E2E8F0"
         btn_sec_text = "#F8FAFC" if is_dark else "#1E293B"
 
-        self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {text_c};")
-        self.lbl_gpu.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_hook.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_style.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_dlss_preset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_passes.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_encoding.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_intensity.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_res_scale.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_local_structure.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_local_tone.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_skin_structure.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_vram.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-        self.lbl_tip.setStyleSheet(f"font-size: 11px; color: {sub_c}; line-height: 140%;")
+        self.lbl_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {text_c};")
+        self.lbl_gpu.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_hook.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_style.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_dlss_preset.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_passes.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_encoding.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_intensity.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_res_scale.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_local_structure.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_local_tone.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_skin_structure.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_vram.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
+        self.lbl_tip.setStyleSheet(f"font-size: 10.5px; color: {sub_c}; line-height: 130%;")
 
         for lbl_val in [self.lbl_intensity_val, self.lbl_res_scale_val, self.lbl_local_structure_val, self.lbl_local_tone_val, self.lbl_skin_structure_val]:
-            lbl_val.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+            lbl_val.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_c};")
 
         self.params_frame.setStyleSheet(f"""
             QFrame#DLSS5ParamsContainer {{
@@ -2239,12 +2125,12 @@ class DLSS5SettingsPanel(QFrame):
             }}
             QFrame#DLSS5ParamsContainer QCheckBox {{
                 color: {text_c};
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 500;
             }}
         """)
 
-        combo_style = make_combo_style(is_dark, min_height=32, font_size=12)
+        combo_style = make_combo_style(is_dark, min_height=26, font_size=11)
         for cb in [self.combo_gpu_arch, self.combo_hook, self.combo_style, self.combo_dlss_preset, self.combo_passes, self.combo_encoding, self.combo_vram]:
             cb.setStyleSheet(combo_style)
 
@@ -2329,7 +2215,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.setMinimumSize(940, 700)
 
-        self.resize(1060, 860)
+        self.resize(1060, 880)
 
 
 
@@ -2411,7 +2297,7 @@ class DLSS5Window(DMBaseWindow):
 
         b_layout = QHBoxLayout(self.banner_card)
 
-        b_layout.setContentsMargins(18, 12, 18, 12)
+        b_layout.setContentsMargins(10, 5, 10, 5)
 
         b_layout.setSpacing(14)
 
@@ -2421,7 +2307,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.banner_icon = QLabel()
 
-        self.banner_icon.setFixedSize(54, 54)
+        self.banner_icon.setFixedSize(32, 32)
 
         icon_path = ASSETS_DIR / "dlss5_icon.png"
 
@@ -2431,7 +2317,7 @@ class DLSS5Window(DMBaseWindow):
 
         if icon_path.exists():
 
-            pix = QPixmap(str(icon_path)).scaled(54, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pix = QPixmap(str(icon_path)).scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
             self.banner_icon.setPixmap(pix)
 
@@ -2453,7 +2339,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.banner_title = QLabel("DLSS 5 神经重构与画质注入器")
 
-        self.banner_title.setStyleSheet("font-size: 18px; font-weight: 800;")
+        self.banner_title.setStyleSheet("font-size: 14px; font-weight: 800;")
 
         t_row.addWidget(self.banner_title)
 
@@ -2507,13 +2393,7 @@ class DLSS5Window(DMBaseWindow):
 
 
 
-        self.banner_desc = QLabel(
-
-            "集成最新 RenoDX ShortFuse DLSS 5 神经网络渲染插件 (DLSS 5 NR Addon)，"
-
-            "为支持 DLSS 的游戏注入下一代神经网络画质引擎，内建 ReShade/RHI 运行底座，支持画质风格、细节结构与皮肤保护全维度精细调优。"
-
-        )
+        self.banner_desc = QLabel("集成最新 RenoDX ShortFuse DLSS 5 神经网络渲染引擎，支持风格、细节与皮肤保护全维度精细调优。")
 
         self.banner_desc.setWordWrap(True)
 
@@ -2535,9 +2415,9 @@ class DLSS5Window(DMBaseWindow):
 
         g_layout = QVBoxLayout(self.game_card)
 
-        g_layout.setContentsMargins(18, 12, 18, 12)
+        g_layout.setContentsMargins(10, 6, 10, 6)
 
-        g_layout.setSpacing(10)
+        g_layout.setSpacing(5)
 
 
 
@@ -2547,7 +2427,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.lbl_g_title = QLabel("🎮 目标游戏与运行环境监测")
 
-        self.lbl_g_title.setStyleSheet("font-size: 15px; font-weight: 700;")
+        self.lbl_g_title.setStyleSheet("font-size: 13.5px; font-weight: 700;")
 
         g_header.addWidget(self.lbl_g_title)
 
@@ -2573,7 +2453,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.combo_games = QComboBox()
 
-        self.combo_games.setMinimumHeight(38)
+        self.combo_games.setMinimumHeight(28)
 
         self.combo_games.setView(QListView())
 
@@ -2591,7 +2471,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_browse.setObjectName("BtnBrowse")
 
-        self.btn_browse.setMinimumHeight(38)
+        self.btn_browse.setMinimumHeight(28)
 
         self.btn_browse.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2605,7 +2485,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_rescan.setObjectName("BtnRescan")
 
-        self.btn_rescan.setMinimumHeight(38)
+        self.btn_rescan.setMinimumHeight(28)
 
         self.btn_rescan.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2635,7 +2515,7 @@ class DLSS5Window(DMBaseWindow):
 
         status_grid = QGridLayout()
 
-        status_grid.setSpacing(10)
+        status_grid.setSpacing(4)
 
 
 
@@ -2675,7 +2555,7 @@ class DLSS5Window(DMBaseWindow):
 
         alert_layout = QHBoxLayout(self.alert_box)
 
-        alert_layout.setContentsMargins(14, 10, 14, 10)
+        alert_layout.setContentsMargins(8, 3, 8, 3)
 
         alert_layout.setSpacing(10)
 
@@ -2725,15 +2605,15 @@ class DLSS5Window(DMBaseWindow):
 
         act_layout = QVBoxLayout(self.action_card)
 
-        act_layout.setContentsMargins(18, 12, 18, 12)
+        act_layout.setContentsMargins(10, 6, 10, 6)
 
-        act_layout.setSpacing(10)
+        act_layout.setSpacing(5)
 
 
 
         self.lbl_act_title = QLabel("⚡ 一键操作中心")
 
-        self.lbl_act_title.setStyleSheet("font-size: 15px; font-weight: 700;")
+        self.lbl_act_title.setStyleSheet("font-size: 13.5px; font-weight: 700;")
 
         act_layout.addWidget(self.lbl_act_title)
 
@@ -2751,7 +2631,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_inject.setObjectName("BtnInject")
 
-        self.btn_inject.setMinimumHeight(44)
+        self.btn_inject.setMinimumHeight(32)
 
         self.btn_inject.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2765,7 +2645,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_restore.setObjectName("BtnRestore")
 
-        self.btn_restore.setMinimumHeight(44)
+        self.btn_restore.setMinimumHeight(32)
 
         self.btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2779,7 +2659,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_open_dir.setObjectName("BtnOpenDir")
 
-        self.btn_open_dir.setMinimumHeight(44)
+        self.btn_open_dir.setMinimumHeight(32)
 
         self.btn_open_dir.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2805,7 +2685,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_inject_base.setObjectName("BtnInjectBase")
 
-        self.btn_inject_base.setMinimumHeight(40)
+        self.btn_inject_base.setMinimumHeight(28)
 
         self.btn_inject_base.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2821,7 +2701,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.btn_rhi.setObjectName("BtnRHI")
 
-        self.btn_rhi.setMinimumHeight(40)
+        self.btn_rhi.setMinimumHeight(28)
 
         self.btn_rhi.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -2921,7 +2801,7 @@ class DLSS5Window(DMBaseWindow):
 
                 self.populate_games(games, last_selected_exe=last_exe)
 
-                self.lbl_scan_status.setText(f"🔗 已联动【多帧生成】游戏库 (共 {len(games)} 款游戏)")
+                self.lbl_scan_status.setText(f"🔗 已联动游戏库 ({len(games)} 款)")
 
                 return True
 
@@ -3059,7 +2939,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.populate_games(games)
 
-        self.lbl_scan_status.setText(f"✅ 全盘扫描完成，已同步 {len(games)} 款游戏")
+        self.lbl_scan_status.setText(f"✅ 已同步 {len(games)} 款游戏")
 
 
 
