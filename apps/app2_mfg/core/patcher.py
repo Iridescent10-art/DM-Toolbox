@@ -10,6 +10,7 @@ from typing import Tuple, Optional, List
 from core.models import GameInfo, BackendType, PatchManifest, QualificationStatus
 from core.updater import ComponentUpdater
 from core.rollback import RollbackEngine
+from core.state_cleaner import CleanGameDirectoryState
 from core.utils import (
     is_process_running,
     get_system_gpu_name,
@@ -90,6 +91,10 @@ class PatchEngine:
         )
 
         try:
+            target_mode_char = "A" if (active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value) else ("B" if (active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value) else "C")
+            has_dlss5 = (Path(game.target_dir) / "lecram-dlss5-beta10.addon64").exists()
+            CleanGameDirectoryState(game.target_dir, preserve_dlss5=has_dlss5, target_mode=target_mode_char)
+
             if active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
                 success, err = self._apply_standalone_patch(game, manifest, prefer_bink_hook)
                 if not success:
@@ -176,11 +181,18 @@ class PatchEngine:
                 safe_force_remove(f_p)
 
         # Purge any old proxies that belong to OptiScaler or ReShade so they don't block dashdogy or conflict
+        has_dlss5 = (Path(target_dir) / "lecram-dlss5-beta10.addon64").exists()
         for proxy_cand in ["winmm.dll", "version.dll", "dinput8.dll", "wininet.dll", "dxgi.dll"]:
             p_p = os.path.join(target_dir, proxy_cand)
             if os.path.exists(p_p):
-                if self._is_optiscaler_dll(p_p) or self._is_reshade_dll(p_p):
-                    safe_force_remove(p_p)
+                if proxy_cand == "dxgi.dll":
+                    if self._is_optiscaler_dll(p_p):
+                        safe_force_remove(p_p)
+                    elif not has_dlss5 and self._is_reshade_dll(p_p):
+                        safe_force_remove(p_p)
+                else:
+                    if self._is_optiscaler_dll(p_p) or self._is_reshade_dll(p_p):
+                        safe_force_remove(p_p)
 
         existing_files = {f.lower() for f in os.listdir(target_dir)}
 
@@ -198,29 +210,26 @@ class PatchEngine:
             manifest.created_files.append("bink2w64.dll")
             return True, ""
 
-        # Normal proxy negotiation with PE Import Table prioritization
-        exe_path = os.path.join(target_dir, game.exe_name)
-        pe_imports = self._get_pe_imported_proxies(exe_path)
-
-        dynamic_priority = list(PROXY_PRIORITY)
-        # Prioritize whichever proxy DLL is statically linked in the game's PE Import Table (e.g. WINMM.dll in yysls.exe)
-        for pe_cand in reversed(["winmm.dll", "version.dll", "dinput8.dll"]):
-            if pe_cand in pe_imports and pe_cand in dynamic_priority:
-                dynamic_priority.remove(pe_cand)
-                dynamic_priority.insert(0, pe_cand)
-
-        selected_proxy = None
-        for proxy_candidate in dynamic_priority:
-            if proxy_candidate.lower() not in existing_files:
-                selected_proxy = proxy_candidate
-                break
-
-        if not selected_proxy:
-            return False, "未能找到可用的安全代理 DLL 名称 (version/winmm/dinput8 均已被占用)！"
-
+        # Mode A strict proxy slot: version.dll (NEVER touch dxgi.dll!)
+        selected_proxy = "version.dll"
         dest_proxy_path = os.path.join(target_dir, selected_proxy)
+        if os.path.exists(dest_proxy_path):
+            safe_force_remove(dest_proxy_path)
         shutil.copy2(source_dll, dest_proxy_path)
         manifest.created_files.append(selected_proxy)
+
+        # If DLSS 5 is active in Mode A, ensure ReShade is deployed as dxgi.dll
+        if has_dlss5:
+            dxgi_path = os.path.join(target_dir, "dxgi.dll")
+            if not os.path.exists(dxgi_path) or not self._is_reshade_addon_dll(dxgi_path):
+                reshade_src = self.updater.get_reshade_framework_dll()
+                if reshade_src and os.path.exists(reshade_src):
+                    safe_force_remove(dxgi_path)
+                    shutil.copy2(reshade_src, dxgi_path)
+                    if "dxgi.dll" not in manifest.created_files:
+                        manifest.created_files.append("dxgi.dll")
+            # Remove ReShade64.dll if leftover from Mode C
+            safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
 
         # Forward sync Mode A INI configs
         try:
@@ -236,16 +245,24 @@ class PatchEngine:
 
         return True, ""
 
+    def _read_dll_signature_bytes(self, path: str) -> bytes:
+        if not path or not os.path.exists(path) or not os.path.isfile(path):
+            return b""
+        try:
+            size = os.path.getsize(path)
+            with open(path, "rb") as f:
+                if size > 32 * 1024 * 1024:
+                    head = f.read(16 * 1024 * 1024)
+                    f.seek(max(0, size - 16 * 1024 * 1024))
+                    return head + f.read()
+                return f.read()
+        except Exception:
+            return b""
+
     def _is_dashdogy_dll(self, path: str) -> bool:
         """Check if a DLL file is dashdogy/MFGUnlocker."""
-        if not os.path.exists(path):
-            return False
-        try:
-            with open(path, "rb") as f:
-                data = f.read(16 * 1024 * 1024)
-                return b"MFGUnlocker" in data or b"RTX40MFG" in data
-        except Exception:
-            return False
+        data = self._read_dll_signature_bytes(path)
+        return b"MFGUnlocker" in data or b"RTX40MFG" in data or b"RTXMFG" in data
 
     def _get_pe_imported_proxies(self, exe_path: str) -> List[str]:
         """
@@ -275,37 +292,25 @@ class PatchEngine:
         return imported
 
     def _is_reshade_dll(self, path: str) -> bool:
-        """Check if a DLL file is ReShade (checks for crosire or ReShade signature in .rdata)."""
-        if not os.path.exists(path):
+        """Check if a DLL file is ReShade (excludes OptiScaler)."""
+        data = self._read_dll_signature_bytes(path)
+        if b"OptiScaler" in data:
             return False
-        try:
-            with open(path, "rb") as f:
-                data = f.read(16 * 1024 * 1024)
-                return b"ReShade" in data or b"crosire" in data
-        except Exception:
-            return False
+        return b"ReShade" in data or b"crosire" in data
 
     def _is_reshade_addon_dll(self, path: str) -> bool:
         """Check if a DLL file is ReShade with full Add-on Support (contains AddonUninit / export hooks)."""
-        if not os.path.exists(path):
+        data = self._read_dll_signature_bytes(path)
+        if b"OptiScaler" in data:
             return False
-        try:
-            with open(path, "rb") as f:
-                data = f.read(16 * 1024 * 1024)
-                return (b"ReShade" in data or b"crosire" in data) and (b"AddonUninit" in data or b"reshade_addon" in data or len(data) >= 5 * 1024 * 1024)
-        except Exception:
-            return False
+        return (b"ReShade" in data or b"crosire" in data) and (
+            b"AddonUninit" in data or b"reshade_addon" in data or len(data) >= 5 * 1024 * 1024
+        )
 
     def _is_optiscaler_dll(self, path: str) -> bool:
         """Check if a DLL file is OptiScaler."""
-        if not os.path.exists(path):
-            return False
-        try:
-            with open(path, "rb") as f:
-                data = f.read(16 * 1024 * 1024)
-                return b"OptiScaler" in data
-        except Exception:
-            return False
+        data = self._read_dll_signature_bytes(path)
+        return b"OptiScaler" in data or b"libxess" in data
 
     def detect_injected_mode(self, target_dir: str) -> Optional[str]:
         """
@@ -584,33 +589,23 @@ class PatchEngine:
 
         existing_files = {f.lower() for f in os.listdir(target_dir)}
 
-        # Preferred proxy priority with PE Import Table prioritization
-        opti_proxies = ["dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"]
-        exe_path = os.path.join(target_dir, game.exe_name)
-        pe_imports = self._get_pe_imported_proxies(exe_path)
-
-        dynamic_priority = list(opti_proxies)
-        # Prioritize whichever proxy DLL is statically linked in the game's PE Import Table (e.g. WINMM.dll in yysls.exe)
-        for pe_cand in reversed(["winmm.dll", "version.dll", "dinput8.dll"]):
-            if pe_cand in pe_imports and pe_cand in dynamic_priority:
-                dynamic_priority.remove(pe_cand)
-                dynamic_priority.insert(0, pe_cand)
-
-        selected_proxy = None
-        for p in dynamic_priority:
-            if p.lower() not in existing_files:
-                selected_proxy = p
-                break
-
-        if not selected_proxy:
-            return False, "未能找到可用的安全代理 DLL 名称 (dxgi/version/winmm 均已被占用)！"
-
-        # 1. Copy proxy DLL
+        # Mode C strict proxy slot: dxgi.dll for OptiScaler
+        selected_proxy = "dxgi.dll"
         dest_proxy_path = os.path.join(target_dir, selected_proxy)
         if os.path.exists(dest_proxy_path):
             safe_force_remove(dest_proxy_path)
         shutil.copy2(source_dll, dest_proxy_path)
         manifest.created_files.append(selected_proxy)
+
+        # If DLSS 5 is active in Mode C, ensure ReShade is deployed as ReShade64.dll for chainloading
+        has_dlss5 = (Path(target_dir) / "lecram-dlss5-beta10.addon64").exists()
+        if has_dlss5:
+            reshade64_path = os.path.join(target_dir, "ReShade64.dll")
+            if not os.path.exists(reshade64_path) or not self._is_reshade_addon_dll(reshade64_path):
+                reshade_src = self.updater.get_reshade_framework_dll()
+                if reshade_src and os.path.exists(reshade_src):
+                    shutil.copy2(reshade_src, reshade64_path)
+                    manifest.created_files.append("ReShade64.dll")
 
         # 2. Deploy bridge & runtime files
         gpu_name = get_system_gpu_name()
@@ -661,6 +656,8 @@ class PatchEngine:
 
         for item in items_to_copy:
             src_item = os.path.join(opti_dir, item)
+            if not os.path.exists(src_item):
+                src_item = os.path.join(opti_dir, "OptiScaler", item)
             if not os.path.exists(src_item):
                 continue
             dst_item = os.path.join(target_dir, item)

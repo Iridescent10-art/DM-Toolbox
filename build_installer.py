@@ -228,6 +228,7 @@ def step3_validate_runtime():
         "import common.ui_theme;"
         "import common.config_manager;"
         "import launcher.main;"
+        "import apps.app6_dlss5.app;"
         "print('VERIFIED_OK');"
     )
     res = subprocess.run([str(test_rt_py), "-c", test_code], capture_output=True, text=True, env=clean_env)

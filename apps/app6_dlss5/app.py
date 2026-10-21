@@ -26,7 +26,8 @@ from PySide6.QtGui import QIcon, QFont, QPixmap, QColor
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QScrollArea, QMessageBox, QGridLayout,
-    QComboBox, QLineEdit, QFileDialog, QSizePolicy
+    QComboBox, QLineEdit, QFileDialog, QSizePolicy, QRadioButton,
+    QButtonGroup, QCheckBox, QSlider, QStackedWidget
 )
 
 # Root dir resolution
@@ -44,10 +45,17 @@ from dm_ui_core import (
     apply_dm_window_frame, get_global_theme, set_global_theme,
     SCROLLBAR_LIGHT_QSS, SCROLLBAR_DARK_QSS
 )
-from apps.app6_dlss5.core.injector import (
+from apps.app6_dlss5.engine.injector import (
     DLSS5Injector, check_dlss5_status, detect_frame_generation,
     find_rhi_setup_exe, get_dlss5_addon_path, find_reshade_framework_dll
 )
+from apps.app6_dlss5.engine.config_sync import ConfigSyncService
+from apps.app2_mfg.core.optiscaler_config import (
+    load_mode_a_preset, save_mode_a_preset,
+    load_reshade_preset, save_reshade_preset,
+    load_optiscaler_preset, save_optiscaler_preset
+)
+from apps.app2_mfg.core.ini_sync import IniConfigManager
 
 try:
     from apps.app2_mfg.core.game_cache import GameCacheManager
@@ -119,6 +127,570 @@ class StatusBlock(QFrame):
         """)
         self.lbl_title.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {title_c};")
         self.lbl_sub.setStyleSheet(f"font-size: 11px; color: {sub_c};")
+
+
+
+class MultiFrameGenPanel(QFrame):
+    """
+    内嵌于 DLSS 5 注入器主界面的【多帧生成联动控制台】。
+    支持在单个面板内直接切换 模式 A / 模式 B / 模式 C 并动态调配参数，
+    实现与目标游戏目录配置文件及 App 2 高级预设窗口的双向数据同步。
+    """
+    config_applied = Signal(str)
+
+    def __init__(self, parent_window=None):
+        super().__init__(parent_window)
+        self.parent_window = parent_window
+        self.setProperty("class", "GridCard")
+        self.setObjectName("MultiFrameGenPanel")
+        self.current_game_info: Optional[Dict[str, Any]] = None
+        self.active_mode = "A"  # "A", "B", "C"
+        self._is_loading = False
+
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setSpacing(10)
+
+        # 1. Header
+        header = QHBoxLayout()
+        header.setSpacing(10)
+
+        self.lbl_title = QLabel("⚡ 多帧生成 (插帧) 联动控制台")
+        self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700;")
+        header.addWidget(self.lbl_title)
+
+        self.badge_mode = QLabel("A/B/C 三模式统一调控")
+        self.badge_mode.setStyleSheet("""
+            background-color: #8B5CF6;
+            color: #FFFFFF;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+        """)
+        header.addWidget(self.badge_mode)
+        header.addStretch()
+
+        self.btn_open_advanced = QPushButton("⚙️ 高级预设面板...")
+        self.btn_open_advanced.setObjectName("BtnOpenAdvanced")
+        self.btn_open_advanced.setMinimumHeight(30)
+        self.btn_open_advanced.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_advanced.setToolTip("打开完整的模式 A/B/C 详细预设双向同步弹窗")
+        self.btn_open_advanced.clicked.connect(self._open_advanced_dialog)
+        header.addWidget(self.btn_open_advanced)
+
+        layout.addLayout(header)
+
+        # 2. Mode Selector
+        mode_box = QHBoxLayout()
+        mode_box.setSpacing(16)
+
+        self.mode_group = QButtonGroup(self)
+        self.mode_group.setExclusive(True)
+
+        self.radio_mode_a = QRadioButton("模式 A: dashdogy 独立代理")
+        self.radio_mode_b = QRadioButton("模式 B: RenoDX 插件优化")
+        self.radio_mode_c = QRadioButton("模式 C: OptiScaler 跨卡转译")
+
+        for idx, rb in enumerate([self.radio_mode_a, self.radio_mode_b, self.radio_mode_c]):
+            rb.setCursor(Qt.CursorShape.PointingHandCursor)
+            rb.setStyleSheet("font-size: 13px; font-weight: 600;")
+            self.mode_group.addButton(rb, idx)
+            mode_box.addWidget(rb)
+
+        self.radio_mode_a.setChecked(True)
+        self.mode_group.idClicked.connect(self._on_mode_radio_clicked)
+        layout.addLayout(mode_box)
+
+        # 3. Common Parameters Card/Box
+        self.common_frame = QFrame()
+        self.common_frame.setObjectName("CommonParamsFrame")
+        c_layout = QGridLayout(self.common_frame)
+        c_layout.setContentsMargins(14, 10, 14, 10)
+        c_layout.setHorizontalSpacing(16)
+        c_layout.setVerticalSpacing(8)
+
+        # Multiplier
+        self.lbl_mul = QLabel("强制插帧倍率:")
+        self.combo_multiplier = QComboBox()
+        self.combo_multiplier.addItems(["2X (插入1帧)", "3X (插入2帧)", "4X (插入3帧)", "6X (插入5帧)"])
+        self.combo_multiplier.setCurrentIndex(1)  # 3X
+        self.combo_multiplier.currentIndexChanged.connect(self._on_param_changed)
+        c_layout.addWidget(self.lbl_mul, 0, 0)
+        c_layout.addWidget(self.combo_multiplier, 0, 1)
+
+        # DLSS Preset
+        self.lbl_preset = QLabel("DLSS 超分预设:")
+        self.combo_dlss_preset = QComboBox()
+        self.combo_dlss_preset.addItems([
+            "Default (原生直通·不篡改)",
+            "Preset J (Transformer 10)",
+            "Preset K (Transformer 11)",
+            "Preset M (CNN 13)"
+        ])
+        self.combo_dlss_preset.setCurrentIndex(0)  # Default
+        self.combo_dlss_preset.currentIndexChanged.connect(self._on_param_changed)
+        c_layout.addWidget(self.lbl_preset, 0, 2)
+        c_layout.addWidget(self.combo_dlss_preset, 0, 3)
+
+        # Hotkey
+        self.lbl_key = QLabel("游戏内菜单热键:")
+        self.combo_hotkey = QComboBox()
+        self.combo_hotkey.addItems(["Backspace", "Insert", "Home", "F11", "End"])
+        self.combo_hotkey.currentIndexChanged.connect(self._on_param_changed)
+        c_layout.addWidget(self.lbl_key, 1, 0)
+        c_layout.addWidget(self.combo_hotkey, 1, 1)
+
+        # Coexistence Hint
+        self.lbl_mode_summary = QLabel("🟢 当前模式：模式 A 独立代理")
+        self.lbl_mode_summary.setStyleSheet("font-size: 11px; font-weight: 600;")
+        c_layout.addWidget(self.lbl_mode_summary, 1, 2, 1, 2)
+
+        layout.addWidget(self.common_frame)
+
+        # 4. Mode-Specific Dynamic Stack
+        self.stack = QStackedWidget()
+
+        # Page A: Mode A (dashdogy)
+        self.page_a = QWidget()
+        pa_layout = QVBoxLayout(self.page_a)
+        pa_layout.setContentsMargins(6, 6, 6, 6)
+        pa_layout.setSpacing(6)
+
+        self.chk_bink = QCheckBox("启用 Bink2 链式劫持 (bink2w64.dll -> bink2w64Hooked.dll，适用于防篡改/自校验游戏)")
+        self.chk_bink.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.chk_bink.stateChanged.connect(self._on_param_changed)
+        pa_layout.addWidget(self.chk_bink)
+
+        self.lbl_note_a = QLabel(
+            "💡 <b>模式 A 架构保障</b>：严格使用 <code>version.dll</code> 注入，DLSS 5 作为 <code>dxgi.dll</code> 加载；"
+            "选择 Default 时严禁覆写为 D 模型，选择 Preset J/K 时自动在 <code>ReShade.ini</code> 与 <code>RTXMFG-Universal.json</code> 锁定模型。"
+        )
+        self.lbl_note_a.setWordWrap(True)
+        pa_layout.addWidget(self.lbl_note_a)
+        self.stack.addWidget(self.page_a)
+
+        # Page B: Mode B (RenoDX)
+        self.page_b = QWidget()
+        pb_layout = QVBoxLayout(self.page_b)
+        pb_layout.setContentsMargins(6, 6, 6, 6)
+        pb_layout.setSpacing(8)
+
+        grid_b = QGridLayout()
+        grid_b.setHorizontalSpacing(16)
+        grid_b.setVerticalSpacing(6)
+
+        self.chk_blackwell = QCheckBox("Blackwell 优化内核")
+        self.chk_isr = QCheckBox("ISR 细微几何重建")
+        self.chk_vwb = QCheckBox("VWB 动态视窗插值")
+        self.chk_bam = QCheckBox("BAM 边缘自适应")
+        self.chk_hdr = QCheckBox("HDR UI 防撕裂 (Recomp)")
+        self.chk_dynamic = QCheckBox("DynamicMFG 动态多帧")
+        self.chk_temporal = QCheckBox("TemporalFix 时域修复")
+
+        for chk in [self.chk_blackwell, self.chk_isr, self.chk_vwb, self.chk_bam,
+                    self.chk_hdr, self.chk_dynamic, self.chk_temporal]:
+            chk.setChecked(True)
+            chk.setCursor(Qt.CursorShape.PointingHandCursor)
+            chk.stateChanged.connect(self._on_param_changed)
+        self.chk_dynamic.setChecked(False)
+
+        grid_b.addWidget(self.chk_blackwell, 0, 0)
+        grid_b.addWidget(self.chk_isr, 0, 1)
+        grid_b.addWidget(self.chk_vwb, 0, 2)
+        grid_b.addWidget(self.chk_bam, 1, 0)
+        grid_b.addWidget(self.chk_hdr, 1, 1)
+        grid_b.addWidget(self.chk_dynamic, 1, 2)
+        grid_b.addWidget(self.chk_temporal, 2, 0)
+        pb_layout.addLayout(grid_b)
+
+        self.lbl_note_b = QLabel(
+            "💡 <b>模式 B 闪退防护</b>：单宿主 <code>dxgi.dll</code> 同时托管双 Addon；自动写入 <code>[RenoDX.DLSS5] EnableHooks=2</code> "
+            "跳过重复 Inline Hook，并在勾选 HDR UI 时自动启用 <code>DeferredInit=1</code> 延时初始化，消除 Access Violation 闪退。"
+        )
+        self.lbl_note_b.setWordWrap(True)
+        pb_layout.addWidget(self.lbl_note_b)
+        self.stack.addWidget(self.page_b)
+
+        # Page C: Mode C (OptiScaler)
+        self.page_c = QWidget()
+        pc_layout = QVBoxLayout(self.page_c)
+        pc_layout.setContentsMargins(6, 6, 6, 6)
+        pc_layout.setSpacing(8)
+
+        grid_c = QGridLayout()
+        grid_c.setHorizontalSpacing(16)
+        grid_c.setVerticalSpacing(8)
+
+        self.lbl_fg_out = QLabel("插帧输出引擎:")
+        self.combo_fg_out = QComboBox()
+        self.combo_fg_out.addItems(["xefg (Intel XeSS 2.0 FG - 推荐)", "fsrfg (AMD FSR 3.1 FG)"])
+        self.combo_fg_out.currentIndexChanged.connect(self._on_param_changed)
+        grid_c.addWidget(self.lbl_fg_out, 0, 0)
+        grid_c.addWidget(self.combo_fg_out, 0, 1)
+
+        self.lbl_fg_in = QLabel("插帧输入通道:")
+        self.combo_fg_in = QComboBox()
+        self.combo_fg_in.addItems(["dlssg (Streamline 原生通道 - 推荐)", "fsr3 (FSR 接口)"])
+        self.combo_fg_in.currentIndexChanged.connect(self._on_param_changed)
+        grid_c.addWidget(self.lbl_fg_in, 0, 2)
+        grid_c.addWidget(self.combo_fg_in, 0, 3)
+
+        self.chk_rcas = QCheckBox("启用 AMD RCAS 锐化")
+        self.chk_rcas.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.chk_rcas.stateChanged.connect(self._on_param_changed)
+        self.slider_rcas = QSlider(Qt.Orientation.Horizontal)
+        self.slider_rcas.setRange(0, 100)
+        self.slider_rcas.setValue(20)
+        self.lbl_rcas_val = QLabel("0.20")
+        self.lbl_rcas_val.setFixedWidth(36)
+        self.slider_rcas.valueChanged.connect(self._on_slider_rcas_changed)
+
+        rcas_row = QHBoxLayout()
+        rcas_row.addWidget(self.chk_rcas)
+        rcas_row.addWidget(self.slider_rcas, 1)
+        rcas_row.addWidget(self.lbl_rcas_val)
+        grid_c.addLayout(rcas_row, 1, 0, 1, 4)
+
+        pc_layout.addLayout(grid_c)
+
+        self.lbl_note_c = QLabel(
+            "💡 <b>模式 C 修复说明</b>：OptiScaler 部署为 <code>dxgi.dll</code>，链式加载 <code>ReShade64.dll</code>；"
+            "关闭 <code>Dxgi=false</code> 显卡欺骗使 DLSS 选项常驻，<code>Dx12Upscaler=dlss</code> 直通 DLSS 5，确保 XeFG 满血生效。"
+        )
+        self.lbl_note_c.setWordWrap(True)
+        pc_layout.addWidget(self.lbl_note_c)
+        self.stack.addWidget(self.page_c)
+
+        layout.addWidget(self.stack)
+
+        # 5. Buttons Row
+        btn_box = QHBoxLayout()
+        btn_box.setSpacing(10)
+
+        self.btn_sync_config = QPushButton("💾 保存多帧生成配置 (同步写入游戏)")
+        self.btn_sync_config.setObjectName("BtnSyncConfig")
+        self.btn_sync_config.setMinimumHeight(38)
+        self.btn_sync_config.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_sync_config.clicked.connect(self.on_save_config_clicked)
+        btn_box.addWidget(self.btn_sync_config, 1)
+
+        self.btn_apply_all = QPushButton("⚡ 一键全套部署 (多帧生成 + DLSS 5 联动)")
+        self.btn_apply_all.setObjectName("BtnApplyAll")
+        self.btn_apply_all.setMinimumHeight(38)
+        self.btn_apply_all.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_apply_all.clicked.connect(self.on_apply_all_clicked)
+        btn_box.addWidget(self.btn_apply_all, 1)
+
+        layout.addLayout(btn_box)
+
+    def _on_mode_radio_clicked(self, btn_id: int):
+        modes = ["A", "B", "C"]
+        if 0 <= btn_id < len(modes):
+            self.active_mode = modes[btn_id]
+            self.stack.setCurrentIndex(btn_id)
+            mode_desc = {
+                "A": "🟢 当前模式：模式 A dashdogy 独立代理 (version.dll)",
+                "B": "🟢 当前模式：模式 B RenoDX 插件优化 (单宿主双 Addon)",
+                "C": "🟢 当前模式：模式 C OptiScaler 跨卡转译 (dxgi + ReShade64 链式)"
+            }
+            self.lbl_mode_summary.setText(mode_desc.get(self.active_mode, ""))
+            if self.active_mode == "A":
+                self.combo_hotkey.setCurrentText("Backspace")
+            elif self.active_mode == "B":
+                self.combo_hotkey.setCurrentText("Home")
+            elif self.active_mode == "C":
+                self.combo_hotkey.setCurrentText("Insert")
+            self.load_config()
+
+    def _on_param_changed(self):
+        pass
+
+    def _on_slider_rcas_changed(self, v: int):
+        self.lbl_rcas_val.setText(f"{v / 100.0:.2f}")
+
+    def set_game(self, game_info: Optional[Dict[str, Any]]):
+        self.current_game_info = game_info
+        if not game_info or not game_info.get("target_dir"):
+            self.setEnabled(False)
+            return
+
+        self.setEnabled(True)
+        td = game_info.get("target_dir", "")
+        detected_mode = ConfigSyncService.detect_active_mode(td)
+        if detected_mode in ["A", "B", "C"]:
+            self.active_mode = detected_mode
+            rb = [self.radio_mode_a, self.radio_mode_b, self.radio_mode_c][["A", "B", "C"].index(detected_mode)]
+            rb.blockSignals(True)
+            rb.setChecked(True)
+            rb.blockSignals(False)
+            self.stack.setCurrentIndex(["A", "B", "C"].index(detected_mode))
+            mode_desc = {
+                "A": "🟢 已检测到已安装：模式 A 独立代理",
+                "B": "🟢 已检测到已安装：模式 B RenoDX 插件优化",
+                "C": "🟢 已检测到已安装：模式 C OptiScaler 跨卡转译"
+            }
+            self.lbl_mode_summary.setText(mode_desc.get(detected_mode, ""))
+
+        self.load_config()
+
+    def load_config(self):
+        self._is_loading = True
+        td = self.current_game_info.get("target_dir", "") if self.current_game_info else ""
+        cfg = ConfigSyncService.load_mode_config(td, self.active_mode)
+
+        # Multiplier
+        mul = int(cfg.get("multiplier", cfg.get("force_multiplier", cfg.get("interpolation_count", 2) + 1 if "interpolation_count" in cfg else 3)))
+        mul_map = {2: 0, 3: 1, 4: 2, 6: 3}
+        self.combo_multiplier.setCurrentIndex(mul_map.get(mul, 1))
+
+        # DLSS Preset
+        p_str = str(cfg.get("dlss_preset", "Default")).upper()
+        if "J" in p_str or "10" in p_str:
+            self.combo_dlss_preset.setCurrentIndex(1)
+        elif "K" in p_str or "11" in p_str:
+            self.combo_dlss_preset.setCurrentIndex(2)
+        elif "M" in p_str or "13" in p_str:
+            self.combo_dlss_preset.setCurrentIndex(3)
+        else:
+            self.combo_dlss_preset.setCurrentIndex(0)
+
+        # Hotkey
+        hotkey = str(cfg.get("menu_key", ""))
+        if hotkey and self.combo_hotkey.findText(hotkey, Qt.MatchFlag.MatchContains) >= 0:
+            self.combo_hotkey.setCurrentText(hotkey)
+
+        # Mode A specifics
+        if self.active_mode == "A":
+            self.chk_bink.setChecked(bool(cfg.get("bink_hook", False)))
+
+        # Mode B specifics
+        elif self.active_mode == "B":
+            self.chk_blackwell.setChecked(bool(cfg.get("blackwell_kernels", 1)))
+            self.chk_isr.setChecked(bool(cfg.get("thin_geometry_isr", 1)))
+            self.chk_vwb.setChecked(bool(cfg.get("thin_geometry_vwb", 1)))
+            self.chk_bam.setChecked(bool(cfg.get("thin_geometry_bam", 1)))
+            self.chk_hdr.setChecked(bool(cfg.get("hdr_ui_recomposition", 1)))
+            self.chk_dynamic.setChecked(bool(cfg.get("dynamic_mfg", 0)))
+            self.chk_temporal.setChecked(bool(cfg.get("temporal_fix", 1)))
+
+        # Mode C specifics
+        elif self.active_mode == "C":
+            fg_out = str(cfg.get("fg_output", "xefg")).lower()
+            self.combo_fg_out.setCurrentIndex(1 if "fsr" in fg_out else 0)
+
+            fg_in = str(cfg.get("fg_input", "dlssg")).lower()
+            self.combo_fg_in.setCurrentIndex(1 if "fsr" in fg_in else 0)
+
+            self.chk_rcas.setChecked(bool(cfg.get("rcas_enabled", False)))
+            rcas_val = float(cfg.get("rcas_sharpness", 0.20))
+            self.slider_rcas.setValue(int(rcas_val * 100))
+            self.lbl_rcas_val.setText(f"{rcas_val:.2f}")
+
+        self._is_loading = False
+
+    def get_params(self) -> Dict[str, Any]:
+        mul_vals = [2, 3, 4, 6]
+        mul = mul_vals[self.combo_multiplier.currentIndex()]
+
+        preset_vals = ["Default", "Preset J", "Preset K", "Preset M"]
+        dlss_preset = preset_vals[self.combo_dlss_preset.currentIndex()]
+
+        hotkey = self.combo_hotkey.currentText()
+
+        params = {
+            "multiplier": mul,
+            "dlss_preset": dlss_preset,
+            "menu_key": hotkey,
+            "bink_hook": self.chk_bink.isChecked(),
+            "blackwell_kernels": 1 if self.chk_blackwell.isChecked() else 0,
+            "thin_geometry_isr": 1 if self.chk_isr.isChecked() else 0,
+            "thin_geometry_vwb": 1 if self.chk_vwb.isChecked() else 0,
+            "thin_geometry_bam": 1 if self.chk_bam.isChecked() else 0,
+            "hdr_ui_recomposition": 1 if self.chk_hdr.isChecked() else 0,
+            "dynamic_mfg": 1 if self.chk_dynamic.isChecked() else 0,
+            "temporal_fix": 1 if self.chk_temporal.isChecked() else 0,
+            "fg_output": "xefg" if self.combo_fg_out.currentIndex() == 0 else "fsrfg",
+            "fg_input": "dlssg" if self.combo_fg_in.currentIndex() == 0 else "fsr3",
+            "rcas_enabled": self.chk_rcas.isChecked(),
+            "rcas_sharpness": self.slider_rcas.value() / 100.0,
+            "dx12_upscaler": "dlss"
+        }
+        return params
+
+    def on_save_config_clicked(self):
+        if not self.current_game_info or not self.current_game_info.get("target_dir"):
+            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            return
+
+        td = Path(self.current_game_info["target_dir"])
+        game_name = self.current_game_info.get("name", "当前游戏")
+        game_exe = self.current_game_info.get("exe", "game.exe")
+        params = self.get_params()
+
+        # Update global presets and disk configs
+        if self.active_mode == "A":
+            preset_a = load_mode_a_preset()
+            preset_a["multiplier"] = params["multiplier"]
+            preset_a["dlss_preset"] = params["dlss_preset"]
+            preset_a["menu_key"] = params["menu_key"]
+            preset_a["bink_hook"] = params["bink_hook"]
+            save_mode_a_preset(preset_a)
+            if td.exists():
+                IniConfigManager.sync_mode_a_forward(td, preset_a)
+
+        elif self.active_mode == "B":
+            preset_b = load_reshade_preset()
+            preset_b["force_multiplier"] = params["multiplier"]
+            preset_b["blackwell_kernels"] = params["blackwell_kernels"]
+            preset_b["thin_geometry_isr"] = params["thin_geometry_isr"]
+            preset_b["thin_geometry_vwb"] = params["thin_geometry_vwb"]
+            preset_b["thin_geometry_bam"] = params["thin_geometry_bam"]
+            preset_b["hdr_ui_recomposition"] = params["hdr_ui_recomposition"]
+            preset_b["dynamic_mfg"] = params["dynamic_mfg"]
+            preset_b["temporal_fix"] = params["temporal_fix"]
+            save_reshade_preset(preset_b)
+            if td.exists():
+                IniConfigManager.sync_mode_b_forward(td, preset_b)
+
+        elif self.active_mode == "C":
+            preset_c = load_optiscaler_preset()
+            preset_c["interpolation_count"] = max(1, params["multiplier"] - 1)
+            preset_c["dlss_preset"] = "K" if "K" in params["dlss_preset"] else ("J" if "J" in params["dlss_preset"] else "Default")
+            preset_c["menu_key"] = params["menu_key"]
+            preset_c["fg_output"] = params["fg_output"]
+            preset_c["fg_input"] = params["fg_input"]
+            preset_c["dx12_upscaler"] = "dlss"
+            preset_c["rcas_enabled"] = params["rcas_enabled"]
+            preset_c["rcas_sharpness"] = params["rcas_sharpness"]
+            save_optiscaler_preset(preset_c)
+            if td.exists():
+                IniConfigManager.sync_mode_c_forward(td, preset_c, exe_name=game_exe)
+
+        QMessageBox.information(
+            self,
+            "保存成功",
+            f"✅ 已成功将【模式 {self.active_mode}】插帧配置写入游戏【{game_name}】目录！\n\n"
+            f"• 插帧倍率：{params['multiplier']}X\n"
+            f"• 超分预设：{params['dlss_preset']}\n"
+            f"• 呼出热键：{params['menu_key']}"
+        )
+        if self.parent_window and hasattr(self.parent_window, "refresh_current_game_status"):
+            self.parent_window.refresh_current_game_status()
+
+    def on_apply_all_clicked(self):
+        if not self.current_game_info or not self.current_game_info.get("target_dir"):
+            QMessageBox.warning(self, "提示", "请先选择目标游戏！")
+            return
+
+        td = self.current_game_info["target_dir"]
+        game_exe = self.current_game_info.get("exe", "")
+        params = self.get_params()
+
+        ok, msg = ConfigSyncService.apply_unified_configuration(td, game_exe, self.active_mode, params)
+        if ok:
+            QMessageBox.information(self, "部署成功", msg)
+        else:
+            QMessageBox.critical(self, "部署失败", msg)
+
+        if self.parent_window and hasattr(self.parent_window, "refresh_current_game_status"):
+            self.parent_window.refresh_current_game_status()
+
+    def _open_advanced_dialog(self):
+        try:
+            from apps.app2_mfg.gui_qt import OptiScalerPresetDialog
+            g_obj = self.current_game_info.get("game_obj") if self.current_game_info else None
+            is_dark = getattr(self.parent_window, "is_dark_mode", False) if self.parent_window else False
+            dlg = OptiScalerPresetDialog(
+                parent=self.parent_window or self,
+                is_dark=is_dark,
+                game=g_obj,
+                initial_mode=self.active_mode
+            )
+            if dlg.exec():
+                self.load_config()
+                if self.parent_window and hasattr(self.parent_window, "refresh_current_game_status"):
+                    self.parent_window.refresh_current_game_status()
+        except Exception as e:
+            QMessageBox.warning(self, "打开高级预设", f"打开高级预设面板异常: {e}")
+
+    def apply_theme(self, is_dark: bool):
+        card_bg = "#222325" if is_dark else "#F8FAFC"
+        border = "#383A3C" if is_dark else "#E2E8F0"
+        text_c = "#E8E8E8" if is_dark else "#1A1A1A"
+        sub_c = "#94A3B8" if is_dark else "#64748B"
+        btn_green = "#10B981" if is_dark else "#16A34A"
+        btn_green_hover = "#059669" if is_dark else "#15803D"
+        btn_sec_bg = "#334155" if is_dark else "#F1F5F9"
+        btn_sec_border = "#475569" if is_dark else "#CBD5E1"
+        btn_sec_hover = "#475569" if is_dark else "#E2E8F0"
+        btn_sec_text = "#F8FAFC" if is_dark else "#1E293B"
+
+        self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {text_c};")
+        self.lbl_mul.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_preset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_key.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_mode_summary.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {'#34D399' if is_dark else '#059669'};")
+        self.lbl_note_a.setStyleSheet(f"font-size: 11px; color: {sub_c}; line-height: 140%;")
+        self.lbl_note_b.setStyleSheet(f"font-size: 11px; color: {sub_c}; line-height: 140%;")
+        self.lbl_note_c.setStyleSheet(f"font-size: 11px; color: {sub_c}; line-height: 140%;")
+
+        self.common_frame.setStyleSheet(f"""
+            QFrame#CommonParamsFrame {{
+                background-color: {card_bg};
+                border: 1px solid {border};
+                border-radius: 8px;
+            }}
+        """)
+
+        self.btn_open_advanced.setStyleSheet(f"""
+            QPushButton#BtnOpenAdvanced {{
+                background-color: transparent;
+                color: {'#38BDF8' if is_dark else '#0284C7'};
+                font-size: 12px;
+                font-weight: 600;
+                border: 1px solid {'#38BDF8' if is_dark else '#0284C7'};
+                border-radius: 6px;
+                padding: 4px 10px;
+            }}
+            QPushButton#BtnOpenAdvanced:hover {{
+                background-color: {'#38BDF8' if is_dark else '#0284C7'};
+                color: #FFFFFF;
+            }}
+        """)
+
+        self.btn_sync_config.setStyleSheet(f"""
+            QPushButton#BtnSyncConfig {{
+                background-color: {btn_sec_bg};
+                color: {btn_sec_text};
+                font-size: 13px;
+                font-weight: 600;
+                border: 1px solid {btn_sec_border};
+                border-radius: 8px;
+                padding: 6px 14px;
+            }}
+            QPushButton#BtnSyncConfig:hover {{
+                background-color: {btn_sec_hover};
+            }}
+        """)
+
+        self.btn_apply_all.setStyleSheet(f"""
+            QPushButton#BtnApplyAll {{
+                background-color: {btn_green};
+                color: #FFFFFF;
+                font-size: 13px;
+                font-weight: 700;
+                border: none;
+                border-radius: 8px;
+                padding: 6px 14px;
+            }}
+            QPushButton#BtnApplyAll:hover {{
+                background-color: {btn_green_hover};
+            }}
+        """)
 
 
 class DLSS5Window(DMBaseWindow):
@@ -323,6 +895,10 @@ class DLSS5Window(DMBaseWindow):
 
         g_layout.addWidget(self.alert_box)
         vbox.addWidget(self.game_card)
+
+        # ------------------ 2.5 MULTI-FRAME GENERATION LINKAGE PANEL ------------------
+        self.mfg_panel = MultiFrameGenPanel(self)
+        vbox.addWidget(self.mfg_panel)
 
         # ------------------ 3. ACTION CENTER CARD ------------------
         self.action_card = QFrame()
@@ -574,6 +1150,9 @@ class DLSS5Window(DMBaseWindow):
             self.current_game_info = None
             self.lbl_current_path.setText("📁 当前目标目录: 未选择游戏")
 
+        if hasattr(self, "mfg_panel"):
+            self.mfg_panel.set_game(self.current_game_info)
+
         self.refresh_current_game_status()
 
     def refresh_current_game_status(self):
@@ -610,8 +1189,12 @@ class DLSS5Window(DMBaseWindow):
 
         # 1. DLSS 5 Block
         if status["is_injected"]:
-            self.block_dlss5.set_status("🟢 已注入生效", c_green, "lecram-dlss5-beta10.addon64 就绪")
-            self.btn_inject.setText("⚡ 重新覆盖注入 DLSS 5")
+            if status.get("host_ready", False):
+                self.block_dlss5.set_status("🟢 已注入生效", c_green, "DLSS 5 插件与 ReShade 底座就绪")
+                self.btn_inject.setText("⚡ 重新覆盖注入 DLSS 5")
+            else:
+                self.block_dlss5.set_status("⚠️ 宿主底座未就绪", c_yellow, "缺少有效 ReShade 宿主，点击修复")
+                self.btn_inject.setText("🛠️ 一键修复底座并启动 DLSS 5")
             self.btn_restore.setEnabled(True)
         else:
             self.block_dlss5.set_status("⚪ 未注入", c_gray, "点击下方按钮一键注入")
@@ -657,6 +1240,8 @@ class DLSS5Window(DMBaseWindow):
             self.block_reshade.set_status("🟢 底座就绪", c_green, "ReShade 64-bit Full Addon")
         elif status["is_reshade"]:
             self.block_reshade.set_status("🟡 标准 ReShade 底座", c_yellow, "无插件扩展，注入时将补齐")
+        elif status.get("is_dxgi_optiscaler"):
+            self.block_reshade.set_status("⚠️ 孤立 OptiScaler", c_yellow, "检测到孤立 OptiScaler，注入时自动修复为 ReShade")
         elif status["has_dxgi"]:
             self.block_reshade.set_status("🔵 第三方 dxgi.dll", c_blue, "已存在其他代理 DLL")
         else:
@@ -728,15 +1313,23 @@ class DLSS5Window(DMBaseWindow):
         """)
 
     def on_inject_dlss5(self):
-        """Performs one-click injection with Frame Generation collision avoidance."""
+        """Performs one-click injection with Frame Generation collision avoidance and unified config sync."""
         if not self.current_game_info or not self.current_game_info.get("target_dir"):
             QMessageBox.warning(self, "提示", "请先选择目标游戏！")
             return
 
         target_dir = self.current_game_info["target_dir"]
         game_name = self.current_game_info.get("name", "选中游戏")
+        game_exe = self.current_game_info.get("exe", "")
 
-        ok, msg = DLSS5Injector.inject(target_dir)
+        # If MultiFrameGenPanel is available, perform transactional unified deployment
+        if hasattr(self, "mfg_panel") and self.mfg_panel and self.mfg_panel.isEnabled():
+            params = self.mfg_panel.get_params()
+            mode = self.mfg_panel.active_mode
+            ok, msg = ConfigSyncService.apply_unified_configuration(target_dir, game_exe, mode, params)
+        else:
+            ok, msg = DLSS5Injector.inject(target_dir)
+
         if ok:
             QMessageBox.information(self, f"注入成功 - {game_name}", msg)
         else:
@@ -835,9 +1428,12 @@ class DLSS5Window(DMBaseWindow):
                 border: 1px solid {hover_border};
             }}
         """
-        for card_name in ["banner_card", "game_card", "action_card", "guide_card"]:
+        for card_name in ["banner_card", "game_card", "mfg_panel", "action_card", "guide_card"]:
             if hasattr(self, card_name):
                 getattr(self, card_name).setStyleSheet(card_style)
+
+        if hasattr(self, "mfg_panel"):
+            self.mfg_panel.apply_theme(is_dark)
 
         # Update Titles & Subtitles
         if hasattr(self, "banner_title"):

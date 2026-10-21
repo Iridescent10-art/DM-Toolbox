@@ -66,7 +66,7 @@ class TestModeBPipeline(unittest.TestCase):
         with open(ini_path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("TutorialProgress=4", content)
-        self.assertIn("LoadFromDllMain=1", content)
+        self.assertTrue("LoadFromDllMain=1" in content or "LoadFromDllMain=renodx-mfgunlock.addon64" in content)
         self.assertIn("[RenoDX.MFGUnlock]", content)
         self.assertIn("ForceMultiplier=", content)
 

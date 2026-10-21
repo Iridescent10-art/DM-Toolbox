@@ -61,13 +61,24 @@ class RollbackEngine:
         except Exception:
             other_addons = []
 
+        from core.state_cleaner import is_optiscaler_dll_file, is_reshade_dll_file, find_reshade_framework_dll
+
         # 1. Delete created files via safe_force_remove
         for rel_file in manifest.created_files:
-            # If user still has other ReShade addons (e.g. HDR mod), NEVER delete dxgi.dll ReShade framework!
+            full_path = os.path.join(target_dir, rel_file)
             if rel_file.lower() == "dxgi.dll" and other_addons:
+                # If dxgi.dll was OptiScaler, NEVER leave OptiScaler behind when rolling back!
+                if is_optiscaler_dll_file(full_path):
+                    safe_force_remove(full_path)
+                    # Replace with real ReShade so remaining addons (e.g. DLSS 5) can continue to function
+                    reshade_fw = find_reshade_framework_dll()
+                    if reshade_fw and os.path.exists(reshade_fw):
+                        try:
+                            shutil.copy2(reshade_fw, full_path)
+                        except Exception:
+                            pass
                 continue
 
-            full_path = os.path.join(target_dir, rel_file)
             if os.path.exists(full_path) or os.path.islink(full_path):
                 ok = safe_force_remove(full_path)
                 if not ok and os.path.exists(full_path):
@@ -80,9 +91,13 @@ class RollbackEngine:
             if not orig_name or not bak_name:
                 continue
 
-            # If other addons exist and original was dxgi.dll, preserve current ReShade
+            orig_path = os.path.join(target_dir, orig_name)
+            bak_path = os.path.join(target_dir, bak_name)
+
+            # If other addons exist and original was dxgi.dll, only preserve if already a valid ReShade
             if orig_name.lower() == "dxgi.dll" and other_addons:
-                continue
+                if is_reshade_dll_file(orig_path):
+                    continue
 
             orig_path = os.path.join(target_dir, orig_name)
             bak_path = os.path.join(target_dir, bak_name)

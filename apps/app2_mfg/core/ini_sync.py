@@ -11,6 +11,7 @@ so it is purged on every sync / deployment.
 
 import os
 import re
+import json
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple, Union
 
@@ -432,11 +433,18 @@ class IniConfigManager:
 
         # 1. Update the ONE legal config file: OptiScaler.ini
         opti_ini = target / OPTISCALER_INI_NAME
+        dlss_sec["Enabled"] = "true"
         opti_updates: Dict[str, Dict[str, str]] = {
             "FrameGen": {
                 "Enabled": "true",
                 "FGInput": fg_input,
                 "FGOutput": fg_output,
+                "FGType": fg_output,
+            },
+            "FrameGeneration": {
+                "FGType": fg_output,
+                "FGInput": fg_input,
+                "InterpolationCount": str(multiplier_num),
             },
             "XeFG": {
                 "IgnoreInitChecks": "true",
@@ -445,9 +453,14 @@ class IniConfigManager:
             },
             "Plugins": {
                 "LoadAsiPlugins": "true",
+                "LoadReshade": "true",
+            },
+            "LoadDlls": {
+                "LoadReshade": "true",
+                "ReshadePath": "ReShade64.dll",
             },
             "Upscalers": {
-                "Dx12Upscaler": dx12_upscaler
+                "Dx12Upscaler": "dlss"
             },
             "DLSS": dlss_sec,
             "DLSSD": {
@@ -471,8 +484,8 @@ class IniConfigManager:
                 "UseNtdllHooks": "true"
             },
             "Spoofing": {
-                "Dxgi": "false" if is_rtx40_50 else "auto",
-                "StreamlineSpoofing": "false" if is_rtx40_50 else "auto",
+                "Dxgi": "false",
+                "StreamlineSpoofing": "true",
                 "DxgiFactoryWrapping": "false"
             },
             "Menu": {
@@ -666,6 +679,7 @@ class IniConfigManager:
         # Core keys used by renodx-mfgunlock.addon64
         mfg_keys = {
             "ForceMultiplier": str(force_mult),
+            "DeferredInit": "1",
             "BlackwellFrameworkKernels": str(blackwell),
             "ThinGeometryIntermediateScatter": str(isr),
             "ThinGeometryPreviousScatter": str(vwb),
@@ -682,22 +696,36 @@ class IniConfigManager:
             "FrameGenMultiplier": str(force_mult),
         }
 
-        addon_updates = {
-            "LoadFromDllMain": "1"
+        # Safe DLSS 5 hook avoidance config
+        dlss5_hooks = {
+            "EnableHooks": "2",
+            "RuntimeSelectionMode": "1",
+            "HDRCompatibilityMode": "0"
         }
+
+        addon_updates = {}
         if reshade_ini.exists():
             existing_sections = cls.read_ini_sections(reshade_ini)
             existing_addon = existing_sections.get("ADDON", {})
+            current_main = existing_addon.get("LoadFromDllMain", "")
+            items = [x.strip() for x in current_main.split(",") if x.strip() and x.strip() != "1" and "lecram" not in x.lower()]
+            if "renodx-mfgunlock.addon64" not in [x.lower() for x in items]:
+                items.append("renodx-mfgunlock.addon64")
+            addon_updates["LoadFromDllMain"] = ",".join(items)
             if "DisabledAddons" in existing_addon:
                 disabled_list = [x.strip() for x in existing_addon["DisabledAddons"].split(",") if x.strip()]
                 clean_disabled = [x for x in disabled_list if "mfgunlock" not in x.lower()]
                 addon_updates["DisabledAddons"] = ",".join(clean_disabled)
+        else:
+            addon_updates["LoadFromDllMain"] = "renodx-mfgunlock.addon64"
 
         updates = {
             "GENERAL": {
                 "TutorialProgress": "4"
             },
             "ADDON": addon_updates,
+            "RenoDX.MFG": mfg_keys,
+            "RenoDX.DLSS5": dlss5_hooks,
             # Exact section recognized by the official binary
             "RenoDX.MFGUnlock": mfg_keys,
             # Mirror sections for compatibility with third-party/legacy forks
@@ -804,6 +832,26 @@ class IniConfigManager:
 
         clean_preset_name = "Default" if is_default else ("M" if preset_str in ["M", "Preset M", "13"] else preset_str)
 
+        # Write RTXMFG-Universal.json (dashdogy primary config)
+        universal_json_path = target / "RTXMFG-Universal.json"
+        try:
+            universal_data = {
+                "version": 40,
+                "mode": "follow",
+                "multiplier": multiplier,
+                "forcedMaximumMultiplier": multiplier,
+                "hotkey": vk_code,
+                "menuKey": menu_key,
+                "overrideDlssPreset": False if is_default else True,
+                "dlssPreset": 0 if is_default else int(render_preset_val),
+                "dlssSrPreset": 0 if is_default else int(render_preset_val),
+                "dlssgPreset": 0
+            }
+            with open(universal_json_path, "w", encoding="utf-8") as f:
+                json.dump(universal_data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
         updates = {
             "General": {
                 "MenuKey": menu_key,
@@ -812,6 +860,8 @@ class IniConfigManager:
                 "Preset": clean_preset_name,
                 "DLSSPreset": clean_preset_name,
                 "RenderPreset": render_preset_val,
+                "OverrideDlssPreset": "0" if is_default else "1",
+                "DlssSrPreset": render_preset_val,
                 "BinkHook": "1" if bink_hook else "0"
             }
         }
@@ -826,6 +876,20 @@ class IniConfigManager:
             }
         }
         ok3 = cls.write_ini_sections(target / "RTX40MFG-UI.ini", overlay_updates)
+
+        # Synchronize DLSS 5 section in ReShade.ini if present
+        reshade_ini = target / "ReShade.ini"
+        if reshade_ini.exists():
+            try:
+                dlss5_updates = {
+                    "DLSS5": {
+                        "RenderPreset": render_preset_val,
+                        "NRRuntimePath": ".\\nvngx_dlssnr.dll"
+                    }
+                }
+                cls.write_ini_sections(reshade_ini, dlss5_updates)
+            except Exception:
+                pass
 
         return ok1 or ok2 or ok3
 
