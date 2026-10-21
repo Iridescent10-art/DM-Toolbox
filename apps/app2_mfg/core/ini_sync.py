@@ -301,6 +301,10 @@ class IniConfigManager:
             plugins_dir = target / "OptiScaler" / "plugins"
             asi_path = plugins_dir / "MFGUnlocker.asi"
             mfg_dll = updater.get_latest_cached_file(BackendType.STANDALONE)
+            if not mfg_dll or not os.path.exists(mfg_dll):
+                emb_mfg = Path(__file__).resolve().parent.parent / "embedded_components" / "dashdogy" / "v1.6.1" / "MFGUnlocker.dll"
+                if emb_mfg.exists():
+                    mfg_dll = str(emb_mfg)
             if mfg_dll and os.path.exists(mfg_dll):
                 plugins_dir.mkdir(parents=True, exist_ok=True)
                 if not asi_path.exists() or asi_path.stat().st_size != Path(mfg_dll).stat().st_size:
@@ -538,6 +542,20 @@ class IniConfigManager:
             }
 
         ok_opti = cls.write_ini_sections(opti_ini, opti_updates)
+
+        # Also sync mfg_unlocker.ini in target and OptiScaler/plugins for MFGUnlocker.asi
+        mfg_updates = {
+            "General": {
+                "Multiplier": str(multiplier_num),
+                "Preset": dlss_p if not is_dlss_default else "Default",
+                "DLSSPreset": dlss_p if not is_dlss_default else "Default",
+                "RenderPreset": str(DLSS_PRESET_MAP.get(dlss_p, 13)) if not is_dlss_default else "0"
+            }
+        }
+        cls.write_ini_sections(target / "mfg_unlocker.ini", mfg_updates)
+        plugins_dir = target / "OptiScaler" / "plugins"
+        if plugins_dir.exists():
+            cls.write_ini_sections(plugins_dir / "mfg_unlocker.ini", mfg_updates)
 
         # 2. Strip keys that do not exist in v0.9.4 (written by older DM-Toolbox builds).
         cls.remove_ini_keys(opti_ini, LEGACY_OPTISCALER_KEYS)

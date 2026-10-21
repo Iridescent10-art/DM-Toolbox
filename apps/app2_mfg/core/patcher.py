@@ -710,22 +710,17 @@ class PatchEngine:
             if os.path.exists(lingering_dlssg):
                 safe_force_remove(lingering_dlssg)
 
-        # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin ONLY for RTX 20/30 (not RTX 40/50)
-        # On RTX 40/50, loading MFGUnlocker into Streamline causes dual-hooking crashes (Hook-04 and exception dumps).
-        if not has_rtx_40_or_newer and not is_qualified:
-            mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
-            if mfg_dll_path and os.path.exists(mfg_dll_path):
-                plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
-                os.makedirs(plugins_dir, exist_ok=True)
-                dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
-                shutil.copy2(mfg_dll_path, dst_asi)
-                if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
-                    manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
-        else:
-            # Clean up lingering MFGUnlocker.asi on RTX 40/50 to avoid Hook-04 and Streamline collisions
-            asi_p = os.path.join(target_dir, "OptiScaler", "plugins", "MFGUnlocker.asi")
-            if os.path.exists(asi_p):
-                safe_force_remove(asi_p)
+        # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin in OptiScaler/plugins/
+        # OptiScaler 10+ loads ASI plugins via LoadAsiPlugins=true, unlocking multi-frame generation
+        # (2X/3X/4X/5X/6X) for XeSS 2.0 / XeFG frame generation pipelines across RTX 20/30/40/50 and all GPUs!
+        mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
+        if mfg_dll_path and os.path.exists(mfg_dll_path):
+            plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
+            os.makedirs(plugins_dir, exist_ok=True)
+            dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
+            shutil.copy2(mfg_dll_path, dst_asi)
+            if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
+                manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
 
         # 4. Write the ONE legal config file (OptiScaler.ini) and delete the legacy alias.
         #    v0.9.4 shows a red banner while nvngx.ini exists, and reads FG init keys at

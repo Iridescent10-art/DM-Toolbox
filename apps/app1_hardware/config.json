@@ -13,16 +13,16 @@
     "disk_instance_path": "SCSI\\DISK&VEN_NVME&PROD_YSSDM-2TN3000\\5&1574F6F4&0&000000"
   },
   "custom_target": {
-    "cpu_model": "AMD Ryzen 9 9950X3D2 16-Core Processor",
-    "gpu_model": "NVIDIA GeForce RTX 5090",
+    "cpu_model": "AMD Ryzen 5 9600X 6-Core Processor",
+    "gpu_model": "NVIDIA GeForce RTX 4070",
     "gpu_vram_gb": 32,
     "target_gpu_instance_path": "PCI\\VEN_10DE&DEV_2786&SUBSYS_12017377&REV_A1\\4&D0BDF66&0&0009",
-    "motherboard_vendor": "ASUSTeK COMPUTER INC.",
-    "motherboard_product": "ROG CROSSHAIR X870E HERO",
+    "motherboard_vendor": "MAXSUN",
+    "motherboard_product": "MS-eSport B650ITX",
     "memory_vendor": "Corsair",
     "memory_size_gb": 64,
     "memory_clock_mhz": 7200,
-    "disk_model": "Samsung SSD 990 PRO 4TB",
+    "disk_model": "YSSDM-2TN3000",
     "target_disk_instance_path": "SCSI\\DISK&VEN_NVME&PROD_YSSDM-2TN3000\\5&1574F6F4&0&000000",
     "enable_startup_fix": true,
     "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxAccelerator"
