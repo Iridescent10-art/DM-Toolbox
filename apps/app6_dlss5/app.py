@@ -709,33 +709,12 @@ class MultiFrameGenPanel(QFrame):
         self.lbl_preset = QLabel("DLSS 超分预设:")
 
         self.combo_dlss_preset = QComboBox()
-
-        self.combo_dlss_preset.addItem("Default (原生直通 · 游戏默认模型)", "Default")
-
-        self.combo_dlss_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 最新降噪与抗重影) [旗舰]", "M")
-
-        self.combo_dlss_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍 4K 优化)", "L")
-
-        self.combo_dlss_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 兼顾锐度与稳定) [默认推荐]", "K")
-
-        self.combo_dlss_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 局部细丝细节强化)", "J")
-
-        self.combo_dlss_preset.addItem("Preset F (传统 CNN 模型 · 专为 DLAA 与超性能模式优化)", "F")
-
-        self.combo_dlss_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态最佳平衡)", "E")
-
-        self.combo_dlss_preset.addItem("Preset D (传统 CNN 模型 · 经典默认档位)", "D")
-
-        self.combo_dlss_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
-
-        self.combo_dlss_preset.addItem("Preset B (早期 CNN 模型 · 偏向长距离纹理细节)", "B")
-
-        self.combo_dlss_preset.addItem("Preset A (早期 CNN 模型 · 偏向静态画面稳定性)", "A")
-
-        idx_k = self.combo_dlss_preset.findData("K")
-
-        self.combo_dlss_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
-
+        self.combo_dlss_preset.addItem("游戏默认 (Default · 不替换原生模型 · 推荐)", 0)
+        self.combo_dlss_preset.addItem("Preset K (Transformer 神经网络 · 官方最新)", 11)
+        self.combo_dlss_preset.addItem("Preset J (Transformer 细丝细节强化)", 10)
+        self.combo_dlss_preset.addItem("Preset F (CNN 经典高锐度)", 6)
+        self.combo_dlss_preset.addItem("Preset D (CNN 经典标准)", 4)
+        self.combo_dlss_preset.addItem("Preset C (CNN 经典平衡)", 3)
         self.combo_dlss_preset.currentIndexChanged.connect(self._on_param_changed)
 
         c_layout.addWidget(self.lbl_preset, 0, 2)
@@ -1841,12 +1820,12 @@ class DLSS5SettingsPanel(QFrame):
 
         self.lbl_dlss_preset = QLabel("DLSS 底层模型:")
         self.combo_dlss_preset = QComboBox()
-        self.combo_dlss_preset.addItem("Preset K (Transformer 神经网络 · 官方最新推荐)", 11)
+        self.combo_dlss_preset.addItem("游戏默认 (Default · 不替换原生模型 · 推荐)", 0)
+        self.combo_dlss_preset.addItem("Preset K (Transformer 神经网络 · 官方最新)", 11)
         self.combo_dlss_preset.addItem("Preset J (Transformer 细丝细节强化)", 10)
         self.combo_dlss_preset.addItem("Preset F (CNN 经典高锐度)", 6)
         self.combo_dlss_preset.addItem("Preset D (CNN 经典标准)", 4)
         self.combo_dlss_preset.addItem("Preset C (CNN 经典平衡)", 3)
-        self.combo_dlss_preset.addItem("游戏默认 (Default)", 0)
         self.combo_dlss_preset.currentIndexChanged.connect(self._on_param_changed)
         p_layout.addWidget(self.lbl_dlss_preset, 2, 2)
         p_layout.addWidget(self.combo_dlss_preset, 2, 3)
@@ -1888,9 +1867,8 @@ class DLSS5SettingsPanel(QFrame):
         self.lbl_res_scale = QLabel("重构分辨率缩放:")
         self.slider_res_scale = QSlider(Qt.Orientation.Horizontal)
         self.slider_res_scale.setRange(50, 100)
-        self.slider_res_scale.setValue(67)
-        self.lbl_res_scale_val = QLabel("0.67")
-        self.lbl_res_scale_val.setFixedWidth(36)
+        self.slider_res_scale.setValue(100)
+        self.lbl_res_scale_val = QLabel("1.00")
         self.slider_res_scale.valueChanged.connect(self._on_slider_res_scale_changed)
         res_box = QHBoxLayout()
         res_box.addWidget(self.slider_res_scale, 1)
@@ -1929,9 +1907,8 @@ class DLSS5SettingsPanel(QFrame):
         self.lbl_skin_structure = QLabel("皮肤结构保护:")
         self.slider_skin_structure = QSlider(Qt.Orientation.Horizontal)
         self.slider_skin_structure.setRange(0, 200)
-        self.slider_skin_structure.setValue(100)
-        self.lbl_skin_structure_val = QLabel("1.00")
-        self.lbl_skin_structure_val.setFixedWidth(36)
+        self.slider_skin_structure.setValue(50)
+        self.lbl_skin_structure_val = QLabel("0.50")
         self.slider_skin_structure.valueChanged.connect(self._on_slider_skin_structure_changed)
         ss_box = QHBoxLayout()
         ss_box.addWidget(self.slider_skin_structure, 1)
@@ -2028,7 +2005,7 @@ class DLSS5SettingsPanel(QFrame):
         hook_val = self.combo_hook.currentData()
         passes_val = self.combo_passes.currentData()
         style_val = self.combo_style.currentData()
-        dlss_preset_val = self.combo_dlss_preset.currentData() if hasattr(self, "combo_dlss_preset") else 11
+        dlss_preset_val = self.combo_dlss_preset.currentData() if hasattr(self, "combo_dlss_preset") else 0
         vram_val = self.combo_vram.currentData()
         encoding_val = self.combo_encoding.currentData() if hasattr(self, "combo_encoding") else 0
 
@@ -2057,7 +2034,7 @@ class DLSS5SettingsPanel(QFrame):
             "auto_mask": auto_mask,
             "encoding": int(encoding_val) if encoding_val is not None else 0,
             "hdr": int(encoding_val) if encoding_val is not None else 0,
-            "dlss_preset": int(dlss_preset_val) if dlss_preset_val is not None else 11,
+            "dlss_preset": int(dlss_preset_val) if dlss_preset_val is not None else 0,
             "vram": str(vram_val) if vram_val is not None else "Reduced",
             "non_blocking": 1 if self.chk_non_blocking.isChecked() else 0,
             "reuse_upscaling": 1,
@@ -2111,7 +2088,7 @@ class DLSS5SettingsPanel(QFrame):
                     break
 
             # DLSS Preset (default 11: Preset K)
-            dp_val = int(cfg.get("dlss_preset", 11))
+            dp_val = int(cfg.get("dlss_preset", 0))
             for i in range(self.combo_dlss_preset.count()):
                 if self.combo_dlss_preset.itemData(i) == dp_val:
                     self.combo_dlss_preset.setCurrentIndex(i)
@@ -2140,7 +2117,7 @@ class DLSS5SettingsPanel(QFrame):
             self.lbl_intensity_val.setText(f"{intensity:.2f}")
 
             # Res Scale / Processing Scale (default 0.67)
-            res_scale = float(cfg.get("processing_scale", cfg.get("res_scale", 0.67)))
+            res_scale = float(cfg.get("processing_scale", cfg.get("res_scale", 1.00)))
             self.slider_res_scale.setValue(int(res_scale * 100))
             self.lbl_res_scale_val.setText(f"{res_scale:.2f}")
 
@@ -2155,7 +2132,7 @@ class DLSS5SettingsPanel(QFrame):
             self.lbl_local_tone_val.setText(f"{lt:.2f}")
 
             # Skin Structure
-            ss = float(cfg.get("skin_structure", 1.0))
+            ss = float(cfg.get("skin_structure", 0.50))
             self.slider_skin_structure.setValue(int(ss * 100))
             self.lbl_skin_structure_val.setText(f"{ss:.2f}")
 
@@ -2348,9 +2325,9 @@ class DLSS5Window(DMBaseWindow):
 
         )
 
-        self.setMinimumSize(960, 750)
+        self.setMinimumSize(940, 700)
 
-        self.resize(1080, 920)
+        self.resize(1060, 860)
 
 
 
@@ -2502,7 +2479,7 @@ class DLSS5Window(DMBaseWindow):
 
 
 
-        self.badge_link = QLabel("🔗 多帧生成深度联动")
+        self.badge_link = QLabel("✨ 纯净神经重构")
 
         self.badge_link.setStyleSheet("""
 
@@ -2532,7 +2509,7 @@ class DLSS5Window(DMBaseWindow):
 
             "集成最新 RenoDX ShortFuse DLSS 5 神经网络渲染插件 (DLSS 5 NR Addon)，"
 
-            "为支持 DLSS 的游戏注入下一代神经网络画质引擎，内建 ReShade/RHI 运行底座，并与多帧生成补丁 (RHI / OptiScaler) 智能避让与链式共存。"
+            "为支持 DLSS 的游戏注入下一代神经网络画质引擎，内建 ReShade/RHI 运行底座，支持画质风格、细节结构与皮肤保护全维度精细调优。"
 
         )
 
@@ -2566,7 +2543,7 @@ class DLSS5Window(DMBaseWindow):
 
         g_header = QHBoxLayout()
 
-        self.lbl_g_title = QLabel("🎮 目标游戏与运行环境监测 (多帧生成联动)")
+        self.lbl_g_title = QLabel("🎮 目标游戏与运行环境监测")
 
         self.lbl_g_title.setStyleSheet("font-size: 15px; font-weight: 700;")
 
@@ -2576,7 +2553,7 @@ class DLSS5Window(DMBaseWindow):
 
 
 
-        self.lbl_scan_status = QLabel("正在连接多帧生成游戏库...")
+        self.lbl_scan_status = QLabel("正在连接游戏库...")
 
         g_header.addWidget(self.lbl_scan_status)
 
@@ -2735,14 +2712,6 @@ class DLSS5Window(DMBaseWindow):
         self.dlss5_panel = DLSS5SettingsPanel(self)
 
         vbox.addWidget(self.dlss5_panel)
-
-
-
-        # ------------------ 2.5 MULTI-FRAME GENERATION LINKAGE PANEL ------------------
-
-        self.mfg_panel = MultiFrameGenPanel(self)
-
-        vbox.addWidget(self.mfg_panel)
 
 
 
@@ -3858,7 +3827,7 @@ class DLSS5Window(DMBaseWindow):
 
         """
 
-        for card_name in ["banner_card", "game_card", "dlss5_panel", "mfg_panel", "action_card", "guide_card"]:
+        for card_name in ["banner_card", "game_card", "dlss5_panel", "action_card", "guide_card"]:
 
             if hasattr(self, card_name):
 

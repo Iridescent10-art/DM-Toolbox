@@ -463,14 +463,14 @@ class TestDLSS5Injector(unittest.TestCase):
         self.assertIn("style", DEFAULT_DLSS5_CONFIG)
         self.assertIn("dlss_preset", DEFAULT_DLSS5_CONFIG)
         self.assertEqual(DEFAULT_DLSS5_CONFIG["style"], 2)
-        self.assertEqual(DEFAULT_DLSS5_CONFIG["dlss_preset"], 11)
+        self.assertEqual(DEFAULT_DLSS5_CONFIG["dlss_preset"], 0)
 
         ok = write_game_dlss5_config(str(self.game_dir), DEFAULT_DLSS5_CONFIG)
         self.assertTrue(ok)
         read_cfg = read_game_dlss5_config(str(self.game_dir))
         self.assertEqual(read_cfg.get("status"), 1)
         self.assertEqual(read_cfg.get("style"), 2)
-        self.assertEqual(read_cfg.get("dlss_preset"), 11)
+        self.assertEqual(read_cfg.get("dlss_preset"), 0)
 
 if __name__ == "__main__":
     unittest.main()

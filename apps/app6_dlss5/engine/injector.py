@@ -374,7 +374,7 @@ def is_optiscaler_load_reshade_enabled(target_dir: str) -> bool:
     return False
 
 
-def enforce_optiscaler_anti_d_preset(ini_path: Path) -> bool:
+def enforce_optiscaler_anti_d_preset(ini_path: Path, force_preset: int = 11) -> bool:
     """
     Ensures OptiScaler.ini strictly avoids Preset D (enum 4) and defaults to Preset K (enum 11).
     Preserves existing user customizations (e.g. Preset M=13, Preset L=12, Preset K=11).
@@ -761,14 +761,57 @@ def _configure_reshade_ini_for_dlss5(
 
 
 def _create_default_reshade_ini(ini_path: Path):
-    """Creates a clean default ReShade.ini preloaded with safe ShortFuse and DLSS 5 configuration."""
-    content = """[GENERAL]
-EffectSearchPaths=.\\
-TextureSearchPaths=.\\
+    """Creates a clean default ReShade.ini preloaded with safe ShortFuse Chinese UI and DLSS 5 configuration."""
+    content = r"""DirectNeuralRenderingStatus=1
+DirectNeuralRenderingHookStage=2
+DirectNeuralRenderingReuseDlssUpscalingResources=1
+DirectNeuralRenderingUiCorrectionMode=0
+DirectNeuralRenderingIntensity=1.000000
+DirectNeuralRenderingStyle=2
+DirectNeuralRenderingLocalStructureStrength=1.000000
+DirectNeuralRenderingLocalToneStrength=1.000000
+DirectNeuralRenderingAutoMask=1
+DirectNeuralRenderingSkinStructureStrength=0.500000
+DirectNeuralRenderingProcessingScale=1.000000
+DirectNeuralRenderingPassCount=1
+DirectNeuralRenderingEncoding=0
+DirectNeuralRenderingSignalEncoding=0
+DirectNeuralRenderingDiffuseWhiteNits=100.0
+DirectNeuralRenderingBlockHudless=0
+DirectNeuralRenderingExposure=1.000000
+DirectNeuralRenderingExposureMode=1
+DLSSPresetQuality=0
+DLSSPresetDLAA=0
+DLSSPresetBalanced=0
+DLSSPresetPerformance=0
+DLSSPresetUltraQuality=0
+DLSSPresetUltraPerformance=0
+DLSSNR.Enabled=1
+DLSSNR.Intensity=1.000000
+DLSSNR.Style=2
+DLSSNR.LocalToneStrength=1.000000
+DLSSNR.LocalStructureStrength=1.000000
+DLSSNR.SkinStructureStrength=0.500000
+DLSSNR.GlobalToneStrength=1.000000
+DLSSNR.UseAutoMask=1
+DLSSNR.UICorrection=0
+DLSSNR.Scale=1.000000
+DLSSNR.ScalingRatio=1.000000
+DLSSNR.Hint.Render.Preset=0
+
+[GENERAL]
+EffectSearchPaths=.\
+TextureSearchPaths=.\
 NoReloadOnInit=1
 PerformanceMode=0
+TutorialProgress=4
 
 [OVERLAY]
+Language=zh-CN
+Font=C:\Windows\Fonts\msyh.ttc
+FontSize=18
+EditorFont=C:\Windows\Fonts\msyh.ttc
+EditorFontSize=16
 KeyOverlay=36,0,0,0
 ShowFPS=0
 ShowFrameTime=0
@@ -785,22 +828,22 @@ DirectNeuralRenderingIntensity=1.000000
 DirectNeuralRenderingStyle=2
 DirectNeuralRenderingLocalStructureStrength=1.000000
 DirectNeuralRenderingLocalToneStrength=1.000000
-DirectNeuralRenderingAutoMask=0
-DirectNeuralRenderingSkinStructureStrength=1.000000
-DirectNeuralRenderingProcessingScale=0.670000
+DirectNeuralRenderingAutoMask=1
+DirectNeuralRenderingSkinStructureStrength=0.500000
+DirectNeuralRenderingProcessingScale=1.000000
 DirectNeuralRenderingPassCount=1
 DirectNeuralRenderingEncoding=0
 DirectNeuralRenderingSignalEncoding=0
-DirectNeuralRenderingDiffuseWhiteNits=203.0
+DirectNeuralRenderingDiffuseWhiteNits=100.0
 DirectNeuralRenderingBlockHudless=0
 DirectNeuralRenderingExposure=1.000000
-DirectNeuralRenderingExposureMode=0
-DLSSPresetDLAA=11
-DLSSPresetQuality=11
-DLSSPresetBalanced=11
-DLSSPresetPerformance=11
-DLSSPresetUltraQuality=11
-DLSSPresetUltraPerformance=11
+DirectNeuralRenderingExposureMode=1
+DLSSPresetDLAA=0
+DLSSPresetQuality=0
+DLSSPresetBalanced=0
+DLSSPresetPerformance=0
+DLSSPresetUltraQuality=0
+DLSSPresetUltraPerformance=0
 
 [DLSS]
 DirectNeuralRenderingStatus=1
@@ -811,22 +854,37 @@ DirectNeuralRenderingIntensity=1.000000
 DirectNeuralRenderingStyle=2
 DirectNeuralRenderingLocalStructureStrength=1.000000
 DirectNeuralRenderingLocalToneStrength=1.000000
-DirectNeuralRenderingAutoMask=0
-DirectNeuralRenderingSkinStructureStrength=1.000000
-DirectNeuralRenderingProcessingScale=0.670000
+DirectNeuralRenderingAutoMask=1
+DirectNeuralRenderingSkinStructureStrength=0.500000
+DirectNeuralRenderingProcessingScale=1.000000
 DirectNeuralRenderingPassCount=1
 DirectNeuralRenderingEncoding=0
-RenderPresetOverride=true
+RenderPresetOverride=false
 UseGenericAppIdWithDlss=false
-RenderPresetForAll=11
-DLSSPresetDLAA=11
-DLSSPresetQuality=11
-DLSSPresetBalanced=11
-DLSSPresetPerformance=11
-DLSSPresetUltraQuality=11
-DLSSPresetUltraPerformance=11
+RenderPresetForAll=0
+RenderPresetDLAA=0
+RenderPresetUltraQuality=0
+RenderPresetQuality=0
+RenderPresetBalanced=0
+RenderPresetPerformance=0
+RenderPresetUltraPerformance=0
 
-[DLSS5]
+[RenoDX.DLSS]
+DirectNeuralRenderingStatus=1
+DirectNeuralRenderingHookStage=2
+DirectNeuralRenderingReuseDlssUpscalingResources=1
+DirectNeuralRenderingUiCorrectionMode=0
+DirectNeuralRenderingIntensity=1.000000
+DirectNeuralRenderingStyle=2
+DirectNeuralRenderingLocalStructureStrength=1.000000
+DirectNeuralRenderingLocalToneStrength=1.000000
+DirectNeuralRenderingAutoMask=1
+DirectNeuralRenderingSkinStructureStrength=0.500000
+DirectNeuralRenderingProcessingScale=1.000000
+DirectNeuralRenderingPassCount=1
+DirectNeuralRenderingEncoding=0
+
+[RenoDX.DLSS5]
 ConfigVersion=11
 EnableHooks=2
 RuntimeSelectionMode=1
@@ -834,13 +892,13 @@ NeuralUplift=1
 NRHookPoint=2
 NRAutoFgFallback=1
 NRPasses=1
-NRResolutionScale=0.67
+NRResolutionScale=1.00
 NRIntensity=1.00
 NRStyle=2
 NRVramBuffering=1
 NRPresentNonBlocking=1
 HDRCompatibilityMode=0
-NRRuntimePath=.\\nvngx_dlssnr.dll
+NRRuntimePath=.\nvngx_dlssnr.dll
 """
     try:
         with open(ini_path, "w", encoding="utf-8") as f:

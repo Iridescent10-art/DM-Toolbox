@@ -30,18 +30,18 @@ DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
     "local_structure": 1.00,   # 结构强度 (DirectNeuralRenderingLocalStructureStrength)
     "local_tone": 1.00,        # 局部色调 (DirectNeuralRenderingLocalToneStrength)
     "auto_mask": 1,            # 角色蒙版 (DirectNeuralRenderingAutoMask · 默认开启保护角色与UI)
-    "skin_structure": 1.00,    # 皮肤结构 (DirectNeuralRenderingSkinStructureStrength)
-    "processing_scale": 0.67,  # 重构分辨率缩放 (DirectNeuralRenderingProcessingScale)
+    "skin_structure": 0.50,    # 皮肤结构 0.50 (DirectNeuralRenderingSkinStructureStrength)
+    "processing_scale": 1.00,  # 重构分辨率缩放 100% (DirectNeuralRenderingProcessingScale)
     "pass_count": 1,           # 推理遍数 1 Pass (DirectNeuralRenderingPassCount)
     "encoding": 0,             # 色彩编码 0: 自动 (DirectNeuralRenderingEncoding)
-    "signal_encoding": 0,      # NR 信号编码 0: 自动 (DirectNeuralRenderingSignalEncoding)
-    "diffuse_white": 203.0,    # 参考白场亮度 203.0 nits (DirectNeuralRenderingDiffuseWhiteNits)
-    "block_hudless": 0,        # 屏蔽 HUD 源 (DirectNeuralRenderingBlockHudless)
-    "exposure_mode": 0,        # 曝光模式: 0 正常 (DirectNeuralRenderingExposureMode)
+    "signal_encoding": 0,      # NR 信号编码 0: sRGB (DirectNeuralRenderingSignalEncoding)
+    "diffuse_white": 100.0,    # 参考白场亮度 100.0 nits (DirectNeuralRenderingDiffuseWhiteNits)
+    "block_hudless": 0,        # 屏蔽 HUD 源 0: Off (DirectNeuralRenderingBlockHudless)
+    "exposure_mode": 1,        # 曝光模式 1: 使用曝光值 On (DirectNeuralRenderingExposureMode)
     "exposure": 1.00,          # 曝光乘数 1.00x (DirectNeuralRenderingExposure)
 
-    # DLSS Quality & Render Preset Overrides (Anti-Preset D -> Preset K)
-    "dlss_preset": 11,         # 11: Preset K (DLSSPresetDLAA, Quality, Balanced, Performance, UltraPerformance)
+    # DLSS Quality & Render Preset: 0=游戏默认原生 (不要替换模型)
+    "dlss_preset": 0,          # 0: Default / 游戏默认 (不替换模型)
     "dlss_quality_mode": 0,    # 0: 游戏默认 (DLSSQualityMode)
     "dlss_auto_exposure": 0,   # 0: 游戏默认 (DLSSAutoExposure)
 
@@ -49,7 +49,7 @@ DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
     "uplift": 1,
     "hook_point": 2,
     "passes": 1,
-    "res_scale": 0.67,
+    "res_scale": 1.00,
     "vram": "Reduced",
     "non_blocking": 1,
     "hdr": 0,
@@ -326,20 +326,20 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     status_val = int(config.get("status", config.get("uplift", 1)))
     intensity_val = float(config.get("intensity", 1.0))
     style_val = int(config.get("style", 2))
-    proc_scale_val = float(config.get("processing_scale", config.get("res_scale", 0.67)))
+    proc_scale_val = float(config.get("processing_scale", config.get("res_scale", 1.00)))
     pass_cnt_val = int(config.get("pass_count", config.get("passes", 1)))
     encoding_val = int(config.get("encoding", config.get("hdr", 0)))
-    dlss_preset_val = int(config.get("dlss_preset", 11))
+    dlss_preset_val = int(config.get("dlss_preset", 0))
     local_struct_val = float(config.get("local_structure", 1.0))
     local_tone_val = float(config.get("local_tone", 1.0))
-    auto_mask_val = int(config.get("auto_mask", 0))
-    skin_struct_val = float(config.get("skin_structure", 1.0))
+    auto_mask_val = int(config.get("auto_mask", 1))
+    skin_struct_val = float(config.get("skin_structure", 0.50))
     reuse_up_val = int(config.get("reuse_upscaling", 1))
     ui_corr_val = int(config.get("ui_correction", 0))
     block_hud_val = int(config.get("block_hudless", 0))
-    exp_mode_val = int(config.get("exposure_mode", 0))
+    exp_mode_val = int(config.get("exposure_mode", 1))
     exp_val = float(config.get("exposure", 1.0))
-    white_nits_val = float(config.get("diffuse_white", 203.0))
+    white_nits_val = float(config.get("diffuse_white", 100.0))
 
     # 1. Modern RenoDX / ShortFuse direct dictionary
     renodx_dict = {
@@ -385,12 +385,29 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     }
 
     # 2. [DLSS] section dictionary (includes OptiScaler / ReShade standard keys)
+    # When dlss_preset_val is 0 (Default), do NOT override native game models (RenderPresetOverride=false)
     dlss_section_dict = dict(renodx_dict)
-    dlss_section_dict.update({
-        "RenderPresetOverride": "true",
-        "UseGenericAppIdWithDlss": "false",
-        "RenderPresetForAll": str(dlss_preset_val),
-    })
+    if dlss_preset_val == 0:
+        dlss_section_dict.update({
+            "RenderPresetOverride": "false",
+            "UseGenericAppIdWithDlss": "false",
+            "RenderPresetForAll": "0",
+        })
+    else:
+        dlss_section_dict.update({
+            "RenderPresetOverride": "true",
+            "UseGenericAppIdWithDlss": "false",
+            "RenderPresetForAll": str(dlss_preset_val),
+        })
+
+    # Chinese Overlay configuration for ReShade 6.x
+    overlay_dict = {
+        "Language": "zh-CN",
+        "Font": r"C:\Windows\Fonts\msyh.ttc",
+        "FontSize": "18",
+        "EditorFont": r"C:\Windows\Fonts\msyh.ttc",
+        "EditorFontSize": "16",
+    }
 
     # 3. Legacy compatibility dictionary
     legacy_dlss5_dict = {
@@ -412,6 +429,8 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
 
     updates: Dict[str, Dict[str, Any]] = {
         "": renodx_dict,  # Root / global section (ReShade nullptr section, 100% in-game effective)
+        "OVERLAY": overlay_dict,  # ReShade 6.x Official Simplified Chinese UI
+        "GENERAL": {"TutorialProgress": "4"},  # Bypass ReShade tutorial directly into Chinese UI
         "RenoDX": renodx_dict,
         "DLSS": dlss_section_dict,
         "RenoDX.DLSS": renodx_dict,
