@@ -31,6 +31,7 @@ DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
 
 DEFAULT_RESHADE_PRESET: Dict[str, Any] = {
     "force_multiplier": 3,       # 0=Game controlled, 2, 3, 4, 5, 6
+    "dlss_preset": "K",          # 默认采用 DLSS 4 Transformer 模型 Preset K
     "blackwell_kernels": 1,      # 1=Enabled, 0=Disabled
     "thin_geometry_isr": 1,      # ThinGeometryIntermediateScatter
     "thin_geometry_vwb": 1,      # ThinGeometryPreviousScatter

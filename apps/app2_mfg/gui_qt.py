@@ -1388,11 +1388,14 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_a_preset.addItem("Default (直通 · 不覆盖游戏或驱动模型)", "Default")
         self.combo_a_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_a_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
-        self.combo_a_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定 · 推荐)", "K")
+        self.combo_a_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
         self.combo_a_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 植被与铁丝网细节强化)", "J")
-        self.combo_a_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
-        self.combo_a_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
         self.combo_a_preset.addItem("Preset F (传统 CNN 模型 · 适用于 DLAA 与超性能模式)", "F")
+        self.combo_a_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
+        self.combo_a_preset.addItem("Preset D (传统 CNN 模型 · 经典默认档位)", "D")
+        self.combo_a_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
+        self.combo_a_preset.addItem("Preset B (早期 CNN 模型 · 偏向长距离纹理细节)", "B")
+        self.combo_a_preset.addItem("Preset A (早期 CNN 模型 · 偏向静态画面稳定性)", "A")
         self.combo_a_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_a_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_preset.addWidget(self.combo_a_preset, 1)
@@ -1658,9 +1661,12 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_c_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
         self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
         self.combo_c_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 植被与铁丝网细节强化)", "J")
-        self.combo_c_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
-        self.combo_c_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
         self.combo_c_preset.addItem("Preset F (传统 CNN 模型 · 适用于 DLAA 与超性能模式)", "F")
+        self.combo_c_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
+        self.combo_c_preset.addItem("Preset D (传统 CNN 模型 · 经典默认档位)", "D")
+        self.combo_c_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
+        self.combo_c_preset.addItem("Preset B (早期 CNN 模型 · 偏向长距离纹理细节)", "B")
+        self.combo_c_preset.addItem("Preset A (早期 CNN 模型 · 偏向静态画面稳定性)", "A")
         self.combo_c_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_c_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_c_preset.addWidget(self.combo_c_preset, 1)
@@ -1766,6 +1772,33 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_b_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_b_mult.addWidget(self.combo_b_mult, 1)
         mc_layout.addLayout(h_b_mult)
+
+        # Row 2: Mode B DLSS Preset
+        h_b_preset = QHBoxLayout()
+        lbl_b_preset = QLabel("DLSS 超分预设档位:")
+        lbl_b_preset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_b_preset.setFixedWidth(140)
+        h_b_preset.addWidget(lbl_b_preset)
+
+        self.combo_b_preset = QComboBox()
+        self.combo_b_preset.setMinimumHeight(36)
+        self.combo_b_preset.setMinimumWidth(280)
+        self.combo_b_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_b_preset.addItem("Default (直通 · 不覆盖游戏或驱动模型)", "Default")
+        self.combo_b_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
+        self.combo_b_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
+        self.combo_b_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
+        self.combo_b_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 植被与铁丝网细节强化)", "J")
+        self.combo_b_preset.addItem("Preset F (传统 CNN 模型 · 适用于 DLAA 与超性能模式)", "F")
+        self.combo_b_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
+        self.combo_b_preset.addItem("Preset D (传统 CNN 模型 · 经典默认档位)", "D")
+        self.combo_b_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
+        self.combo_b_preset.addItem("Preset B (早期 CNN 模型 · 偏向长距离纹理细节)", "B")
+        self.combo_b_preset.addItem("Preset A (早期 CNN 模型 · 偏向静态画面稳定性)", "A")
+        self.combo_b_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_b_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_b_preset.addWidget(self.combo_b_preset, 1)
+        mc_layout.addLayout(h_b_preset)
 
         lbl_b_note = QLabel("✨ 采用 RenoDX 深度光流调度，直接解除 DLSS 3 原生 2X 倍率限制，最高可达 6 倍丝滑插帧！")
         lbl_b_note.setStyleSheet(f"font-size: 11px; color: {'#34d399' if is_dark else '#059669'};")
@@ -1927,6 +1960,16 @@ class OptiScalerPresetDialog(QDialog):
         if idx_bm >= 0:
             self.combo_b_mult.setCurrentIndex(idx_bm)
 
+        b_preset = str(self.preset_b.get("dlss_preset", "K"))
+        if str(b_preset).strip() in ("0", "", "none", "None"):
+            b_preset = "K"
+        idx_bp = self.combo_b_preset.findData(b_preset)
+        if idx_bp >= 0:
+            self.combo_b_preset.setCurrentIndex(idx_bp)
+        else:
+            idx_k = self.combo_b_preset.findData("K")
+            self.combo_b_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
+
         self.chk_b_blackwell.setChecked(bool(self.preset_b.get("blackwell_kernels", 1)))
         self.chk_b_isr.setChecked(bool(self.preset_b.get("thin_geometry_isr", 1)))
         self.chk_b_vwb.setChecked(bool(self.preset_b.get("thin_geometry_vwb", 1)))
@@ -2055,6 +2098,7 @@ class OptiScalerPresetDialog(QDialog):
 
         # 1. Update Mode B dictionary & save to persistent storage
         self.preset_b["force_multiplier"] = self.combo_b_mult.currentData()
+        self.preset_b["dlss_preset"] = self.combo_b_preset.currentData()
         self.preset_b["blackwell_kernels"] = 1 if self.chk_b_blackwell.isChecked() else 0
         self.preset_b["thin_geometry_isr"] = 1 if self.chk_b_isr.isChecked() else 0
         self.preset_b["thin_geometry_vwb"] = 1 if self.chk_b_vwb.isChecked() else 0

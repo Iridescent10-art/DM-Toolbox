@@ -225,13 +225,19 @@ class MultiFrameGenPanel(QFrame):
         # DLSS Preset
         self.lbl_preset = QLabel("DLSS 超分预设:")
         self.combo_dlss_preset = QComboBox()
-        self.combo_dlss_preset.addItems([
-            "Default (原生直通·不篡改)",
-            "Preset J (Transformer 10)",
-            "Preset K (Transformer 11)",
-            "Preset M (CNN 13)"
-        ])
-        self.combo_dlss_preset.setCurrentIndex(0)  # Default
+        self.combo_dlss_preset.addItem("Default (原生直通 · 游戏默认模型)", "Default")
+        self.combo_dlss_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 最新降噪与抗重影) [旗舰]", "M")
+        self.combo_dlss_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍 4K 优化)", "L")
+        self.combo_dlss_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 兼顾锐度与稳定) [默认推荐]", "K")
+        self.combo_dlss_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 局部细丝细节强化)", "J")
+        self.combo_dlss_preset.addItem("Preset F (传统 CNN 模型 · 专为 DLAA 与超性能模式优化)", "F")
+        self.combo_dlss_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态最佳平衡)", "E")
+        self.combo_dlss_preset.addItem("Preset D (传统 CNN 模型 · 经典默认档位)", "D")
+        self.combo_dlss_preset.addItem("Preset C (传统 CNN 模型 · 适合高速移动射击游戏)", "C")
+        self.combo_dlss_preset.addItem("Preset B (早期 CNN 模型 · 偏向长距离纹理细节)", "B")
+        self.combo_dlss_preset.addItem("Preset A (早期 CNN 模型 · 偏向静态画面稳定性)", "A")
+        idx_k = self.combo_dlss_preset.findData("K")
+        self.combo_dlss_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
         self.combo_dlss_preset.currentIndexChanged.connect(self._on_param_changed)
         c_layout.addWidget(self.lbl_preset, 0, 2)
         c_layout.addWidget(self.combo_dlss_preset, 0, 3)
@@ -448,15 +454,23 @@ class MultiFrameGenPanel(QFrame):
         self.combo_multiplier.setCurrentIndex(mul_map.get(mul, 1))
 
         # DLSS Preset
-        p_str = str(cfg.get("dlss_preset", "Default")).upper()
-        if "J" in p_str or "10" in p_str:
-            self.combo_dlss_preset.setCurrentIndex(1)
-        elif "K" in p_str or "11" in p_str:
-            self.combo_dlss_preset.setCurrentIndex(2)
-        elif "M" in p_str or "13" in p_str:
-            self.combo_dlss_preset.setCurrentIndex(3)
+        p_str = str(cfg.get("dlss_preset", "K")).strip()
+        idx_p = self.combo_dlss_preset.findData(p_str)
+        if idx_p >= 0:
+            self.combo_dlss_preset.setCurrentIndex(idx_p)
         else:
-            self.combo_dlss_preset.setCurrentIndex(0)
+            p_upper = p_str.upper()
+            found = False
+            for i in range(self.combo_dlss_preset.count()):
+                d = str(self.combo_dlss_preset.itemData(i)).upper()
+                t = self.combo_dlss_preset.itemText(i).upper()
+                if p_upper == d or f"PRESET {p_upper}" in t or (p_upper != "DEFAULT" and f" {p_upper} " in t):
+                    self.combo_dlss_preset.setCurrentIndex(i)
+                    found = True
+                    break
+            if not found:
+                idx_k = self.combo_dlss_preset.findData("K")
+                self.combo_dlss_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
 
         # Hotkey
         hotkey = str(cfg.get("menu_key", ""))
@@ -496,8 +510,9 @@ class MultiFrameGenPanel(QFrame):
         mul_vals = [2, 3, 4, 6]
         mul = mul_vals[self.combo_multiplier.currentIndex()]
 
-        preset_vals = ["Default", "Preset J", "Preset K", "Preset M"]
-        dlss_preset = preset_vals[self.combo_dlss_preset.currentIndex()]
+        dlss_preset = self.combo_dlss_preset.currentData()
+        if not dlss_preset:
+            dlss_preset = "K"
 
         hotkey = self.combo_hotkey.currentText()
 
@@ -545,6 +560,7 @@ class MultiFrameGenPanel(QFrame):
         elif self.active_mode == "B":
             preset_b = load_reshade_preset()
             preset_b["force_multiplier"] = params["multiplier"]
+            preset_b["dlss_preset"] = params["dlss_preset"]
             preset_b["blackwell_kernels"] = params["blackwell_kernels"]
             preset_b["thin_geometry_isr"] = params["thin_geometry_isr"]
             preset_b["thin_geometry_vwb"] = params["thin_geometry_vwb"]
@@ -559,7 +575,7 @@ class MultiFrameGenPanel(QFrame):
         elif self.active_mode == "C":
             preset_c = load_optiscaler_preset()
             preset_c["interpolation_count"] = max(1, params["multiplier"] - 1)
-            preset_c["dlss_preset"] = "K" if "K" in params["dlss_preset"] else ("J" if "J" in params["dlss_preset"] else "Default")
+            preset_c["dlss_preset"] = params["dlss_preset"]
             preset_c["menu_key"] = params["menu_key"]
             preset_c["fg_output"] = params["fg_output"]
             preset_c["fg_input"] = params["fg_input"]

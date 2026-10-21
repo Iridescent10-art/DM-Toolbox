@@ -7,5 +7,6 @@
   "hdr_ui_recomposition": 1,
   "dynamic_mfg": 0,
   "temporal_fix": 1,
-  "hdr_compatibility": 0
+  "hdr_compatibility": 0,
+  "dlss_preset": "K"
 }

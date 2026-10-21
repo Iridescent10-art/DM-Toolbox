@@ -92,8 +92,11 @@ class ConfigSyncService:
                                 preset["multiplier"] = int(ud["multiplier"])
                             if "dlssPreset" in ud:
                                 p_val = int(ud["dlssPreset"])
-                                p_rev = {0: "Default", 10: "J", 11: "K", 13: "M"}
-                                preset["dlss_preset"] = p_rev.get(p_val, "Default")
+                                p_rev = {
+                                    0: "Default", 13: "M", 12: "L", 11: "K", 10: "J",
+                                    6: "F", 5: "E", 4: "D", 3: "C", 2: "B", 1: "A"
+                                }
+                                preset["dlss_preset"] = p_rev.get(p_val, "K")
                     except Exception:
                         pass
             return preset
@@ -162,7 +165,7 @@ class ConfigSyncService:
             # Update and save Mode A preset
             preset_a = load_mode_a_preset()
             preset_a["multiplier"] = int(params.get("multiplier", 3))
-            preset_a["dlss_preset"] = params.get("dlss_preset", "Default")
+            preset_a["dlss_preset"] = params.get("dlss_preset", "K")
             preset_a["menu_key"] = params.get("menu_key", "Backspace")
             preset_a["bink_hook"] = bool(params.get("bink_hook", False))
             save_mode_a_preset(preset_a)
@@ -176,6 +179,7 @@ class ConfigSyncService:
         elif mode == "B":
             preset_b = load_reshade_preset()
             preset_b["force_multiplier"] = int(params.get("multiplier", 3))
+            preset_b["dlss_preset"] = params.get("dlss_preset", "K")
             preset_b["blackwell_kernels"] = int(params.get("blackwell_kernels", 1))
             preset_b["thin_geometry_isr"] = int(params.get("thin_geometry_isr", 1))
             preset_b["thin_geometry_vwb"] = int(params.get("thin_geometry_vwb", 1))

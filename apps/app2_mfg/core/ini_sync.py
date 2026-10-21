@@ -37,20 +37,37 @@ LEGACY_OPTISCALER_KEYS: Tuple[Tuple[str, str], ...] = (
 
 DLSS_PRESET_MAP: Dict[str, int] = {
     "Default": 0,
+    "0": 0,
     "M": 13,
     "Preset M": 13,
+    "13": 13,
     "L": 12,
     "Preset L": 12,
+    "12": 12,
     "K": 11,
     "Preset K": 11,
+    "11": 11,
     "J": 10,
     "Preset J": 10,
+    "10": 10,
     "F": 6,
     "Preset F": 6,
+    "6": 6,
     "E": 5,
     "Preset E": 5,
+    "5": 5,
+    "D": 4,
+    "Preset D": 4,
+    "4": 4,
     "C": 3,
     "Preset C": 3,
+    "3": 3,
+    "B": 2,
+    "Preset B": 2,
+    "2": 2,
+    "A": 1,
+    "Preset A": 1,
+    "1": 1,
 }
 
 VK_KEY_MAP: Dict[str, int] = {
@@ -621,7 +638,7 @@ class IniConfigManager:
         dlss_sec = data.get("DLSS", {})
         if dlss_sec.get("RenderPresetOverride", "").lower() == "true":
             raw_p = dlss_sec.get("RenderPresetForAll", "0")
-            inv_dlss = {13: "M", 12: "L", 11: "K", 10: "J", 6: "F", 5: "E", 3: "C"}
+            inv_dlss = {13: "M", 12: "L", 11: "K", 10: "J", 6: "F", 5: "E", 4: "D", 3: "C", 2: "B", 1: "A", 0: "Default"}
             try:
                 preset["dlss_preset"] = inv_dlss.get(int(raw_p), "Default")
             except Exception:
@@ -677,8 +694,26 @@ class IniConfigManager:
         hdr_compat = int(config.get("hdr_compatibility", 0))
 
         # Core keys used by renodx-mfgunlock.addon64
+        dlss_b_p = str(config.get("dlss_preset", "K")).strip()
+        is_dlss_b_def = dlss_b_p.lower() in ["default", "0", "none", ""]
+        clean_dlss_b = "Default" if is_dlss_b_def else (
+            "M" if dlss_b_p in ["M", "Preset M", "13"] else
+            "L" if dlss_b_p in ["L", "Preset L", "12"] else
+            "K" if dlss_b_p in ["K", "Preset K", "11"] else
+            "J" if dlss_b_p in ["J", "Preset J", "10"] else
+            "F" if dlss_b_p in ["F", "Preset F", "6"] else
+            "E" if dlss_b_p in ["E", "Preset E", "5"] else
+            "D" if dlss_b_p in ["D", "Preset D", "4"] else
+            "C" if dlss_b_p in ["C", "Preset C", "3"] else
+            "B" if dlss_b_p in ["B", "Preset B", "2"] else
+            "A" if dlss_b_p in ["A", "Preset A", "1"] else dlss_b_p
+        )
+        dlss_b_enum = str(DLSS_PRESET_MAP.get(clean_dlss_b, 11))
+
         mfg_keys = {
             "ForceMultiplier": str(force_mult),
+            "DLSSPreset": clean_dlss_b,
+            "RenderPreset": dlss_b_enum,
             "DeferredInit": "1",
             "BlackwellFrameworkKernels": str(blackwell),
             "ThinGeometryIntermediateScatter": str(isr),
@@ -803,6 +838,18 @@ class IniConfigManager:
         if "HDRCompatibilityMode" in mfg_sec:
             config["hdr_compatibility"] = int(mfg_sec["HDRCompatibilityMode"])
 
+        # DLSS Preset
+        raw_b_preset = mfg_sec.get("DLSSPreset") or mfg_sec.get("RenderPreset")
+        if raw_b_preset is not None:
+            p_b_clean = raw_b_preset.strip()
+            inv_map = {13: "M", 12: "L", 11: "K", 10: "J", 6: "F", 5: "E", 4: "D", 3: "C", 2: "B", 1: "A", 0: "Default"}
+            if p_b_clean.isdigit():
+                config["dlss_preset"] = inv_map.get(int(p_b_clean), "K")
+            else:
+                config["dlss_preset"] = p_b_clean
+        else:
+            config["dlss_preset"] = "K"
+
         return config if config else None
 
     # ---------------- Mode A (dashdogy / Standalone) Sync ----------------
@@ -818,7 +865,7 @@ class IniConfigManager:
 
         multiplier = int(config.get("multiplier", 3))
         menu_key = str(config.get("menu_key", "Backspace")).strip()
-        preset = config.get("dlss_preset", "Default")
+        preset = config.get("dlss_preset", "K")
         bink_hook = config.get("bink_hook", False)
 
         preset_str = str(preset).strip()
@@ -830,7 +877,18 @@ class IniConfigManager:
         if not is_default:
             render_preset_val = str(DLSS_PRESET_MAP.get(preset_str, 13))
 
-        clean_preset_name = "Default" if is_default else ("M" if preset_str in ["M", "Preset M", "13"] else preset_str)
+        clean_preset_name = "Default" if is_default else (
+            "M" if preset_str in ["M", "Preset M", "13"] else
+            "L" if preset_str in ["L", "Preset L", "12"] else
+            "K" if preset_str in ["K", "Preset K", "11"] else
+            "J" if preset_str in ["J", "Preset J", "10"] else
+            "F" if preset_str in ["F", "Preset F", "6"] else
+            "E" if preset_str in ["E", "Preset E", "5"] else
+            "D" if preset_str in ["D", "Preset D", "4"] else
+            "C" if preset_str in ["C", "Preset C", "3"] else
+            "B" if preset_str in ["B", "Preset B", "2"] else
+            "A" if preset_str in ["A", "Preset A", "1"] else preset_str
+        )
 
         # Write RTXMFG-Universal.json (dashdogy primary config)
         universal_json_path = target / "RTXMFG-Universal.json"
@@ -957,10 +1015,16 @@ class IniConfigManager:
                 config["dlss_preset"] = "F"
             elif p_clean in ["5", "E", "Preset E"]:
                 config["dlss_preset"] = "E"
+            elif p_clean in ["4", "D", "Preset D"]:
+                config["dlss_preset"] = "D"
             elif p_clean in ["3", "C", "Preset C"]:
                 config["dlss_preset"] = "C"
+            elif p_clean in ["2", "B", "Preset B"]:
+                config["dlss_preset"] = "B"
+            elif p_clean in ["1", "A", "Preset A"]:
+                config["dlss_preset"] = "A"
             else:
-                config["dlss_preset"] = "Default"
+                config["dlss_preset"] = "K"
         else:
             config["dlss_preset"] = "Default"
 

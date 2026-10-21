@@ -130,7 +130,7 @@ class VerificationSuite:
         # 1. Apply unified configuration
         params = {
             "multiplier": 3,
-            "dlss_preset": "Default",
+            "dlss_preset": "K",
             "menu_key": "Backspace",
             "bink_hook": False
         }
@@ -167,9 +167,9 @@ class VerificationSuite:
         with open(u_json, "r", encoding="utf-8") as f:
             cfg_data = json.load(f)
         assert cfg_data.get("multiplier") == 3, f"Multiplier expected 3, got {cfg_data.get('multiplier')}"
-        assert cfg_data.get("overrideDlssPreset") is False, "overrideDlssPreset must be False for Default!"
-        assert cfg_data.get("dlssPreset") == 0, f"dlssPreset must be 0 for Default, got {cfg_data.get('dlssPreset')} (Must NOT be 4/Preset D)!"
-        print("   ✅ Mode A RTXMFG-Universal.json assertions passed (Anti-Preset D verified: dlssPreset=0, override=False).")
+        assert cfg_data.get("overrideDlssPreset") is True, "overrideDlssPreset must be True for Preset K!"
+        assert cfg_data.get("dlssPreset") == 11, f"dlssPreset must be 11 for Preset K, got {cfg_data.get('dlssPreset')} (Must NOT be 4/Preset D)!"
+        print("   ✅ Mode A RTXMFG-Universal.json assertions passed (Preset K verified: dlssPreset=11, override=True).")
 
         # 4. Smoke test & log verification
         saw_running = launch_game(duration_seconds=22)
