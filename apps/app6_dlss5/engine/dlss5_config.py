@@ -1,0 +1,211 @@
+# -*- coding: utf-8 -*-
+"""
+DLSS 5 Neural Reconstruction Configuration Service
+==================================================
+Manages DLSS 5 (lecram / RenoDX NR Addon) parameter presets,
+reading and writing configuration to ReShade.ini across all supported section headers
+([RenoDX.DLSS5], [DLSS5], and [DLSS5-NR]).
+"""
+
+import os
+import json
+from pathlib import Path
+from typing import Dict, Any, Union, Optional
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+DEFAULTS_FILE = ROOT_DIR / "defaults" / "app6_dlss5" / "dlss5_preset.json"
+
+DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
+    "uplift": 1,
+    "hook_point": 2,          # 2 = Present (most stable, bypasses Direct CommandList locks)
+    "passes": 1,              # 1 Pass (default speed / fidelity balance)
+    "res_scale": 1.00,        # 1.00 (Native reconstruction)
+    "intensity": 1.00,        # 1.00
+    "style": 0,               # 0 = Stock Neutral
+    "vram": "Full",           # Full buffering (eliminates memory racing and device loss)
+    "non_blocking": 1,        # 1 = Non-blocking Present queue
+    "hdr": 0,                 # 0 = Auto / Native HDR
+    "runtime_path": r".\nvngx_dlssnr.dll"
+}
+
+
+def load_dlss5_preset() -> Dict[str, Any]:
+    """Loads default DLSS 5 preset from defaults folder or fallback."""
+    if DEFAULTS_FILE.exists():
+        try:
+            with open(DEFAULTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                res = DEFAULT_DLSS5_CONFIG.copy()
+                res.update(data)
+                return res
+        except Exception:
+            pass
+    return DEFAULT_DLSS5_CONFIG.copy()
+
+
+def save_dlss5_preset(preset: Dict[str, Any]) -> bool:
+    """Saves user-adjusted DLSS 5 preset to defaults folder."""
+    try:
+        DEFAULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(DEFAULTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(preset, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+
+def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Reads existing DLSS 5 configuration from target_path (directory or ini file).
+    Inspects [RenoDX.DLSS5], [DLSS5], and [DLSS5-NR] in order.
+    Returns merged dictionary with default fallbacks.
+    """
+    config = load_dlss5_preset()
+    tp = Path(target_path)
+    reshade_ini = tp if tp.is_file() or tp.suffix.lower() == ".ini" else (tp / "ReShade.ini")
+    if not reshade_ini.exists():
+        return config
+
+    try:
+        from apps.app2_mfg.core.ini_sync import IniConfigManager
+        sections = IniConfigManager.read_ini_sections(reshade_ini)
+    except Exception:
+        return config
+
+    sec = sections.get("RenoDX.DLSS5") or sections.get("DLSS5") or sections.get("DLSS5-NR") or {}
+    if not sec:
+        return config
+
+    # Neural Uplift
+    if "NeuralUplift" in sec:
+        try:
+            config["uplift"] = int(sec["NeuralUplift"])
+        except Exception:
+            pass
+
+    # NRHookPoint
+    if "NRHookPoint" in sec:
+        try:
+            config["hook_point"] = int(sec["NRHookPoint"])
+        except Exception:
+            pass
+
+    # NRPasses
+    if "NRPasses" in sec:
+        try:
+            config["passes"] = int(sec["NRPasses"])
+        except Exception:
+            pass
+
+    # NRResolutionScale
+    if "NRResolutionScale" in sec:
+        try:
+            config["res_scale"] = float(sec["NRResolutionScale"])
+        except Exception:
+            pass
+
+    # NRIntensity
+    if "NRIntensity" in sec:
+        try:
+            config["intensity"] = float(sec["NRIntensity"])
+        except Exception:
+            pass
+
+    # NRStyle
+    if "NRStyle" in sec:
+        try:
+            config["style"] = int(sec["NRStyle"])
+        except Exception:
+            pass
+
+    # NRVramBuffering
+    if "NRVramBuffering" in sec:
+        val = sec["NRVramBuffering"].strip()
+        if val in ["0", "Full", "full"]:
+            config["vram"] = "Full"
+        elif val in ["1", "Reduced", "reduced"]:
+            config["vram"] = "Reduced"
+        elif val in ["2", "Minimal", "minimal"]:
+            config["vram"] = "Minimal"
+        else:
+            config["vram"] = val
+
+    # NRPresentNonBlocking
+    if "NRPresentNonBlocking" in sec:
+        try:
+            config["non_blocking"] = int(sec["NRPresentNonBlocking"])
+        except Exception:
+            pass
+
+    # HDRCompatibilityMode
+    if "HDRCompatibilityMode" in sec:
+        try:
+            config["hdr"] = int(sec["HDRCompatibilityMode"])
+        except Exception:
+            pass
+
+    return config
+
+
+def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any]) -> bool:
+    """
+    Writes DLSS 5 configuration into target_path (directory or ini file) across all three
+    section headers ([RenoDX.DLSS5], [DLSS5], [DLSS5-NR]) simultaneously.
+    Also ensures [ADDON] LoadFromDllMain does not contain deadlock tokens.
+    """
+    tp = Path(target_path)
+    reshade_ini = tp if tp.is_file() or tp.suffix.lower() == ".ini" else (tp / "ReShade.ini")
+    target_dir = reshade_ini.parent
+
+    try:
+        from apps.app2_mfg.core.ini_sync import IniConfigManager
+    except Exception:
+        return False
+
+    dlss5_dict = {
+        "ConfigVersion": "11",
+        "EnableHooks": "2",
+        "RuntimeSelectionMode": "1",
+        "NeuralUplift": str(config.get("uplift", 1)),
+        "NRHookPoint": str(config.get("hook_point", 2)),
+        "NRPasses": str(config.get("passes", 1)),
+        "NRResolutionScale": f"{float(config.get('res_scale', 1.0)):.2f}",
+        "NRIntensity": f"{float(config.get('intensity', 1.0)):.2f}",
+        "NRStyle": str(config.get("style", 0)),
+        "NRVramBuffering": str(config.get("vram", "Full")),
+        "NRPresentNonBlocking": str(config.get("non_blocking", 1)),
+        "HDRCompatibilityMode": str(config.get("hdr", 0)),
+        "NRRuntimePath": r".\nvngx_dlssnr.dll"
+    }
+
+    updates: Dict[str, Dict[str, Any]] = {
+        "RenoDX.DLSS5": dlss5_dict,
+        "DLSS5": dlss5_dict,
+        "DLSS5-NR": dlss5_dict,
+    }
+
+    # Ensure ADDON section does not dead-lock loader
+    if reshade_ini.exists():
+        sections = IniConfigManager.read_ini_sections(reshade_ini)
+        addon_sec = sections.get("ADDON", {})
+        main_dlls = addon_sec.get("LoadFromDllMain", "")
+        if main_dlls:
+            items = [x.strip() for x in main_dlls.split(",") if x.strip()]
+            filtered = [
+                x for x in items
+                if "lecram" not in x.lower() and x != "1"
+            ]
+            updates["ADDON"] = {"LoadFromDllMain": ",".join(filtered)}
+
+    ok = IniConfigManager.write_ini_sections(reshade_ini, updates)
+
+    # Also persist per-game settings cache
+    if target_dir.exists():
+        game_cfg_file = target_dir / ".dlss5_config.json"
+        try:
+            with open(game_cfg_file, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    return ok

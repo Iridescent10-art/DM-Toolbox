@@ -582,47 +582,58 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
     }
 
 
-def _configure_reshade_ini_for_dlss5(ini_path: Path, remove: bool = False) -> bool:
+def _configure_reshade_ini_for_dlss5(
+    ini_path: Path,
+    remove: bool = False,
+    dlss5_config: Optional[Dict[str, Any]] = None
+) -> bool:
     """
     Safely configures ReShade.ini for DLSS 5.
     1. Removes any 'lecram-dlss5-beta10.addon64', 'lecram-dlss5-beta10', or literal '1'
        from LoadFromDllMain to prevent Windows Loader Lock deadlock (error 1114).
-    2. Writes [DLSS5] NRRuntimePath=.\\nvngx_dlssnr.dll when remove=False.
-    3. Cleans up [DLSS5] when remove=True.
+    2. When remove=False, writes/updates [RenoDX.DLSS5], [DLSS5], and [DLSS5-NR] with
+       safe non-blocking Present parameters (NRHookPoint=2, NRPresentNonBlocking=1, NRVramBuffering=Full).
+    3. Cleans up all DLSS5 sections when remove=True.
     """
     if not ini_path.exists():
         if not remove:
             _create_default_reshade_ini(ini_path)
-            return True
-        return False
+        else:
+            return False
+
+    if not remove:
+        try:
+            from apps.app6_dlss5.engine.dlss5_config import write_game_dlss5_config, load_dlss5_preset
+            cfg = dlss5_config or load_dlss5_preset()
+            return write_game_dlss5_config(ini_path, cfg)
+        except Exception:
+            pass
 
     try:
         with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
+            lines_in = f.readlines()
     except Exception:
         return False
 
     current_sec = ""
-    dlss5_found = False
     modified = False
     new_lines = []
 
-    for line in lines:
+    for line in lines_in:
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             current_sec = stripped[1:-1].strip().upper()
-            if current_sec in ["DLSS5", "DLSS5-NR"]:
-                dlss5_found = True
+            if current_sec in ["DLSS5", "DLSS5-NR", "RENODX.DLSS5"]:
                 if remove:
-                    # Skip entire DLSS5 section on remove
+                    modified = True
                     continue
             new_lines.append(line)
             continue
 
-        if current_sec in ["DLSS5", "DLSS5-NR"]:
+        if current_sec in ["DLSS5", "DLSS5-NR", "RENODX.DLSS5"]:
             if remove:
                 modified = True
-                continue  # skip lines in DLSS5 section
+                continue
 
         if current_sec == "ADDON" and "=" in stripped:
             k, v = stripped.split("=", 1)
@@ -630,7 +641,6 @@ def _configure_reshade_ini_for_dlss5(ini_path: Path, remove: bool = False) -> bo
             if key.upper() == "LOADFROMDLLMAIN":
                 existing = [x.strip() for x in v.split(",") if x.strip()]
                 addon_dir = ini_path.parent
-                # Strictly filter out dlss5 addons, spurious '1', or missing renodx addon (Error 126 fix)
                 filtered = []
                 for x in existing:
                     xl = x.lower()
@@ -646,22 +656,6 @@ def _configure_reshade_ini_for_dlss5(ini_path: Path, remove: bool = False) -> bo
                     continue
 
         new_lines.append(line)
-
-    if not remove and not dlss5_found:
-        new_lines.append("""
-[DLSS5]
-NRRuntimePath=.\\nvngx_dlssnr.dll
-NRHookPoint=2
-NRPresentNonBlocking=1
-NRVramBuffering=Full
-
-[DLSS5-NR]
-NRRuntimePath=.\\nvngx_dlssnr.dll
-NRHookPoint=2
-NRPresentNonBlocking=1
-NRVramBuffering=Full
-""")
-        modified = True
 
     if modified:
         try:
@@ -708,7 +702,7 @@ class DLSS5Injector:
         return check_dlss5_status(target_dir)
 
     @staticmethod
-    def inject(target_dir: str) -> Tuple[bool, str]:
+    def inject(target_dir: str, dlss5_config: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
         td = Path(target_dir)
         if not td.exists() or not td.is_dir():
             return False, f"目标目录不存在: {target_dir}"
@@ -836,7 +830,7 @@ class DLSS5Injector:
             _create_default_reshade_ini(ini_dest)
             manifest["injected_files"].append("ReShade.ini")
         else:
-            _configure_reshade_ini_for_dlss5(ini_dest, remove=False)
+            _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
 
         # Step 5: Write manifest
         manifest_path = td / ".dlss5_patch_manifest.json"
@@ -920,7 +914,7 @@ class DLSS5Injector:
             if not ini_dest.exists():
                 _create_default_reshade_ini(ini_dest)
             else:
-                _configure_reshade_ini_for_dlss5(ini_dest, remove=False)
+                _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
 
             # Record in manifest so restore knows ReShade64.dll was deployed by toolbox
             manifest_path = td / ".dlss5_patch_manifest.json"
@@ -976,7 +970,7 @@ class DLSS5Injector:
         if not ini_dest.exists():
             _create_default_reshade_ini(ini_dest)
         else:
-            _configure_reshade_ini_for_dlss5(ini_dest, remove=False)
+            _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
 
         # Record in manifest
         manifest_path = td / ".dlss5_patch_manifest.json"

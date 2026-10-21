@@ -550,6 +550,16 @@ class IniConfigManager:
         if nvngx_purged:
             warnings.append("已删除遗留的 nvngx.ini，仅保留唯一的 OptiScaler.ini。")
 
+        # If ReShade.ini exists in target directory, ensure DLSS 5 sections have safe Present & Non-blocking hooks
+        reshade_ini = target / "ReShade.ini"
+        if reshade_ini.exists():
+            try:
+                from apps.app6_dlss5.engine.dlss5_config import read_game_dlss5_config, write_game_dlss5_config
+                current_cfg = read_game_dlss5_config(target)
+                write_game_dlss5_config(target, current_cfg)
+            except Exception:
+                pass
+
         cls.last_report = {
             "ini_path": str(opti_ini),
             "fg_output": fg_output,
@@ -768,6 +778,8 @@ class IniConfigManager:
             "ADDON": addon_updates,
             "RenoDX.MFG": mfg_keys,
             "RenoDX.DLSS5": dlss5_hooks,
+            "DLSS5": dlss5_hooks,
+            "DLSS5-NR": dlss5_hooks,
             # Exact section recognized by the official binary
             "RenoDX.MFGUnlock": mfg_keys,
             # Mirror sections for compatibility with third-party/legacy forks
@@ -946,13 +958,9 @@ class IniConfigManager:
         reshade_ini = target / "ReShade.ini"
         if reshade_ini.exists():
             try:
-                dlss5_updates = {
-                    "DLSS5": {
-                        "RenderPreset": render_preset_val,
-                        "NRRuntimePath": ".\\nvngx_dlssnr.dll"
-                    }
-                }
-                cls.write_ini_sections(reshade_ini, dlss5_updates)
+                from apps.app6_dlss5.engine.dlss5_config import read_game_dlss5_config, write_game_dlss5_config
+                current_cfg = read_game_dlss5_config(target)
+                write_game_dlss5_config(target, current_cfg)
             except Exception:
                 pass
 

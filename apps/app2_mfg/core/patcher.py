@@ -635,7 +635,6 @@ class PatchEngine:
 
         items_to_copy = [
             "OptiScaler.ini",
-            "dlssg_to_fsr3_amd_is_better.dll",
             "amd_fidelityfx_dx12.dll",
             "amd_fidelityfx_framegeneration_dx12.dll",
             "amd_fidelityfx_upscaler_dx12.dll",
@@ -697,15 +696,31 @@ class PatchEngine:
                 shutil.copytree(d3d12_dir, dst_d3d12)
                 manifest.created_files.append("D3D12_Optiscaler")
 
-        # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin for XeMFG multi-frame unlock
-        mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
-        if mfg_dll_path and os.path.exists(mfg_dll_path):
-            plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
-            os.makedirs(plugins_dir, exist_ok=True)
-            dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
-            shutil.copy2(mfg_dll_path, dst_asi)
-            if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
-                manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
+        # 3.4. Conditionally handle dlssg_to_fsr3
+        if fg_output == "nukems":
+            items_to_copy.append("dlssg_to_fsr3_amd_is_better.dll")
+        else:
+            # Purge lingering dlssg_to_fsr3_amd_is_better.dll to prevent conflicting FG stacks
+            lingering_dlssg = os.path.join(target_dir, "dlssg_to_fsr3_amd_is_better.dll")
+            if os.path.exists(lingering_dlssg):
+                safe_force_remove(lingering_dlssg)
+
+        # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin ONLY for RTX 20/30 (not RTX 40/50)
+        # On RTX 40/50, loading MFGUnlocker into Streamline causes dual-hooking crashes (Hook-04 and exception dumps).
+        if not has_rtx_40_or_newer and not is_qualified:
+            mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
+            if mfg_dll_path and os.path.exists(mfg_dll_path):
+                plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
+                os.makedirs(plugins_dir, exist_ok=True)
+                dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
+                shutil.copy2(mfg_dll_path, dst_asi)
+                if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
+                    manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
+        else:
+            # Clean up lingering MFGUnlocker.asi on RTX 40/50 to avoid Hook-04 and Streamline collisions
+            asi_p = os.path.join(target_dir, "OptiScaler", "plugins", "MFGUnlocker.asi")
+            if os.path.exists(asi_p):
+                safe_force_remove(asi_p)
 
         # 4. Write the ONE legal config file (OptiScaler.ini) and delete the legacy alias.
         #    v0.9.4 shows a red banner while nvngx.ini exists, and reads FG init keys at

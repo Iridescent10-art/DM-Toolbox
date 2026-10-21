@@ -1,0 +1,12 @@
+{
+  "uplift": 1,
+  "hook_point": 2,
+  "passes": 1,
+  "res_scale": 1.0,
+  "intensity": 1.0,
+  "style": 0,
+  "vram": "Full",
+  "non_blocking": 1,
+  "hdr": 0,
+  "runtime_path": ".\\nvngx_dlssnr.dll"
+}

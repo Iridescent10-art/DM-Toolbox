@@ -215,7 +215,7 @@ class ConfigSyncService:
             IniConfigManager.sync_mode_c_forward(td, preset_c, exe_name=game_info.exe_name)
 
         # Step 3: Deploy DLSS 5 addon & runtime
-        ok_dlss5, msg_dlss5 = DLSS5Injector.inject(str(td))
+        ok_dlss5, msg_dlss5 = DLSS5Injector.inject(str(td), dlss5_config=params.get("dlss5_params"))
         if not ok_dlss5:
             return False, f"多帧生成注入成功，但 DLSS 5 挂载失败: {msg_dlss5}"
 

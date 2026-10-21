@@ -268,6 +268,7 @@ def CleanGameDirectoryState(
         "OptiScaler.log",
         "nvngx.ini",
         "dlssg_to_fsr3.log",
+        "dlssg_to_fsr3_amd_is_better.dll",
         "fakenvapi.ini",
         "fakenvapi.log"
     ]
