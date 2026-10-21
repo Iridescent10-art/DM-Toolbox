@@ -17,14 +17,14 @@ DEFAULTS_FILE = ROOT_DIR / "defaults" / "app6_dlss5" / "dlss5_preset.json"
 
 DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
     "uplift": 1,
-    "hook_point": 2,          # 2 = Present (most stable, bypasses Direct CommandList locks)
-    "passes": 1,              # 1 Pass (default speed / fidelity balance)
-    "res_scale": 1.00,        # 1.00 (Native reconstruction)
-    "intensity": 1.00,        # 1.00
-    "style": 0,               # 0 = Stock Neutral
-    "vram": "Full",           # Full buffering (eliminates memory racing and device loss)
-    "non_blocking": 1,        # 1 = Non-blocking Present queue
-    "hdr": 0,                 # 0 = Auto / Native HDR
+    "hook_point": 3,          # 3 = Auto (智能自适应 · 自动调度，默认推荐预设)
+    "passes": 1,              # 1 Pass (标准极速 · 旗舰推荐)
+    "res_scale": 0.67,        # 0.67 (重构分辨率缩放)
+    "intensity": 1.00,        # 1.00 (重构强度权重)
+    "style": 2,               # 2 = 电影感柔和 (Cinematic Soft · 柔化抑噪)
+    "vram": "Full",           # Full (完整缓冲 · 消除显存竞争与防崩溃 · 推荐)
+    "non_blocking": 1,        # 1 = 启用 Present 非阻塞呈现队列 (杜绝 D3D12 死锁与 TDR 崩溃)
+    "hdr": 0,                 # 0 = 自动 / 原生 HDR (推荐)
     "runtime_path": r".\nvngx_dlssnr.dll"
 }
 
