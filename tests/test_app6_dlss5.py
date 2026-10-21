@@ -322,5 +322,41 @@ class TestDLSS5Injector(unittest.TestCase):
         self.assertFalse((self.game_dir / ".dlss5_patch_manifest.json").exists())
 
 
+    def test_mfg_dlss5_crash_guard_and_safe_routing(self):
+        """
+        Verify that write_game_dlss5_config automatically protects against D3D12 command list collisions
+        and VRAM thrashing when Multi-Frame Generation is detected.
+        """
+        from apps.app6_dlss5.engine.dlss5_config import write_game_dlss5_config
+        from apps.app2_mfg.core.ini_sync import IniConfigManager
+
+        ini_path = self.game_dir / "ReShade.ini"
+
+        # Case 1: Standalone game without Frame Generation -> user choices are respected
+        cfg_standalone = {
+            "uplift": 1,
+            "hook_point": 0,  # After Upscaling
+            "vram": "Full"
+        }
+        ok = write_game_dlss5_config(ini_path, cfg_standalone)
+        self.assertTrue(ok)
+        sec = IniConfigManager.read_ini_sections(ini_path)["DLSS5"]
+        self.assertEqual(sec.get("NRHookPoint"), "0")
+        self.assertEqual(sec.get("NRVramBuffering"), "0")
+
+        # Case 2: Game has Mode A (version.dll) active -> safety guard must reroute to Present (2) and Reduced
+        (self.game_dir / "version.dll").write_bytes(b"MOCK_MFG_VERSION_DLL")
+        cfg_mfg = {
+            "uplift": 1,
+            "hook_point": 0,  # Dangerous After Upscaling under MFG
+            "vram": "Full"    # Dangerous Full buffering under 4K MFG
+        }
+        ok_mfg = write_game_dlss5_config(ini_path, cfg_mfg)
+        self.assertTrue(ok_mfg)
+        sec_mfg = IniConfigManager.read_ini_sections(ini_path)["DLSS5"]
+        self.assertEqual(sec_mfg.get("NRHookPoint"), "2")
+        self.assertEqual(sec_mfg.get("NRVramBuffering"), "1")
+
+
 if __name__ == "__main__":
     unittest.main()

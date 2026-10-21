@@ -993,9 +993,9 @@ class DLSS5SettingsPanel(QFrame):
         # Row 3: VRAM Buffering & Non-Blocking Present
         self.lbl_vram = QLabel("显存缓冲策略:")
         self.combo_vram = QComboBox()
-        self.combo_vram.addItem("Full (完整缓冲 · 消除显存竞争与防崩溃 · 推荐)", "Full")
-        self.combo_vram.addItem("Reduced (适度缓冲)", "Reduced")
-        self.combo_vram.addItem("Minimal (极简占用)", "Minimal")
+        self.combo_vram.addItem("Reduced (精简缓冲 · 防显存溢出与TDR崩溃 · 推荐)", "Reduced")
+        self.combo_vram.addItem("Full (完整缓冲 · 仅限超大显存环境)", "Full")
+        self.combo_vram.addItem("Minimal (极简占用 · 显存紧张推荐)", "Minimal")
         self.combo_vram.currentIndexChanged.connect(self._on_param_changed)
         p_layout.addWidget(self.lbl_vram, 3, 0)
         p_layout.addWidget(self.combo_vram, 3, 1)
@@ -1024,8 +1024,8 @@ class DLSS5SettingsPanel(QFrame):
         action_row.setSpacing(10)
 
         self.lbl_tip = QLabel(
-            "💡 <b>核心避让指引</b>：针对 RTX 5080 (Blackwell) 游戏，已强制开启 <code>NRHookPoint=2 (Present)</code> "
-            "与 <code>NRPresentNonBlocking=1</code>，彻底消除 <code>list_refused=direct</code> 与 <code>DXGI_ERROR_DEVICE_HUNG</code> 闪退。"
+            "💡 <b>核心避让指引</b>：针对 RTX 5080 (Blackwell) 与多帧生成 (MFG) 游戏，已自动开启 <code>NRHookPoint=2 (Present)</code> "
+            "安全挂钩、<code>Reduced</code> 显存防溢出与 <code>NRAutoFgFallback=1</code>，彻底消除 <code>list_refused=direct</code> 与 <code>DXGI_ERROR_DEVICE_HUNG</code> 闪退。"
         )
         self.lbl_tip.setWordWrap(True)
         self.lbl_tip.setStyleSheet("font-size: 11px; line-height: 140%;")
