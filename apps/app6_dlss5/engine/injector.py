@@ -611,7 +611,7 @@ def _configure_reshade_ini_for_dlss5(ini_path: Path, remove: bool = False) -> bo
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             current_sec = stripped[1:-1].strip().upper()
-            if current_sec == "DLSS5":
+            if current_sec in ["DLSS5", "DLSS5-NR"]:
                 dlss5_found = True
                 if remove:
                     # Skip entire DLSS5 section on remove
@@ -619,7 +619,7 @@ def _configure_reshade_ini_for_dlss5(ini_path: Path, remove: bool = False) -> bo
             new_lines.append(line)
             continue
 
-        if current_sec == "DLSS5":
+        if current_sec in ["DLSS5", "DLSS5-NR"]:
             if remove:
                 modified = True
                 continue  # skip lines in DLSS5 section
@@ -648,7 +648,19 @@ def _configure_reshade_ini_for_dlss5(ini_path: Path, remove: bool = False) -> bo
         new_lines.append(line)
 
     if not remove and not dlss5_found:
-        new_lines.append("\n[DLSS5]\nNRRuntimePath=.\\nvngx_dlssnr.dll\n")
+        new_lines.append("""
+[DLSS5]
+NRRuntimePath=.\\nvngx_dlssnr.dll
+NRHookPoint=2
+NRPresentNonBlocking=1
+NRVramBuffering=Full
+
+[DLSS5-NR]
+NRRuntimePath=.\\nvngx_dlssnr.dll
+NRHookPoint=2
+NRPresentNonBlocking=1
+NRVramBuffering=Full
+""")
         modified = True
 
     if modified:

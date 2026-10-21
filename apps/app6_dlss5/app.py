@@ -346,12 +346,13 @@ class MultiFrameGenPanel(QFrame):
         grid_c.addWidget(self.combo_fg_in, 0, 3)
 
         self.chk_rcas = QCheckBox("启用 AMD RCAS 锐化")
+        self.chk_rcas.setChecked(False)
         self.chk_rcas.setCursor(Qt.CursorShape.PointingHandCursor)
         self.chk_rcas.stateChanged.connect(self._on_param_changed)
         self.slider_rcas = QSlider(Qt.Orientation.Horizontal)
         self.slider_rcas.setRange(0, 100)
-        self.slider_rcas.setValue(20)
-        self.lbl_rcas_val = QLabel("0.20")
+        self.slider_rcas.setValue(0)
+        self.lbl_rcas_val = QLabel("0.00")
         self.lbl_rcas_val.setFixedWidth(36)
         self.slider_rcas.valueChanged.connect(self._on_slider_rcas_changed)
 
@@ -500,7 +501,7 @@ class MultiFrameGenPanel(QFrame):
             self.combo_fg_in.setCurrentIndex(1 if "fsr" in fg_in else 0)
 
             self.chk_rcas.setChecked(bool(cfg.get("rcas_enabled", False)))
-            rcas_val = float(cfg.get("rcas_sharpness", 0.20))
+            rcas_val = float(cfg.get("rcas_sharpness", 0.0))
             self.slider_rcas.setValue(int(rcas_val * 100))
             self.lbl_rcas_val.setText(f"{rcas_val:.2f}")
 

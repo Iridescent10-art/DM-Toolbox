@@ -484,6 +484,9 @@ class IniConfigManager:
                 "RenderPresetOverride": "false" if is_dlss_default else "true",
                 "RenderPresetForAll": "0" if is_dlss_default else str(DLSS_PRESET_MAP.get(dlss_p, 13)),
             },
+            "RCAS": {
+                "Enabled": "true" if rcas_enabled else "false"
+            },
             "CAS": {
                 "Enabled": "true" if rcas_enabled else "false"
             },
@@ -735,7 +738,11 @@ class IniConfigManager:
         dlss5_hooks = {
             "EnableHooks": "2",
             "RuntimeSelectionMode": "1",
-            "HDRCompatibilityMode": "0"
+            "HDRCompatibilityMode": "0",
+            "NRRuntimePath": r".\nvngx_dlssnr.dll",
+            "NRHookPoint": "2",
+            "NRPresentNonBlocking": "1",
+            "NRVramBuffering": "Full"
         }
 
         addon_updates = {}
