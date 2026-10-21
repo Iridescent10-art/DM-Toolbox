@@ -701,6 +701,51 @@ ShowFrameTime=0
 LoadFromDllMain=
 
 [DLSS5]
+ConfigVersion=11
+EnableHooks=2
+RuntimeSelectionMode=1
+NeuralUplift=1
+NRHookPoint=2
+NRAutoFgFallback=1
+NRPasses=1
+NRResolutionScale=0.67
+NRIntensity=1.00
+NRStyle=2
+NRVramBuffering=1
+NRPresentNonBlocking=1
+HDRCompatibilityMode=0
+NRRuntimePath=.\\nvngx_dlssnr.dll
+
+[RenoDX.DLSS5]
+ConfigVersion=11
+EnableHooks=2
+RuntimeSelectionMode=1
+NeuralUplift=1
+NRHookPoint=2
+NRAutoFgFallback=1
+NRPasses=1
+NRResolutionScale=0.67
+NRIntensity=1.00
+NRStyle=2
+NRVramBuffering=1
+NRPresentNonBlocking=1
+HDRCompatibilityMode=0
+NRRuntimePath=.\\nvngx_dlssnr.dll
+
+[DLSS5-NR]
+ConfigVersion=11
+EnableHooks=2
+RuntimeSelectionMode=1
+NeuralUplift=1
+NRHookPoint=2
+NRAutoFgFallback=1
+NRPasses=1
+NRResolutionScale=0.67
+NRIntensity=1.00
+NRStyle=2
+NRVramBuffering=1
+NRPresentNonBlocking=1
+HDRCompatibilityMode=0
 NRRuntimePath=.\\nvngx_dlssnr.dll
 """
     try:
@@ -845,8 +890,7 @@ class DLSS5Injector:
         if not ini_dest.exists():
             _create_default_reshade_ini(ini_dest)
             manifest["injected_files"].append("ReShade.ini")
-        else:
-            _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
+        _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
 
         # Step 5: Write manifest
         manifest_path = td / ".dlss5_patch_manifest.json"
@@ -929,8 +973,7 @@ class DLSS5Injector:
 
             if not ini_dest.exists():
                 _create_default_reshade_ini(ini_dest)
-            else:
-                _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
+            _configure_reshade_ini_for_dlss5(ini_dest, remove=False)
 
             # Record in manifest so restore knows ReShade64.dll was deployed by toolbox
             manifest_path = td / ".dlss5_patch_manifest.json"
@@ -985,8 +1028,7 @@ class DLSS5Injector:
 
         if not ini_dest.exists():
             _create_default_reshade_ini(ini_dest)
-        else:
-            _configure_reshade_ini_for_dlss5(ini_dest, remove=False, dlss5_config=dlss5_config)
+        _configure_reshade_ini_for_dlss5(ini_dest, remove=False)
 
         # Record in manifest
         manifest_path = td / ".dlss5_patch_manifest.json"

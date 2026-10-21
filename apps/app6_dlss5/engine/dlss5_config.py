@@ -222,6 +222,7 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "RuntimeSelectionMode": "1",
         "NeuralUplift": str(config.get("uplift", 1)),
         "NRHookPoint": str(effective_hp),
+        "NRAutoFgFallback": "1",
         "NRPasses": str(config.get("passes", 1)),
         "NRResolutionScale": f"{float(config.get('res_scale', 0.67)):.2f}",
         "NRIntensity": f"{float(config.get('intensity', 1.0)):.2f}",
