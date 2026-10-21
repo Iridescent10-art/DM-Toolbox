@@ -48,6 +48,26 @@ def is_optiscaler_dll_file(path: str) -> bool:
     return b"OptiScaler" in data or b"libxess" in data
 
 
+
+def is_dlss5_present(target_dir: Union[str, Path]) -> bool:
+    """
+    Centralized detector for any active DLSS 5 addon or manifest in target directory.
+    Supports modern RenoDX ShortFuse (renodx-dlss.addon64), Chinese builds, and legacy versions.
+    """
+    if not target_dir:
+        return False
+    td = Path(target_dir)
+    if not td.exists() or not td.is_dir():
+        return False
+    return any((
+        (td / "renodx-dlss.addon64").exists(),
+        (td / "renodx-dlss-ShortFuse-261017汉化版.addon64").exists(),
+        (td / "lecram-dlss5-beta10.addon64").exists(),
+        (td / "dlss5-nr.addon64").exists(),
+        (td / ".dlss5_patch_manifest.json").exists(),
+        (td / ".dlss5_config.json").exists()
+    ))
+
 def is_dashdogy_dll_file(path: str) -> bool:
     """Check if file is a dashdogy / MFGUnlocker binary."""
     if not os.path.exists(path) or not os.path.isfile(path):

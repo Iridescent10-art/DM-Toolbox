@@ -216,6 +216,7 @@ class RHIInstaller:
         return True, f"成功下载 RHI ({tag}) 至本地缓存: {self.setup_exe.name}"
 
     def launch_rhi(self) -> Tuple[bool, str]:
+        self.ensure_rhi_chinese_templates()
         """Launch RHI-Setup.exe or installed RHI.exe."""
         found, path = self.is_installed_or_cached()
         if not found:
@@ -230,3 +231,49 @@ class RHIInstaller:
                 return True, f"已成功启动 RHI: {os.path.basename(path)}"
             except Exception as e:
                 return False, f"启动 RHI 失败: {e}"
+
+
+    @staticmethod
+    def ensure_rhi_chinese_templates() -> bool:
+        """
+        Ensures all ReShade templates used by RHI in %LocalAppData%\\RHI\\inis
+        default to Simplified Chinese (zh-CN) with Microsoft YaHei font.
+        """
+        try:
+            local_app = os.environ.get("LOCALAPPDATA", "")
+            if not local_app:
+                return False
+            inis_dir = Path(local_app) / "RHI" / "inis"
+            if not inis_dir.exists():
+                return False
+
+            chinese_overlay = (
+                "[OVERLAY]\n"
+                "Language=zh-CN\n"
+                "Font=C:\\Windows\\Fonts\\msyh.ttc\n"
+                "FontSize=18\n"
+                "EditorFont=C:\\Windows\\Fonts\\msyh.ttc\n"
+                "EditorFontSize=16\n"
+                "TutorialProgress=4\n"
+                "VariableListUseTabs=1"
+            )
+
+            for ini_name in ["reshade.ini", "reshade.rdr2.ini", "reshade.vulkan.ini"]:
+                ini_file = inis_dir / ini_name
+                if not ini_file.exists():
+                    continue
+                try:
+                    txt = ini_file.read_text(encoding="utf-8", errors="ignore")
+                    if "Language=zh-CN" in txt and "msyh.ttc" in txt:
+                        continue
+                    if "[OVERLAY]" in txt:
+                        # Replace [OVERLAY] section
+                        txt = re.sub(r"\[OVERLAY\][^\r\n]*(\r?\n[^\r\n\[]+)*", lambda m: chinese_overlay, txt)
+                    else:
+                        txt = txt.strip() + "\n\n" + chinese_overlay
+                    ini_file.write_text(txt, encoding="utf-8")
+                except Exception:
+                    pass
+            return True
+        except Exception:
+            return False

@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 from core.ini_sync import IniConfigManager
 
 DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
-    "multiplier": 3,              # 2=2X, 3=3X, 4=4X (默认 3X 三倍插帧)
+    "multiplier": 3,              # 2=2X, 3=3X, 4=4X, 5=5X, 6=6X (默认 3X 三倍插帧)
     "dlss_preset": "K",           # 默认采用 DLSS 4 Transformer 模型 Preset K
     "menu_key": "Backspace",      # "Backspace", "F11", "Insert", "Home", "End"
     "bink_hook": False
@@ -20,7 +20,7 @@ DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
 DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
     "fg_output": "xefg",          # "xefg", "fsrfg", "nukems"
     "fg_input": "dlssg",         # "dlssg", "nukems", "auto"
-    "interpolation_count": 2,    # 1=2X, 2=3X, 3=4X (XeFG 默认 3X 三倍插帧)
+    "interpolation_count": 2,    # 1=2X, 2=3X, 3=4X, 4=5X, 5=6X (XeFG 默认 3X 三倍插帧)
     "dx12_upscaler": "auto",     # "auto", "xess", "dlss", "fsr31"
     "rcas_enabled": False,
     "rcas_sharpness": 0.0,
@@ -197,7 +197,7 @@ def get_preset_summary(preset: Optional[Dict[str, Any]] = None) -> str:
 
     if fg_out == "xefg":
         count = int(preset.get("interpolation_count", 1))
-        count_map = {1: "2X 双倍", 2: "3X 三倍", 3: "4X 四倍"}
+        count_map = {1: "2X 双倍", 2: "3X 三倍", 3: "4X 四倍", 4: "5X 五倍", 5: "6X 六倍"}
         mult_text = count_map.get(count, f"{count+1}X")
     else:
         mult_text = "2X 固定"

@@ -10,7 +10,7 @@ from typing import Tuple, Optional, List
 from core.models import GameInfo, BackendType, PatchManifest, QualificationStatus
 from core.updater import ComponentUpdater
 from core.rollback import RollbackEngine
-from core.state_cleaner import CleanGameDirectoryState
+from core.state_cleaner import CleanGameDirectoryState, is_dlss5_present
 from core.utils import (
     is_process_running,
     get_system_gpu_name,
@@ -92,7 +92,7 @@ class PatchEngine:
 
         try:
             target_mode_char = "A" if (active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value) else ("B" if (active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value) else "C")
-            has_dlss5 = (Path(game.target_dir) / "lecram-dlss5-beta10.addon64").exists()
+            has_dlss5 = is_dlss5_present(game.target_dir)
             CleanGameDirectoryState(game.target_dir, preserve_dlss5=has_dlss5, target_mode=target_mode_char)
 
             if active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
@@ -181,7 +181,7 @@ class PatchEngine:
                 safe_force_remove(f_p)
 
         # Purge any old proxies that belong to OptiScaler or ReShade so they don't block dashdogy or conflict
-        has_dlss5 = (Path(target_dir) / "lecram-dlss5-beta10.addon64").exists()
+        has_dlss5 = is_dlss5_present(target_dir)
         for proxy_cand in ["winmm.dll", "version.dll", "dinput8.dll", "wininet.dll", "dxgi.dll"]:
             p_p = os.path.join(target_dir, proxy_cand)
             if os.path.exists(p_p):
@@ -598,14 +598,19 @@ class PatchEngine:
         manifest.created_files.append(selected_proxy)
 
         # If DLSS 5 is active in Mode C, ensure ReShade is deployed as ReShade64.dll for chainloading
-        has_dlss5 = (Path(target_dir) / "lecram-dlss5-beta10.addon64").exists()
+        has_dlss5 = is_dlss5_present(target_dir)
         if has_dlss5:
             reshade64_path = os.path.join(target_dir, "ReShade64.dll")
             if not os.path.exists(reshade64_path) or not self._is_reshade_addon_dll(reshade64_path):
-                reshade_src = self.updater.get_reshade_framework_dll()
-                if reshade_src and os.path.exists(reshade_src):
-                    shutil.copy2(reshade_src, reshade64_path)
+                reshade_bak = os.path.join(target_dir, "dxgi.dll.reshade_bak")
+                if os.path.exists(reshade_bak) and self._is_reshade_addon_dll(reshade_bak):
+                    shutil.copy2(reshade_bak, reshade64_path)
                     manifest.created_files.append("ReShade64.dll")
+                else:
+                    reshade_src = self.updater.get_reshade_framework_dll()
+                    if reshade_src and os.path.exists(reshade_src):
+                        shutil.copy2(reshade_src, reshade64_path)
+                        manifest.created_files.append("ReShade64.dll")
 
         # 2. Deploy bridge & runtime files
         gpu_name = get_system_gpu_name()

@@ -426,7 +426,7 @@ def enforce_optiscaler_anti_d_preset(ini_path: Path, force_preset: int = 11) -> 
                     modified = True
                     continue
             elif key_upper.startswith("RENDERPRESET"):
-                if val_clean in ["4", "auto", "default", "0", "d", "preset d", ""]:
+                if val_clean in ["4", "d", "preset d"]:
                     new_lines.append(f"{key}=11{comment}\n")
                     modified = True
                     continue
@@ -445,7 +445,7 @@ def enforce_optiscaler_anti_d_preset(ini_path: Path, force_preset: int = 11) -> 
                     modified = True
                     continue
             elif key_upper.startswith("RENDERPRESET"):
-                if val_clean in ["4", "auto", "default", "0", "d", "preset d", ""]:
+                if val_clean in ["4", "d", "preset d"]:
                     new_lines.append(f"{key}=11{comment}\n")
                     modified = True
                     continue

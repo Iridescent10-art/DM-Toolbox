@@ -313,30 +313,30 @@ class IniConfigManager:
     def detect_xefg_max_interpolations(cls, target_dir: Union[str, Path]) -> Optional[int]:
         """
         Return the max supported XeFG interpolations. With OptiScaler 10 and MFGUnlocker.asi,
-        3 interpolations (4X frame rate) is natively supported.
+        up to 5 interpolations (6X frame rate) is natively supported.
         """
         target = Path(target_dir)
         cls.ensure_xemfg_plugin(target)
-        return 3
+        return 5
 
     @classmethod
     def resolve_interpolation_count(cls, target_dir: Union[str, Path], fg_output: str, requested: Any) -> Tuple[int, Optional[int], bool]:
         """
         Return (effective, max_supported, clamped).
-        Allow full requested multiplier (1=2X, 2=3X, 3=4X) without artificial clamping.
+        Allow full requested multiplier (1=2X, 2=3X, 3=4X, 4=5X, 5=6X) without artificial clamping.
         """
         try:
             requested = int(requested)
         except (TypeError, ValueError):
             requested = 1
-        requested = max(1, min(3, requested))
+        requested = max(1, min(5, requested))
 
         if str(fg_output).strip().lower() != "xefg":
             return 1, None, requested != 1
 
         target = Path(target_dir)
         cls.ensure_xemfg_plugin(target)
-        return requested, 3, False
+        return requested, 5, False
 
     @classmethod
     def purge_legacy_nvngx_ini(cls, target_dir: Union[str, Path]) -> bool:
@@ -469,7 +469,12 @@ class IniConfigManager:
             "XeFG": {
                 "IgnoreInitChecks": "true",
                 "InterpolationCount": str(effective_interpolation),
+                "OverrideInterpolationCount": str(effective_interpolation),
                 "DepthInverted": "true",
+            },
+            "DLSSG": {
+                "InterpolationCount": str(effective_interpolation),
+                "OverrideInterpolationCount": str(effective_interpolation),
             },
             "Plugins": {
                 "LoadAsiPlugins": "true",
@@ -516,7 +521,10 @@ class IniConfigManager:
                 "Scale": menu_scale,
                 "ShortcutKey": str(vk_code),
                 "DisableSplash": "false",
-                "ShowFps": "false"
+                "ShowFps": "false",
+                "UseHQFont": "true",
+                "TTFFontPath": r"C:\Windows\Fonts\msyh.ttc",
+                "FontSize": "15.0"
             },
             "Log": {
                 "LogToFile": "true",
@@ -621,7 +629,7 @@ class IniConfigManager:
         xefg_sec = data.get("XeFG", {})
         if "InterpolationCount" in xefg_sec:
             try:
-                preset["interpolation_count"] = max(1, min(3, int(xefg_sec["InterpolationCount"])))
+                preset["interpolation_count"] = max(1, min(5, int(xefg_sec["InterpolationCount"])))
             except Exception:
                 pass
         elif "FrameGenerationMultiplier" in fg_sec:
@@ -776,6 +784,15 @@ class IniConfigManager:
 
         updates = {
             "GENERAL": {
+                "TutorialProgress": "4"
+            },
+            "OVERLAY": {
+                "Language": "zh-CN",
+                "Font": r"C:\Windows\Fonts\msyh.ttc",
+                "FontSize": "18",
+                "EditorFont": r"C:\Windows\Fonts\msyh.ttc",
+                "EditorFontSize": "16",
+                "KeyOverlay": "36,0,0,0",
                 "TutorialProgress": "4"
             },
             "ADDON": addon_updates,

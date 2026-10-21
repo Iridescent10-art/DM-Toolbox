@@ -1415,6 +1415,8 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_a_mult.addItem("2X 双倍帧率 (标准平滑 · 推荐 60Hz~144Hz)", 2)
         self.combo_a_mult.addItem("3X 三倍帧率 (高刷电竞推荐 · 推荐 165Hz~240Hz) [推荐]", 3)
         self.combo_a_mult.addItem("4X 四倍帧率 (超高刷极速 · 推荐 240Hz+)", 4)
+        self.combo_a_mult.addItem("5X 五倍帧率 (高倍插帧探索 · 推荐 300Hz+)", 5)
+        self.combo_a_mult.addItem("6X 六倍帧率 (极限多帧生成 · 推荐 360Hz/540Hz)", 6)
         self.combo_a_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_a_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_mult.addWidget(self.combo_a_mult, 1)
@@ -1544,7 +1546,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_fg_out.setMinimumHeight(36)
         self.combo_fg_out.setMinimumWidth(280)
         self.combo_fg_out.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_fg_out.addItem("Intel XeFG (XeSS 2.0 官方插帧 · 支持 2X/3X/4X) [推荐]", "xefg")
+        self.combo_fg_out.addItem("Intel XeFG (XeSS 2.0 官方插帧 · 支持 2X~6X 多倍插帧) [推荐]", "xefg")
         self.combo_fg_out.addItem("AMD FSR 3.1 FG (全架构通用插帧 · 固定 2X 双倍)", "fsrfg")
         self.combo_fg_out.addItem("Nukem9 DLSSG-to-FSR3 (经典转译通道 · 固定 2X 双倍)", "nukems")
         self.combo_fg_out.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
@@ -1566,13 +1568,15 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_mult.addItem("2X 双倍帧率 (标准平滑 · 推荐 60Hz~144Hz 显示器)", 1)
         self.combo_mult.addItem("3X 三倍帧率 (XeFG 高刷电竞 · 推荐 165Hz~240Hz) [默认推荐]", 2)
         self.combo_mult.addItem("4X 四倍帧率 (XeFG 极速流体 · 推荐 240Hz+ 超高刷)", 3)
+        self.combo_mult.addItem("5X 五倍帧率 (XeFG 高倍探索 · 推荐 300Hz+)", 4)
+        self.combo_mult.addItem("6X 六倍帧率 (XeFG 极限流体 · 推荐 360Hz/540Hz 极限多帧)", 5)
         self.combo_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_mult.addWidget(self.combo_mult, 1)
         fg_layout.addLayout(h_mult)
 
         # Dynamic Multiplier Hint
-        self.lbl_mult_hint = QLabel("✨ 当前选用 Intel XeSS 2.0 官方插帧，已完整解锁 2X / 3X / 4X 多倍帧生成！")
+        self.lbl_mult_hint = QLabel("✨ 当前选用 Intel XeSS 2.0 官方插帧，已完整解锁 2X / 3X / 4X / 5X / 6X 多倍帧生成！")
         self.lbl_mult_hint.setStyleSheet(f"font-size: 11px; color: {'#34d399' if is_dark else '#059669'};")
         self.lbl_mult_hint.setWordWrap(True)
         fg_layout.addWidget(self.lbl_mult_hint)
@@ -5304,10 +5308,8 @@ class ModernMFGGUI(QMainWindow):
             return
 
         td_path = Path(self.selected_game.target_dir)
-        has_dlss5 = (
-            (td_path / "lecram-dlss5-beta10.addon64").exists() or
-            (td_path / ".dlss5_patch_manifest.json").exists()
-        )
+        from core.state_cleaner import is_dlss5_present
+        has_dlss5 = is_dlss5_present(td_path)
 
         clean_all = True
         if has_dlss5:
