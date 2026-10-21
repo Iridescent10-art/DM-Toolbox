@@ -1,2 +1,6 @@
 /apps/app6_dlss5/assets/nvngx_dlssnr.dll filter=lfs diff=lfs merge=lfs -text
 /defaults/app6_dlss5/assets/nvngx_dlssnr.dll filter=lfs diff=lfs merge=lfs -text
+/apps/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx20_30_40.dll filter=lfs diff=lfs merge=lfs -text
+/apps/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx50.dll filter=lfs diff=lfs merge=lfs -text
+/defaults/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx20_30_40.dll filter=lfs diff=lfs merge=lfs -text
+/defaults/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx50.dll filter=lfs diff=lfs merge=lfs -text

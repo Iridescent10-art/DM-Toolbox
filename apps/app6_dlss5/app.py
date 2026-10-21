@@ -93,11 +93,9 @@ from dm_ui_core import (
 )
 
 from apps.app6_dlss5.engine.injector import (
-
     DLSS5Injector, check_dlss5_status, detect_frame_generation,
-
-    find_rhi_setup_exe, get_dlss5_addon_path, find_reshade_framework_dll
-
+    find_rhi_setup_exe, get_dlss5_addon_path, find_reshade_framework_dll,
+    detect_system_gpu, get_dlss5_runtime_dll_path
 )
 
 from apps.app6_dlss5.engine.config_sync import ConfigSyncService
@@ -1723,859 +1721,582 @@ class MultiFrameGenPanel(QFrame):
 
 
 class DLSS5SettingsPanel(QFrame):
-
     """
-
-    内嵌于主界面的【DLSS 5 神经重构核心调优面板】。
-
+    内嵌于主界面的【DLSS 5 神经重构核心调优面板】(基于 RenoDX ShortFuse 官方汉化版架构)。
     支持在启动游戏前直接调控 DLSS 5 NR Addon 核心运行参数：
-
-    - 神经重构开关 (Neural Uplift)
-
-    - 挂钩注入管线 (NRHookPoint: Present / Auto / After / Before)
-
-    - 推理迭代次数 (NRPasses: 1~4 Passes)
-
-    - 重构强度与锐度 (NRIntensity: 0.00 ~ 2.00)
-
-    - 画质风格预设 (NRStyle: 0原生, 1高锐度, 2柔和电影)
-
-    - 重构分辨率缩放 (NRResolutionScale: 0.50 ~ 1.00)
-
-    - 显存缓冲策略 (NRVramBuffering: Full / Reduced / Minimal)
-
+    - 显卡架构与专用模型专选 (RTX 50 系列专用模型 vs RTX 20/30/40 系列官方优化模型)
+    - 神经重构状态 (DirectNeuralRenderingStatus)
+    - 挂钩注入管线 (DirectNeuralRenderingHookStage: Present / After / Before)
+    - 画质风格预设 (DirectNeuralRenderingStyle: 0=模型A原生, 1=模型B高锐度, 2=模型C电影柔和)
+    - DLSS 底层模型覆盖 (DLSSPresetQuality: Preset K / J / F / D / C / Default)
+    - 推理迭代次数 (DirectNeuralRenderingPassCount: 1~4 Passes)
+    - 色彩与信号编码 (DirectNeuralRenderingEncoding: 自动 / HDR / scRGB)
+    - 重构强度权重 (DirectNeuralRenderingIntensity: 0.00 ~ 2.00)
+    - 重构分辨率缩放 (DirectNeuralRenderingProcessingScale: 0.50 ~ 1.00)
+    - 结构细节强度 (DirectNeuralRenderingLocalStructureStrength: 0.00 ~ 2.00)
+    - 局部色调强度 (DirectNeuralRenderingLocalToneStrength: 0.00 ~ 2.00)
+    - 皮肤结构保护 (DirectNeuralRenderingSkinStructureStrength: 0.00 ~ 2.00)
+    - 人物与HUD自动蒙版 (DirectNeuralRenderingAutoMask: 0 / 1)
+    - 显存缓冲策略 (NRVramBuffering: Reduced / Full / Minimal)
     - Present 呈现非阻塞队列 (NRPresentNonBlocking: 1 / 0)
-
-    - HDR 兼容色调映射 (HDRCompatibilityMode: 0~3)
-
-    并实时同步双向写入目标游戏目录 ReShade.ini ([RenoDX.DLSS5], [DLSS5], [DLSS5-NR])。
-
+    并实时同步双向写入目标游戏目录 ReShade.ini ([RenoDX], [DLSS], [RenoDX.DLSS] 与镜像兼容段)。
     """
-
     params_saved = Signal(str)
 
-
-
     def __init__(self, parent_window=None):
-
         super().__init__(parent_window)
-
         self.parent_window = parent_window
-
         self.setProperty("class", "GridCard")
-
         self.setObjectName("DLSS5SettingsPanel")
-
         self.current_target_dir = None
-
         self._is_loading = False
-
-
 
         self._init_ui()
 
-
-
     def _init_ui(self):
-
         layout = QVBoxLayout(self)
-
         layout.setContentsMargins(18, 14, 18, 14)
-
         layout.setSpacing(10)
 
-
-
         # 1. Header Row
-
         header = QHBoxLayout()
-
         header.setSpacing(10)
 
-
-
         self.lbl_title = QLabel("⚙️ DLSS 5 神经重构核心调参 (Neural Reconstruction Settings)")
-
         self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700;")
-
         header.addWidget(self.lbl_title)
-
-
 
         header.addStretch()
 
-
-
         self.lbl_sync_tag = QLabel("● 参数已就绪")
-
         self.lbl_sync_tag.setStyleSheet("font-size: 11px; font-weight: 600; color: #10B981;")
-
         header.addWidget(self.lbl_sync_tag)
 
-
-
         self.btn_reset_defaults = QPushButton("⏪ 恢复推荐预设")
-
         self.btn_reset_defaults.setObjectName("BtnResetDefaults")
-
         self.btn_reset_defaults.setCursor(Qt.CursorShape.PointingHandCursor)
-
         self.btn_reset_defaults.clicked.connect(self.on_reset_clicked)
-
         header.addWidget(self.btn_reset_defaults)
-
-
 
         layout.addLayout(header)
 
-
-
         # 2. Main Parameters Frame
-
         self.params_frame = QFrame()
-
         self.params_frame.setObjectName("DLSS5ParamsContainer")
-
         p_layout = QGridLayout(self.params_frame)
-
         p_layout.setContentsMargins(14, 12, 14, 12)
-
         p_layout.setHorizontalSpacing(16)
-
         p_layout.setVerticalSpacing(10)
 
+        # Row 0: GPU Architecture Model Selector (Dual Architecture)
+        self.lbl_gpu = QLabel("显卡识别与运行模型:")
+        self.combo_gpu_arch = QComboBox()
+        try:
+            gpu_info = detect_system_gpu()
+            gpu_name = gpu_info.get("gpu_name", "NVIDIA GPU")
+        except Exception:
+            gpu_name = "NVIDIA GPU"
+        self.combo_gpu_arch.addItem(f"⚡ 自动识别推荐 (当前显卡: {gpu_name})", "auto")
+        self.combo_gpu_arch.addItem("🟢 RTX 20 / 30 / 40 系列专用模型 (v310.9.16 优化版 · 276MB)", "rtx20_30_40")
+        self.combo_gpu_arch.addItem("🚀 RTX 50 系列专用模型 (Blackwell 架构专用 · 266MB)", "rtx50")
+        self.combo_gpu_arch.currentIndexChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.lbl_gpu, 0, 0)
+        p_layout.addWidget(self.combo_gpu_arch, 0, 1, 1, 3)
 
-
-        # Row 0: Uplift Switch & Hook Point Pipeline
-
-        self.chk_uplift = QCheckBox("启用 DLSS 5 神经重构 (Neural Uplift)")
-
+        # Row 1: Uplift Switch & Hook Stage Pipeline
+        self.chk_uplift = QCheckBox("启用 DLSS 5 神经重构 (Direct Neural Rendering / RenoDX)")
         self.chk_uplift.setChecked(True)
-
         self.chk_uplift.setCursor(Qt.CursorShape.PointingHandCursor)
-
         self.chk_uplift.stateChanged.connect(self._on_param_changed)
-
-        p_layout.addWidget(self.chk_uplift, 0, 0, 1, 2)
-
-
+        p_layout.addWidget(self.chk_uplift, 1, 0, 1, 2)
 
         self.lbl_hook = QLabel("挂钩注入管线:")
-
         self.combo_hook = QComboBox()
-
         self.combo_hook.addItem("Present (呈现阶段 · 最稳防闪退 · 推荐)", 2)
-
-        self.combo_hook.addItem("Auto (智能自适应 · 自动调度)", 3)
-
-        self.combo_hook.addItem("After Upscaling (超分后处理 · 纯原生DLSS)", 0)
-
-        self.combo_hook.addItem("Before Upscaling (超分前预处理 · 原图降噪)", 1)
-
+        self.combo_hook.addItem("After Upscaling (超分后处理 · 纯原生DLSS)", 1)
+        self.combo_hook.addItem("Before Upscaling (超分前预处理 · 原图降噪)", 0)
         self.combo_hook.currentIndexChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.lbl_hook, 1, 2)
+        p_layout.addWidget(self.combo_hook, 1, 3)
 
-        p_layout.addWidget(self.lbl_hook, 0, 2)
-
-        p_layout.addWidget(self.combo_hook, 0, 3)
-
-
-
-        # Row 1: Passes & Style
-
-        self.lbl_passes = QLabel("推理迭代次数:")
-
-        self.combo_passes = QComboBox()
-
-        self.combo_passes.addItem("1 Pass (标准极速 · 旗舰推荐)", 1)
-
-        self.combo_passes.addItem("2 Passes (高质量重构)", 2)
-
-        self.combo_passes.addItem("3 Passes (深度降噪)", 3)
-
-        self.combo_passes.addItem("4 Passes (极限超分画质)", 4)
-
-        self.combo_passes.currentIndexChanged.connect(self._on_param_changed)
-
-        p_layout.addWidget(self.lbl_passes, 1, 0)
-
-        p_layout.addWidget(self.combo_passes, 1, 1)
-
-
-
+        # Row 2: Model Style & DLSS Preset (Anti-Preset D -> Preset K)
         self.lbl_style = QLabel("画质风格预设:")
-
         self.combo_style = QComboBox()
-
-        self.combo_style.addItem("0: 原生自然 (Stock Neutral · 推荐)", 0)
-
-        self.combo_style.addItem("1: 高锐度细节 (High Detail · 增强纹理)", 1)
-
-        self.combo_style.addItem("2: 电影感柔和 (Cinematic Soft · 柔化抑噪)", 2)
-
+        self.combo_style.addItem("模型 C: 电影感柔和 (Cinematic Soft · 抑噪防闪 · 默认推荐)", 2)
+        self.combo_style.addItem("模型 B: 高锐度细节 (High Detail · 增强纹理)", 1)
+        self.combo_style.addItem("模型 A: 原生自然 (Stock Neutral · 原画质感)", 0)
         self.combo_style.currentIndexChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.lbl_style, 2, 0)
+        p_layout.addWidget(self.combo_style, 2, 1)
 
-        p_layout.addWidget(self.lbl_style, 1, 2)
+        self.lbl_dlss_preset = QLabel("DLSS 底层模型:")
+        self.combo_dlss_preset = QComboBox()
+        self.combo_dlss_preset.addItem("Preset K (Transformer 神经网络 · 官方最新推荐)", 11)
+        self.combo_dlss_preset.addItem("Preset J (Transformer 细丝细节强化)", 10)
+        self.combo_dlss_preset.addItem("Preset F (CNN 经典高锐度)", 6)
+        self.combo_dlss_preset.addItem("Preset D (CNN 经典标准)", 4)
+        self.combo_dlss_preset.addItem("Preset C (CNN 经典平衡)", 3)
+        self.combo_dlss_preset.addItem("游戏默认 (Default)", 0)
+        self.combo_dlss_preset.currentIndexChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.lbl_dlss_preset, 2, 2)
+        p_layout.addWidget(self.combo_dlss_preset, 2, 3)
 
-        p_layout.addWidget(self.combo_style, 1, 3)
+        # Row 3: Passes & Encoding
+        self.lbl_passes = QLabel("推理迭代次数:")
+        self.combo_passes = QComboBox()
+        self.combo_passes.addItem("1 Pass (标准极速 · 旗舰推荐)", 1)
+        self.combo_passes.addItem("2 Passes (高质量重构)", 2)
+        self.combo_passes.addItem("3 Passes (深度降噪)", 3)
+        self.combo_passes.addItem("4 Passes (极限超分重构)", 4)
+        self.combo_passes.currentIndexChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.lbl_passes, 3, 0)
+        p_layout.addWidget(self.combo_passes, 3, 1)
 
+        self.lbl_encoding = QLabel("色彩与信号编码:")
+        self.combo_encoding = QComboBox()
+        self.combo_encoding.addItem("0: 自动 / 原生 (推荐)", 0)
+        self.combo_encoding.addItem("1: HDR 增强色调", 1)
+        self.combo_encoding.addItem("2: scRGB 宽色域", 2)
+        self.combo_encoding.currentIndexChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.lbl_encoding, 3, 2)
+        p_layout.addWidget(self.combo_encoding, 3, 3)
 
-
-        # Row 2: Intensity Slider & Res Scale Slider
-
+        # Row 4: Intensity Slider & Processing Scale Slider
         self.lbl_intensity = QLabel("重构强度权重:")
-
         self.slider_intensity = QSlider(Qt.Orientation.Horizontal)
-
         self.slider_intensity.setRange(0, 200)
-
         self.slider_intensity.setValue(100)
-
         self.lbl_intensity_val = QLabel("1.00")
-
         self.lbl_intensity_val.setFixedWidth(36)
-
         self.slider_intensity.valueChanged.connect(self._on_slider_intensity_changed)
-
-
-
         int_box = QHBoxLayout()
-
         int_box.addWidget(self.slider_intensity, 1)
-
         int_box.addWidget(self.lbl_intensity_val)
-
-
-
-        p_layout.addWidget(self.lbl_intensity, 2, 0)
-
-        p_layout.addLayout(int_box, 2, 1)
-
-
+        p_layout.addWidget(self.lbl_intensity, 4, 0)
+        p_layout.addLayout(int_box, 4, 1)
 
         self.lbl_res_scale = QLabel("重构分辨率缩放:")
-
         self.slider_res_scale = QSlider(Qt.Orientation.Horizontal)
-
         self.slider_res_scale.setRange(50, 100)
-
-        self.slider_res_scale.setValue(100)
-
-        self.lbl_res_scale_val = QLabel("1.00")
-
+        self.slider_res_scale.setValue(67)
+        self.lbl_res_scale_val = QLabel("0.67")
         self.lbl_res_scale_val.setFixedWidth(36)
-
         self.slider_res_scale.valueChanged.connect(self._on_slider_res_scale_changed)
-
-
-
         res_box = QHBoxLayout()
-
         res_box.addWidget(self.slider_res_scale, 1)
-
         res_box.addWidget(self.lbl_res_scale_val)
+        p_layout.addWidget(self.lbl_res_scale, 4, 2)
+        p_layout.addLayout(res_box, 4, 3)
 
+        # Row 5: Local Structure & Local Tone Sliders
+        self.lbl_local_structure = QLabel("结构细节增强:")
+        self.slider_local_structure = QSlider(Qt.Orientation.Horizontal)
+        self.slider_local_structure.setRange(0, 200)
+        self.slider_local_structure.setValue(100)
+        self.lbl_local_structure_val = QLabel("1.00")
+        self.lbl_local_structure_val.setFixedWidth(36)
+        self.slider_local_structure.valueChanged.connect(self._on_slider_local_structure_changed)
+        ls_box = QHBoxLayout()
+        ls_box.addWidget(self.slider_local_structure, 1)
+        ls_box.addWidget(self.lbl_local_structure_val)
+        p_layout.addWidget(self.lbl_local_structure, 5, 0)
+        p_layout.addLayout(ls_box, 5, 1)
 
+        self.lbl_local_tone = QLabel("局部色调增强:")
+        self.slider_local_tone = QSlider(Qt.Orientation.Horizontal)
+        self.slider_local_tone.setRange(0, 200)
+        self.slider_local_tone.setValue(100)
+        self.lbl_local_tone_val = QLabel("1.00")
+        self.lbl_local_tone_val.setFixedWidth(36)
+        self.slider_local_tone.valueChanged.connect(self._on_slider_local_tone_changed)
+        lt_box = QHBoxLayout()
+        lt_box.addWidget(self.slider_local_tone, 1)
+        lt_box.addWidget(self.lbl_local_tone_val)
+        p_layout.addWidget(self.lbl_local_tone, 5, 2)
+        p_layout.addLayout(lt_box, 5, 3)
 
-        p_layout.addWidget(self.lbl_res_scale, 2, 2)
+        # Row 6: Skin Structure Slider & Auto Mask Checkbox
+        self.lbl_skin_structure = QLabel("皮肤结构保护:")
+        self.slider_skin_structure = QSlider(Qt.Orientation.Horizontal)
+        self.slider_skin_structure.setRange(0, 200)
+        self.slider_skin_structure.setValue(100)
+        self.lbl_skin_structure_val = QLabel("1.00")
+        self.lbl_skin_structure_val.setFixedWidth(36)
+        self.slider_skin_structure.valueChanged.connect(self._on_slider_skin_structure_changed)
+        ss_box = QHBoxLayout()
+        ss_box.addWidget(self.slider_skin_structure, 1)
+        ss_box.addWidget(self.lbl_skin_structure_val)
+        p_layout.addWidget(self.lbl_skin_structure, 6, 0)
+        p_layout.addLayout(ss_box, 6, 1)
 
-        p_layout.addLayout(res_box, 2, 3)
+        self.chk_auto_mask = QCheckBox("启用人物与HUD自动蒙版保护 (Auto Mask)")
+        self.chk_auto_mask.setChecked(False)
+        self.chk_auto_mask.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.chk_auto_mask.stateChanged.connect(self._on_param_changed)
+        p_layout.addWidget(self.chk_auto_mask, 6, 2, 1, 2)
 
-
-
-        # Row 3: VRAM Buffering & Non-Blocking Present
-
+        # Row 7: VRAM Buffering & Non-Blocking Present
         self.lbl_vram = QLabel("显存缓冲策略:")
-
         self.combo_vram = QComboBox()
-
         self.combo_vram.addItem("Reduced (精简缓冲 · 防显存溢出与TDR崩溃 · 推荐)", "Reduced")
-
         self.combo_vram.addItem("Full (完整缓冲 · 仅限超大显存环境)", "Full")
-
         self.combo_vram.addItem("Minimal (极简占用 · 显存紧张推荐)", "Minimal")
-
         self.combo_vram.currentIndexChanged.connect(self._on_param_changed)
-
-        p_layout.addWidget(self.lbl_vram, 3, 0)
-
-        p_layout.addWidget(self.combo_vram, 3, 1)
-
-
+        p_layout.addWidget(self.lbl_vram, 7, 0)
+        p_layout.addWidget(self.combo_vram, 7, 1)
 
         self.chk_non_blocking = QCheckBox("启用 Present 非阻塞呈现队列 (杜绝 D3D12 死锁与 TDR 崩溃)")
-
         self.chk_non_blocking.setChecked(True)
-
         self.chk_non_blocking.setCursor(Qt.CursorShape.PointingHandCursor)
-
         self.chk_non_blocking.stateChanged.connect(self._on_param_changed)
-
-        p_layout.addWidget(self.chk_non_blocking, 3, 2, 1, 2)
-
-
-
-        # Row 4: HDR Mode
-
-        self.lbl_hdr = QLabel("HDR 兼容模式:")
-
-        self.combo_hdr = QComboBox()
-
-        self.combo_hdr.addItem("0: 自动 / 原生 HDR (推荐)", 0)
-
-        self.combo_hdr.addItem("1: 强制 SDR 渲染管线", 1)
-
-        self.combo_hdr.addItem("2: HDR10 增强模式", 2)
-
-        self.combo_hdr.addItem("3: scRGB 宽色域模式", 3)
-
-        self.combo_hdr.currentIndexChanged.connect(self._on_param_changed)
-
-        p_layout.addWidget(self.lbl_hdr, 4, 0)
-
-        p_layout.addWidget(self.combo_hdr, 4, 1)
-
-
+        p_layout.addWidget(self.chk_non_blocking, 7, 2, 1, 2)
 
         layout.addWidget(self.params_frame)
 
-
-
         # 3. Actions Row
-
         action_row = QHBoxLayout()
-
         action_row.setSpacing(10)
 
-
-
         self.lbl_tip = QLabel(
-
-            "💡 <b>核心避让指引</b>：针对 RTX 5080 (Blackwell) 与多帧生成 (MFG) 游戏，已自动开启 <code>NRHookPoint=2 (Present)</code> "
-
-            "安全挂钩、<code>Reduced</code> 显存防溢出与 <code>NRAutoFgFallback=1</code>，彻底消除 <code>list_refused=direct</code> 与 <code>DXGI_ERROR_DEVICE_HUNG</code> 闪退。"
-
+            "💡 <b>核心避让与架构指引</b>：针对 RTX 40/30/20 与 RTX 5080 (Blackwell) 双架构，已全面适配官方专用模型；"
+            "并联挂载时自动开启 <code>NRHookPoint=2 (Present)</code> 安全挂钩、<code>Reduced</code> 显存防溢出与非阻塞呈现队列，"
+            "彻底消除 <code>list_refused=direct</code> 与 <code>DXGI_ERROR_DEVICE_HUNG</code> 闪退。"
         )
-
         self.lbl_tip.setWordWrap(True)
-
         self.lbl_tip.setStyleSheet("font-size: 11px; line-height: 140%;")
-
         action_row.addWidget(self.lbl_tip, 1)
 
-
-
         self.btn_read_game = QPushButton("🔄 从游戏读取")
-
         self.btn_read_game.setObjectName("BtnReadGame")
-
         self.btn_read_game.setCursor(Qt.CursorShape.PointingHandCursor)
-
         self.btn_read_game.setMinimumHeight(34)
-
         self.btn_read_game.clicked.connect(self.on_read_clicked)
-
         action_row.addWidget(self.btn_read_game)
 
-
-
         self.btn_save_dlss5 = QPushButton("💾 保存 DLSS 5 参数 (同步写入当前游戏)")
-
         self.btn_save_dlss5.setObjectName("BtnSaveDLSS5")
-
         self.btn_save_dlss5.setCursor(Qt.CursorShape.PointingHandCursor)
-
         self.btn_save_dlss5.setMinimumHeight(34)
-
         self.btn_save_dlss5.clicked.connect(self.on_save_clicked)
-
         action_row.addWidget(self.btn_save_dlss5)
-
-
 
         layout.addLayout(action_row)
 
-
-
-        for cb in [self.combo_hook, self.combo_passes, self.combo_style, self.combo_vram, self.combo_hdr]:
-
+        for cb in [self.combo_gpu_arch, self.combo_hook, self.combo_style, self.combo_dlss_preset, self.combo_passes, self.combo_encoding, self.combo_vram]:
             cb.setView(QListView())
-
             cb.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-
-
 
         self.load_config()
 
-
-
     def _on_param_changed(self):
-
         if not self._is_loading:
-
             self.lbl_sync_tag.setText("● 参数已修改 (待保存)")
-
             self.lbl_sync_tag.setStyleSheet("font-size: 11px; font-weight: 600; color: #F59E0B;")
 
-
-
     def _on_slider_intensity_changed(self, v: int):
-
         self.lbl_intensity_val.setText(f"{v / 100.0:.2f}")
-
         self._on_param_changed()
-
-
 
     def _on_slider_res_scale_changed(self, v: int):
-
         self.lbl_res_scale_val.setText(f"{v / 100.0:.2f}")
-
         self._on_param_changed()
 
+    def _on_slider_local_structure_changed(self, v: int):
+        self.lbl_local_structure_val.setText(f"{v / 100.0:.2f}")
+        self._on_param_changed()
 
+    def _on_slider_local_tone_changed(self, v: int):
+        self.lbl_local_tone_val.setText(f"{v / 100.0:.2f}")
+        self._on_param_changed()
+
+    def _on_slider_skin_structure_changed(self, v: int):
+        self.lbl_skin_structure_val.setText(f"{v / 100.0:.2f}")
+        self._on_param_changed()
 
     def get_params(self) -> Dict[str, Any]:
-
+        arch_val = self.combo_gpu_arch.currentData() if hasattr(self, "combo_gpu_arch") else "auto"
         hook_val = self.combo_hook.currentData()
-
         passes_val = self.combo_passes.currentData()
-
         style_val = self.combo_style.currentData()
-
+        dlss_preset_val = self.combo_dlss_preset.currentData() if hasattr(self, "combo_dlss_preset") else 11
         vram_val = self.combo_vram.currentData()
+        encoding_val = self.combo_encoding.currentData() if hasattr(self, "combo_encoding") else 0
 
-        hdr_val = self.combo_hdr.currentData()
-
-
+        res_scale = round(self.slider_res_scale.value() / 100.0, 2)
+        intensity = round(self.slider_intensity.value() / 100.0, 2)
+        local_structure = round(self.slider_local_structure.value() / 100.0, 2) if hasattr(self, "slider_local_structure") else 1.0
+        local_tone = round(self.slider_local_tone.value() / 100.0, 2) if hasattr(self, "slider_local_tone") else 1.0
+        skin_structure = round(self.slider_skin_structure.value() / 100.0, 2) if hasattr(self, "slider_skin_structure") else 1.0
+        auto_mask = 1 if (hasattr(self, "chk_auto_mask") and self.chk_auto_mask.isChecked()) else 0
 
         return {
-
+            "gpu_arch": str(arch_val) if arch_val is not None else "auto",
+            "status": 1 if self.chk_uplift.isChecked() else 0,
             "uplift": 1 if self.chk_uplift.isChecked() else 0,
-
+            "hook_stage": int(hook_val) if hook_val is not None else 2,
             "hook_point": int(hook_val) if hook_val is not None else 2,
-
             "passes": int(passes_val) if passes_val is not None else 1,
-
-            "res_scale": round(self.slider_res_scale.value() / 100.0, 2),
-
-            "intensity": round(self.slider_intensity.value() / 100.0, 2),
-
-            "style": int(style_val) if style_val is not None else 0,
-
-            "vram": str(vram_val) if vram_val is not None else "Full",
-
+            "pass_count": int(passes_val) if passes_val is not None else 1,
+            "res_scale": res_scale,
+            "processing_scale": res_scale,
+            "intensity": intensity,
+            "style": int(style_val) if style_val is not None else 2,
+            "local_structure": local_structure,
+            "local_tone": local_tone,
+            "skin_structure": skin_structure,
+            "auto_mask": auto_mask,
+            "encoding": int(encoding_val) if encoding_val is not None else 0,
+            "hdr": int(encoding_val) if encoding_val is not None else 0,
+            "dlss_preset": int(dlss_preset_val) if dlss_preset_val is not None else 11,
+            "vram": str(vram_val) if vram_val is not None else "Reduced",
             "non_blocking": 1 if self.chk_non_blocking.isChecked() else 0,
-
-            "hdr": int(hdr_val) if hdr_val is not None else 0,
-
+            "reuse_upscaling": 1,
+            "ui_correction": 0,
             "runtime_path": r".\nvngx_dlssnr.dll"
-
         }
 
-
-
     def set_params(self, cfg: Dict[str, Any]):
-
         self._is_loading = True
-
         try:
+            # GPU Arch
+            arch = cfg.get("gpu_arch", "auto")
+            for i in range(self.combo_gpu_arch.count()):
+                if self.combo_gpu_arch.itemData(i) == arch:
+                    self.combo_gpu_arch.setCurrentIndex(i)
+                    break
 
-            self.chk_uplift.setChecked(bool(cfg.get("uplift", 1)))
+            # Uplift / Status
+            self.chk_uplift.setChecked(bool(cfg.get("status", cfg.get("uplift", 1))))
 
-
-
-            hp = int(cfg.get("hook_point", 2))
-
-            hp_idx = 0
-
+            # Hook stage / point
+            hp = int(cfg.get("hook_stage", cfg.get("hook_point", 2)))
             for i in range(self.combo_hook.count()):
-
                 if self.combo_hook.itemData(i) == hp:
-
-                    hp_idx = i
-
+                    self.combo_hook.setCurrentIndex(i)
                     break
 
-            self.combo_hook.setCurrentIndex(hp_idx)
-
-
-
-            p_val = int(cfg.get("passes", 1))
-
-            p_idx = 0
-
+            # Passes / Pass count
+            p_val = int(cfg.get("pass_count", cfg.get("passes", 1)))
             for i in range(self.combo_passes.count()):
-
                 if self.combo_passes.itemData(i) == p_val:
-
-                    p_idx = i
-
+                    self.combo_passes.setCurrentIndex(i)
                     break
 
-            self.combo_passes.setCurrentIndex(p_idx)
-
-
-
-            s_val = int(cfg.get("style", 0))
-
-            s_idx = 0
-
+            # Style (default 2: Model C)
+            s_val = int(cfg.get("style", 2))
             for i in range(self.combo_style.count()):
-
                 if self.combo_style.itemData(i) == s_val:
-
-                    s_idx = i
-
+                    self.combo_style.setCurrentIndex(i)
                     break
 
-            self.combo_style.setCurrentIndex(s_idx)
+            # DLSS Preset (default 11: Preset K)
+            dp_val = int(cfg.get("dlss_preset", 11))
+            for i in range(self.combo_dlss_preset.count()):
+                if self.combo_dlss_preset.itemData(i) == dp_val:
+                    self.combo_dlss_preset.setCurrentIndex(i)
+                    break
 
+            # Encoding / HDR
+            enc_val = int(cfg.get("encoding", cfg.get("hdr", 0)))
+            for i in range(self.combo_encoding.count()):
+                if self.combo_encoding.itemData(i) == enc_val:
+                    self.combo_encoding.setCurrentIndex(i)
+                    break
 
-
-            vr_val = str(cfg.get("vram", "Full"))
-
-            vr_idx = 0
-
+            # Vram
+            vr_val = str(cfg.get("vram", "Reduced"))
             for i in range(self.combo_vram.count()):
-
                 if str(self.combo_vram.itemData(i)).lower() == vr_val.lower():
-
-                    vr_idx = i
-
+                    self.combo_vram.setCurrentIndex(i)
                     break
 
-            self.combo_vram.setCurrentIndex(vr_idx)
-
-
-
-            hdr_val = int(cfg.get("hdr", 0))
-
-            hdr_idx = 0
-
-            for i in range(self.combo_hdr.count()):
-
-                if self.combo_hdr.itemData(i) == hdr_val:
-
-                    hdr_idx = i
-
-                    break
-
-            self.combo_hdr.setCurrentIndex(hdr_idx)
-
-
-
+            # Non-blocking
             self.chk_non_blocking.setChecked(bool(cfg.get("non_blocking", 1)))
 
-
-
+            # Intensity
             intensity = float(cfg.get("intensity", 1.0))
-
             self.slider_intensity.setValue(int(intensity * 100))
-
             self.lbl_intensity_val.setText(f"{intensity:.2f}")
 
-
-
-            res_scale = float(cfg.get("res_scale", 1.0))
-
+            # Res Scale / Processing Scale (default 0.67)
+            res_scale = float(cfg.get("processing_scale", cfg.get("res_scale", 0.67)))
             self.slider_res_scale.setValue(int(res_scale * 100))
-
             self.lbl_res_scale_val.setText(f"{res_scale:.2f}")
 
+            # Local Structure
+            ls = float(cfg.get("local_structure", 1.0))
+            self.slider_local_structure.setValue(int(ls * 100))
+            self.lbl_local_structure_val.setText(f"{ls:.2f}")
 
+            # Local Tone
+            lt = float(cfg.get("local_tone", 1.0))
+            self.slider_local_tone.setValue(int(lt * 100))
+            self.lbl_local_tone_val.setText(f"{lt:.2f}")
+
+            # Skin Structure
+            ss = float(cfg.get("skin_structure", 1.0))
+            self.slider_skin_structure.setValue(int(ss * 100))
+            self.lbl_skin_structure_val.setText(f"{ss:.2f}")
+
+            # Auto mask
+            self.chk_auto_mask.setChecked(bool(cfg.get("auto_mask", 0)))
 
             self.lbl_sync_tag.setText("● 参数已就绪")
-
             self.lbl_sync_tag.setStyleSheet("font-size: 11px; font-weight: 600; color: #10B981;")
-
         finally:
-
             self._is_loading = False
 
-
-
     def load_config(self, target_dir=None):
-
         self.current_target_dir = target_dir
-
         if target_dir and os.path.exists(target_dir):
-
             cfg = read_game_dlss5_config(target_dir)
-
             self.set_params(cfg)
-
         else:
-
             cfg = load_dlss5_preset()
-
             self.set_params(cfg)
-
-
 
     def save_config(self, target_dir=None) -> bool:
-
         td = target_dir or self.current_target_dir
-
         cfg = self.get_params()
-
         save_dlss5_preset(cfg)
-
         if td and os.path.exists(td):
-
             ok = write_game_dlss5_config(td, cfg)
-
             if ok:
-
                 self.lbl_sync_tag.setText("● 已同步至 ReShade.ini")
-
                 self.lbl_sync_tag.setStyleSheet("font-size: 11px; font-weight: 600; color: #10B981;")
-
             return ok
-
         return True
 
-
-
     def on_save_clicked(self):
-
         if not self.current_target_dir or not os.path.exists(self.current_target_dir):
-
             QMessageBox.warning(self, "提示", "请先选择目标游戏！")
-
             return
-
         ok = self.save_config(self.current_target_dir)
-
         if ok:
-
             QMessageBox.information(
-
                 self,
-
                 "保存成功",
-
                 "✅ DLSS 5 核心参数已成功同步写入游戏的 ReShade.ini！\n\n"
-
-                "• 挂钩点：HookPoint=" + str(self.combo_hook.currentData()) + "\n"
-
+                "• 显卡架构：" + str(self.combo_gpu_arch.currentText()) + "\n"
+                "• 挂钩管线：HookStage=" + str(self.combo_hook.currentData()) + "\n"
+                "• 画质风格：Style=" + str(self.combo_style.currentData()) + " (模型 C 柔和电影)\n"
+                "• DLSS 底层模型：Preset=" + str(self.combo_dlss_preset.currentText().split()[0]) + "\n"
                 "• 队列策略：NRPresentNonBlocking=" + str(1 if self.chk_non_blocking.isChecked() else 0) + "\n"
-
                 "• 显存缓冲：NRVramBuffering=" + str(self.combo_vram.currentData()) + "\n"
-
                 "• 迭代次数：" + str(self.combo_passes.currentData()) + " Pass\n\n"
-
-                "💡 启动游戏后按对应热键即可生效。"
-
+                "💡 启动游戏后按【Home】键即可生效调校。"
             )
-
         else:
-
             QMessageBox.critical(self, "保存失败", "写入游戏 ReShade.ini 配置文件失败，请检查文件读写权限。")
 
-
-
     def on_read_clicked(self):
-
         if not self.current_target_dir or not os.path.exists(self.current_target_dir):
-
             QMessageBox.warning(self, "提示", "请先选择目标游戏！")
-
             return
-
         self.load_config(self.current_target_dir)
-
         QMessageBox.information(self, "读取成功", "已从当前游戏目录的 ReShade.ini 成功加载 DLSS 5 参数！")
 
-
-
     def on_reset_clicked(self):
-
         self.set_params(DEFAULT_DLSS5_CONFIG)
-
         self.lbl_sync_tag.setText("● 已恢复默认 (待保存)")
-
         self.lbl_sync_tag.setStyleSheet("font-size: 11px; font-weight: 600; color: #F59E0B;")
 
-
-
     def apply_theme(self, is_dark: bool):
-
         card_bg = "#222325" if is_dark else "#F8FAFC"
-
         border = "#383A3C" if is_dark else "#E2E8F0"
-
         text_c = "#E8E8E8" if is_dark else "#1A1A1A"
-
         sub_c = "#94A3B8" if is_dark else "#64748B"
-
         btn_green = "#10B981" if is_dark else "#16A34A"
-
         btn_green_hover = "#059669" if is_dark else "#15803D"
-
         btn_sec_bg = "#334155" if is_dark else "#F1F5F9"
-
         btn_sec_border = "#475569" if is_dark else "#CBD5E1"
-
         btn_sec_hover = "#475569" if is_dark else "#E2E8F0"
-
         btn_sec_text = "#F8FAFC" if is_dark else "#1E293B"
 
-
-
         self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {text_c};")
-
+        self.lbl_gpu.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
         self.lbl_hook.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
-        self.lbl_passes.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
         self.lbl_style.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
+        self.lbl_dlss_preset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_passes.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_encoding.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
         self.lbl_intensity.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
         self.lbl_res_scale.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
+        self.lbl_local_structure.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_local_tone.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
+        self.lbl_skin_structure.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
         self.lbl_vram.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
-        self.lbl_hdr.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
-
         self.lbl_tip.setStyleSheet(f"font-size: 11px; color: {sub_c}; line-height: 140%;")
 
-
+        for lbl_val in [self.lbl_intensity_val, self.lbl_res_scale_val, self.lbl_local_structure_val, self.lbl_local_tone_val, self.lbl_skin_structure_val]:
+            lbl_val.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_c};")
 
         self.params_frame.setStyleSheet(f"""
-
             QFrame#DLSS5ParamsContainer {{
-
                 background-color: {card_bg};
-
                 border: 1px solid {border};
-
                 border-radius: 8px;
-
             }}
-
             QFrame#DLSS5ParamsContainer QCheckBox {{
-
                 color: {text_c};
-
                 font-size: 12px;
-
                 font-weight: 500;
-
             }}
-
         """)
-
-
 
         combo_style = make_combo_style(is_dark, min_height=32, font_size=12)
-
-        for cb in [self.combo_hook, self.combo_passes, self.combo_style, self.combo_vram, self.combo_hdr]:
-
+        for cb in [self.combo_gpu_arch, self.combo_hook, self.combo_style, self.combo_dlss_preset, self.combo_passes, self.combo_encoding, self.combo_vram]:
             cb.setStyleSheet(combo_style)
 
-
-
         slider_style = make_slider_style(is_dark)
-
-        self.slider_intensity.setStyleSheet(slider_style)
-
-        self.slider_res_scale.setStyleSheet(slider_style)
-
-
+        for s in [self.slider_intensity, self.slider_res_scale, self.slider_local_structure, self.slider_local_tone, self.slider_skin_structure]:
+            s.setStyleSheet(slider_style)
 
         self.btn_reset_defaults.setStyleSheet(f"""
-
             QPushButton#BtnResetDefaults {{
-
                 background-color: transparent;
-
                 color: {'#38BDF8' if is_dark else '#0284C7'};
-
                 font-size: 12px;
-
                 font-weight: 600;
-
                 border: 1px solid {'#38BDF8' if is_dark else '#0284C7'};
-
                 border-radius: 6px;
-
                 padding: 4px 10px;
-
             }}
-
             QPushButton#BtnResetDefaults:hover {{
-
                 background-color: {'#38BDF8' if is_dark else '#0284C7'};
-
                 color: #FFFFFF;
-
             }}
-
         """)
-
-
 
         self.btn_read_game.setStyleSheet(f"""
-
             QPushButton#BtnReadGame {{
-
                 background-color: {btn_sec_bg};
-
                 color: {btn_sec_text};
-
                 font-size: 12px;
-
                 font-weight: 600;
-
                 border: 1px solid {btn_sec_border};
-
                 border-radius: 8px;
-
                 padding: 6px 12px;
-
             }}
-
             QPushButton#BtnReadGame:hover {{
-
                 background-color: {btn_sec_hover};
-
             }}
-
         """)
-
-
 
         self.btn_save_dlss5.setStyleSheet(f"""
-
             QPushButton#BtnSaveDLSS5 {{
-
                 background-color: {btn_green};
-
                 color: #FFFFFF;
-
                 font-size: 12px;
-
                 font-weight: 700;
-
                 border: none;
-
                 border-radius: 8px;
-
                 padding: 6px 14px;
-
             }}
-
             QPushButton#BtnSaveDLSS5:hover {{
-
                 background-color: {btn_green_hover};
-
             }}
-
         """)
-
-
-
 
 
 class DLSS5Window(DMBaseWindow):
@@ -2788,7 +2509,7 @@ class DLSS5Window(DMBaseWindow):
 
         self.banner_desc = QLabel(
 
-            "集成最新 lecram DLSS 5 神经网络重建插件 (DLSS 5 NR Addon)，"
+            "集成最新 RenoDX ShortFuse DLSS 5 神经网络渲染插件 (DLSS 5 NR Addon)，"
 
             "为支持 DLSS 的游戏注入下一代神经网络画质引擎，内建 ReShade/RHI 运行底座，并与多帧生成补丁 (RHI / OptiScaler) 智能避让与链式共存。"
 
@@ -3152,7 +2873,7 @@ class DLSS5Window(DMBaseWindow):
 
             "<b>1. 游戏内热键与调校</b>：<br>"
 
-            "启动游戏后，在游戏画面中按键盘 <code>【Home】</code> 键即可唤出 ReShade 叠加控制台。在 <code>【Add-ons】</code> 标签页中可查看已挂载的 <b>lecram-dlss5-beta10</b> 神经重构插件及其运行状态。<br><br>"
+            "启动游戏后，在游戏画面中按键盘 <code>【Home】</code> 键即可唤出 ReShade 叠加控制台。在 <code>【Add-ons】</code> 标签页中可查看已挂载的 <b>RenoDX DLSS 5</b> 神经重构插件及其运行状态。<br><br>"
 
             "<b>2. 多帧生成 (插帧) 避让与共存机制</b>：<br>"
 
@@ -3266,7 +2987,7 @@ class DLSS5Window(DMBaseWindow):
 
             # Check DLSS 5 injection on disk
 
-            addon_exists = (Path(p_dir) / "lecram-dlss5-beta10.addon64").exists() if p_dir else False
+            addon_exists = ((Path(p_dir) / "renodx-dlss.addon64").exists() or (Path(p_dir) / "lecram-dlss5-beta10.addon64").exists()) if p_dir else False
 
 
 

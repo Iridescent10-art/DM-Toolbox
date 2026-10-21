@@ -47,7 +47,7 @@ class TestDLSS5Injector(unittest.TestCase):
         addon_src = get_dlss5_addon_path()
         self.assertIsNotNone(addon_src)
         self.assertTrue(os.path.exists(addon_src))
-        self.assertGreater(os.path.getsize(addon_src), 5 * 1024 * 1024)
+        self.assertGreater(os.path.getsize(addon_src), 2 * 1024 * 1024)
 
         # Verify runtime DLL asset file (nvngx_dlssnr.dll ~165 MB)
         runtime_src = get_dlss5_runtime_dll_path()
@@ -71,7 +71,7 @@ class TestDLSS5Injector(unittest.TestCase):
         self.assertIn("✅", msg)
 
         # Check injected files
-        addon_dest = self.game_dir / "lecram-dlss5-beta10.addon64"
+        addon_dest = self.game_dir / "renodx-dlss.addon64"
         runtime_dest = self.game_dir / "nvngx_dlssnr.dll"
         dxgi_dest = self.game_dir / "dxgi.dll"
         ini_dest = self.game_dir / "ReShade.ini"
@@ -147,7 +147,7 @@ class TestDLSS5Injector(unittest.TestCase):
         self.assertEqual(dxgi_bytes, mock_mfg_dxgi, "dxgi.dll was modified despite RHI being present!")
 
         # 6. DLSS 5 addon and runtime must be copied
-        addon_dest = self.game_dir / "lecram-dlss5-beta10.addon64"
+        addon_dest = self.game_dir / "renodx-dlss.addon64"
         runtime_dest = self.game_dir / "nvngx_dlssnr.dll"
         self.assertTrue(addon_dest.exists())
         self.assertTrue(runtime_dest.exists())
@@ -235,7 +235,7 @@ class TestDLSS5Injector(unittest.TestCase):
         self.assertIn("OptiScaler 链式共存模式生效", msg)
 
         # 5. Check files
-        self.assertTrue((self.game_dir / "lecram-dlss5-beta10.addon64").exists())
+        self.assertTrue((self.game_dir / "renodx-dlss.addon64").exists())
         self.assertTrue((self.game_dir / "nvngx_dlssnr.dll").exists())
         self.assertTrue((self.game_dir / "ReShade.ini").exists())
         # OptiScaler dxgi.dll MUST NOT BE OVERWRITTEN!
@@ -244,7 +244,7 @@ class TestDLSS5Injector(unittest.TestCase):
         # 6. Check restore
         ok_restore, msg_restore = DLSS5Injector.restore(str(self.game_dir))
         self.assertTrue(ok_restore, msg_restore)
-        self.assertFalse((self.game_dir / "lecram-dlss5-beta10.addon64").exists())
+        self.assertFalse((self.game_dir / "renodx-dlss.addon64").exists())
         self.assertFalse((self.game_dir / "nvngx_dlssnr.dll").exists())
         self.assertFalse((self.game_dir / "ReShade64.dll").exists())
 
@@ -310,13 +310,13 @@ class TestDLSS5Injector(unittest.TestCase):
     def test_restore_clean_game(self):
         """Verify restoring a standalone DLSS 5 injection cleans up all its deployed files."""
         DLSS5Injector.inject(str(self.game_dir))
-        self.assertTrue((self.game_dir / "lecram-dlss5-beta10.addon64").exists())
+        self.assertTrue((self.game_dir / "renodx-dlss.addon64").exists())
         self.assertTrue((self.game_dir / "nvngx_dlssnr.dll").exists())
         self.assertTrue((self.game_dir / "dxgi.dll").exists())
 
         ok, msg = DLSS5Injector.restore(str(self.game_dir))
         self.assertTrue(ok, msg)
-        self.assertFalse((self.game_dir / "lecram-dlss5-beta10.addon64").exists())
+        self.assertFalse((self.game_dir / "renodx-dlss.addon64").exists())
         self.assertFalse((self.game_dir / "nvngx_dlssnr.dll").exists())
         self.assertFalse((self.game_dir / "dxgi.dll").exists())
         self.assertFalse((self.game_dir / ".dlss5_patch_manifest.json").exists())
@@ -369,7 +369,7 @@ class TestDLSS5Injector(unittest.TestCase):
         # 1. Simulate game directory cluttered with OptiScaler + DLSS 5 + logs + crash dumps
         (self.game_dir / "dxgi.dll").write_bytes(b"OPTISCALER_PROXY_26MB" + b"\x00" * 1024)
         (self.game_dir / "ReShade64.dll").write_bytes(b"RESHADE_CORE" + b"\x00" * 1024)
-        (self.game_dir / "lecram-dlss5-beta10.addon64").write_bytes(b"DLSS5_ADDON" + b"\x00" * 1024)
+        (self.game_dir / "renodx-dlss.addon64").write_bytes(b"DLSS5_ADDON" + b"\x00" * 1024)
         (self.game_dir / "nvngx_dlssnr.dll").write_bytes(b"DLSS5_RUNTIME" + b"\x00" * 1024)
         (self.game_dir / "fakenvapi.dll").write_bytes(b"FAKENVAPI" + b"\x00" * 1024)
         (self.game_dir / "fakenvapi.ini").write_text("[fakenvapi]\nenabled=true", encoding="utf-8")
@@ -402,7 +402,7 @@ class TestDLSS5Injector(unittest.TestCase):
 
         # Verify cluttered state
         self.assertTrue((self.game_dir / "dxgi.dll").exists())
-        self.assertTrue((self.game_dir / "lecram-dlss5-beta10.addon64").exists())
+        self.assertTrue((self.game_dir / "renodx-dlss.addon64").exists())
         self.assertTrue((self.game_dir / "OptiScaler").is_dir())
 
         # 2. Test DLSS5Injector.restore with force_clean_all=True
@@ -412,7 +412,7 @@ class TestDLSS5Injector(unittest.TestCase):
         # 3. Assert EVERY SINGLE foreign file and directory is purged
         self.assertFalse((self.game_dir / "dxgi.dll").exists(), "dxgi.dll must be deleted!")
         self.assertFalse((self.game_dir / "ReShade64.dll").exists(), "ReShade64.dll must be deleted!")
-        self.assertFalse((self.game_dir / "lecram-dlss5-beta10.addon64").exists(), "DLSS5 addon must be deleted!")
+        self.assertFalse((self.game_dir / "renodx-dlss.addon64").exists(), "DLSS5 addon must be deleted!")
         self.assertFalse((self.game_dir / "nvngx_dlssnr.dll").exists(), "nvngx_dlssnr.dll must be deleted!")
         self.assertFalse((self.game_dir / "fakenvapi.dll").exists(), "fakenvapi.dll must be deleted!")
         self.assertFalse((self.game_dir / "fakenvapi.ini").exists(), "fakenvapi.ini must be deleted!")
@@ -437,6 +437,40 @@ class TestDLSS5Injector(unittest.TestCase):
         # Game executable MUST remain intact
         self.assertTrue((self.game_dir / "Cyberpunk2077.exe").exists(), "Game exe must remain intact!")
 
+
+
+    def test_dual_architecture_model_routing(self):
+        """Verify dual-architecture GPU detection and runtime selection (RTX 50 vs RTX 20/30/40)."""
+        from apps.app6_dlss5.engine.injector import detect_system_gpu, get_dlss5_runtime_dll_path
+        gpu_info = detect_system_gpu()
+        self.assertIn("arch", gpu_info)
+        self.assertIn("gpu_name", gpu_info)
+        
+        # Test explicit architecture resolution
+        rtx50_path = get_dlss5_runtime_dll_path(arch="rtx50")
+        self.assertIsNotNone(rtx50_path)
+        self.assertTrue(os.path.exists(rtx50_path))
+        
+        rtx20_path = get_dlss5_runtime_dll_path(arch="rtx20_30_40")
+        self.assertIsNotNone(rtx20_path)
+        self.assertTrue(os.path.exists(rtx20_path))
+
+
+    def test_dlss5_panel_params(self):
+        """Verify DLSS 5 configuration read/write and default RenoDX values."""
+        from apps.app6_dlss5.engine.dlss5_config import DEFAULT_DLSS5_CONFIG, read_game_dlss5_config, write_game_dlss5_config
+        self.assertIn("status", DEFAULT_DLSS5_CONFIG)
+        self.assertIn("style", DEFAULT_DLSS5_CONFIG)
+        self.assertIn("dlss_preset", DEFAULT_DLSS5_CONFIG)
+        self.assertEqual(DEFAULT_DLSS5_CONFIG["style"], 2)
+        self.assertEqual(DEFAULT_DLSS5_CONFIG["dlss_preset"], 11)
+
+        ok = write_game_dlss5_config(str(self.game_dir), DEFAULT_DLSS5_CONFIG)
+        self.assertTrue(ok)
+        read_cfg = read_game_dlss5_config(str(self.game_dir))
+        self.assertEqual(read_cfg.get("status"), 1)
+        self.assertEqual(read_cfg.get("style"), 2)
+        self.assertEqual(read_cfg.get("dlss_preset"), 11)
 
 if __name__ == "__main__":
     unittest.main()

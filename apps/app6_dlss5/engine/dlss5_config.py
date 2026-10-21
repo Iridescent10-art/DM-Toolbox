@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-DLSS 5 Neural Reconstruction Configuration Service
-==================================================
-Manages DLSS 5 (lecram / RenoDX NR Addon) parameter presets,
-reading and writing configuration to ReShade.ini across all supported section headers
-([RenoDX.DLSS5], [DLSS5], and [DLSS5-NR]).
+DLSS 5 Neural Reconstruction Configuration Service (RenoDX ShortFuse 261017 & Legacy Mirror)
+==========================================================================================
+Manages DLSS 5 Direct Neural Reconstruction (DNR / NR Addon) parameter presets,
+reading and writing configuration to ReShade.ini across all supported section headers:
+- Modern ShortFuse RenoDX: [RenoDX], [DLSS], [RenoDX.DLSS]
+- Backward Compatibility: [RenoDX.DLSS5], [DLSS5], [DLSS5-NR]
 """
 
 import os
@@ -16,15 +17,42 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 DEFAULTS_FILE = ROOT_DIR / "defaults" / "app6_dlss5" / "dlss5_preset.json"
 
 DEFAULT_DLSS5_CONFIG: Dict[str, Any] = {
+    # GPU Model Architecture ("auto", "rtx20_30_40", "rtx50")
+    "gpu_arch": "auto",
+
+    # RenoDX Direct Neural Rendering (ShortFuse Official)
+    "status": 1,               # 1: 启用神经重构 (DirectNeuralRenderingStatus)
+    "hook_stage": 2,           # 2: Present 呈现阶段 · 最稳防闪退 (DirectNeuralRenderingHookStage)
+    "reuse_upscaling": 1,      # 1: 可选复用 DLSS 超分运动向量与深度 (DirectNeuralRenderingReuseDlssUpscalingResources)
+    "ui_correction": 0,        # 0: 自动 UI 校正 (DirectNeuralRenderingUiCorrectionMode)
+    "intensity": 1.00,         # 整体重构强度 1.00 (DirectNeuralRenderingIntensity)
+    "style": 2,                # 模型样式: 0=模型A(原生), 1=模型B(锐度), 2=模型C(电影柔和·抑噪)
+    "local_structure": 1.00,   # 结构强度 (DirectNeuralRenderingLocalStructureStrength)
+    "local_tone": 1.00,        # 局部色调 (DirectNeuralRenderingLocalToneStrength)
+    "auto_mask": 0,            # 角色蒙版 (DirectNeuralRenderingAutoMask)
+    "skin_structure": 1.00,    # 皮肤结构 (DirectNeuralRenderingSkinStructureStrength)
+    "processing_scale": 0.67,  # 重构分辨率缩放 (DirectNeuralRenderingProcessingScale)
+    "pass_count": 1,           # 推理遍数 1 Pass (DirectNeuralRenderingPassCount)
+    "encoding": 0,             # 色彩编码 0: 自动 (DirectNeuralRenderingEncoding)
+    "signal_encoding": 0,      # NR 信号编码 0: 自动 (DirectNeuralRenderingSignalEncoding)
+    "diffuse_white": 203.0,    # 参考白场亮度 203.0 nits (DirectNeuralRenderingDiffuseWhiteNits)
+    "block_hudless": 0,        # 屏蔽 HUD 源 (DirectNeuralRenderingBlockHudless)
+    "exposure_mode": 0,        # 曝光模式: 0 正常 (DirectNeuralRenderingExposureMode)
+    "exposure": 1.00,          # 曝光乘数 1.00x (DirectNeuralRenderingExposure)
+
+    # DLSS Quality & Render Preset Overrides (Anti-Preset D -> Preset K)
+    "dlss_preset": 11,         # 11: Preset K (DLSSPresetDLAA, Quality, Balanced, Performance, UltraPerformance)
+    "dlss_quality_mode": 0,    # 0: 游戏默认 (DLSSQualityMode)
+    "dlss_auto_exposure": 0,   # 0: 游戏默认 (DLSSAutoExposure)
+
+    # Legacy Compatibility Keys (for older addon / test suite compatibility)
     "uplift": 1,
-    "hook_point": 2,          # 2 = Present (呈现阶段 · 最稳防闪退 · 推荐预设)
-    "passes": 1,              # 1 Pass (标准极速 · 旗舰推荐)
-    "res_scale": 0.67,        # 0.67 (重构分辨率缩放)
-    "intensity": 1.00,        # 1.00 (重构强度权重)
-    "style": 2,               # 2 = 电影感柔和 (Cinematic Soft · 柔化抑噪)
-    "vram": "Reduced",        # Reduced (精简缓冲 · 消除显存竞争与防崩溃 · 推荐)
-    "non_blocking": 1,        # 1 = 启用 Present 非阻塞呈现队列 (杜绝 D3D12 死锁与 TDR 崩溃)
-    "hdr": 0,                 # 0 = 自动 / 原生 HDR (推荐)
+    "hook_point": 2,
+    "passes": 1,
+    "res_scale": 0.67,
+    "vram": "Reduced",
+    "non_blocking": 1,
+    "hdr": 0,
     "runtime_path": r".\nvngx_dlssnr.dll"
 }
 
@@ -57,7 +85,7 @@ def save_dlss5_preset(preset: Dict[str, Any]) -> bool:
 def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Reads existing DLSS 5 configuration from target_path (directory or ini file).
-    Inspects [RenoDX.DLSS5], [DLSS5], and [DLSS5-NR] in order.
+    Inspects [RenoDX], [DLSS], [RenoDX.DLSS] first, then legacy [RenoDX.DLSS5], [DLSS5], [DLSS5-NR].
     Returns merged dictionary with default fallbacks.
     """
     config = load_dlss5_preset()
@@ -82,55 +110,143 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
     except Exception:
         return config
 
-    sec = sections.get("RenoDX.DLSS5") or sections.get("DLSS5") or sections.get("DLSS5-NR") or {}
-    if not sec:
-        return config
+    # Check modern RenoDX / DLSS sections
+    mod_sec = sections.get("RenoDX") or sections.get("DLSS") or sections.get("RenoDX.DLSS") or {}
+    legacy_sec = sections.get("RenoDX.DLSS5") or sections.get("DLSS5") or sections.get("DLSS5-NR") or {}
 
-    # Neural Uplift
-    if "NeuralUplift" in sec:
+    # Modern RenoDX Keys
+    if "DirectNeuralRenderingStatus" in mod_sec:
         try:
-            config["uplift"] = int(sec["NeuralUplift"])
+            config["status"] = int(mod_sec["DirectNeuralRenderingStatus"])
+            config["uplift"] = config["status"]
         except Exception:
             pass
 
-    # NRHookPoint
-    if "NRHookPoint" in sec:
+    if "DirectNeuralRenderingHookStage" in mod_sec:
         try:
-            config["hook_point"] = int(sec["NRHookPoint"])
+            config["hook_stage"] = int(mod_sec["DirectNeuralRenderingHookStage"])
+            config["hook_point"] = config["hook_stage"]
         except Exception:
             pass
 
-    # NRPasses
-    if "NRPasses" in sec:
+    if "DirectNeuralRenderingReuseDlssUpscalingResources" in mod_sec:
         try:
-            config["passes"] = int(sec["NRPasses"])
+            config["reuse_upscaling"] = int(mod_sec["DirectNeuralRenderingReuseDlssUpscalingResources"])
         except Exception:
             pass
 
-    # NRResolutionScale
-    if "NRResolutionScale" in sec:
+    if "DirectNeuralRenderingUiCorrectionMode" in mod_sec:
         try:
-            config["res_scale"] = float(sec["NRResolutionScale"])
+            config["ui_correction"] = int(mod_sec["DirectNeuralRenderingUiCorrectionMode"])
         except Exception:
             pass
 
-    # NRIntensity
-    if "NRIntensity" in sec:
+    if "DirectNeuralRenderingIntensity" in mod_sec:
         try:
-            config["intensity"] = float(sec["NRIntensity"])
+            config["intensity"] = float(mod_sec["DirectNeuralRenderingIntensity"])
         except Exception:
             pass
 
-    # NRStyle
-    if "NRStyle" in sec:
+    if "DirectNeuralRenderingStyle" in mod_sec:
         try:
-            config["style"] = int(sec["NRStyle"])
+            config["style"] = int(mod_sec["DirectNeuralRenderingStyle"])
         except Exception:
             pass
 
-    # NRVramBuffering
-    if "NRVramBuffering" in sec:
-        val = sec["NRVramBuffering"].strip()
+    if "DirectNeuralRenderingLocalStructureStrength" in mod_sec:
+        try:
+            config["local_structure"] = float(mod_sec["DirectNeuralRenderingLocalStructureStrength"])
+        except Exception:
+            pass
+
+    if "DirectNeuralRenderingLocalToneStrength" in mod_sec:
+        try:
+            config["local_tone"] = float(mod_sec["DirectNeuralRenderingLocalToneStrength"])
+        except Exception:
+            pass
+
+    if "DirectNeuralRenderingAutoMask" in mod_sec:
+        try:
+            config["auto_mask"] = int(mod_sec["DirectNeuralRenderingAutoMask"])
+        except Exception:
+            pass
+
+    if "DirectNeuralRenderingSkinStructureStrength" in mod_sec:
+        try:
+            config["skin_structure"] = float(mod_sec["DirectNeuralRenderingSkinStructureStrength"])
+        except Exception:
+            pass
+
+    if "DirectNeuralRenderingProcessingScale" in mod_sec:
+        try:
+            config["processing_scale"] = float(mod_sec["DirectNeuralRenderingProcessingScale"])
+            config["res_scale"] = config["processing_scale"]
+        except Exception:
+            pass
+
+    if "DirectNeuralRenderingPassCount" in mod_sec:
+        try:
+            config["pass_count"] = int(mod_sec["DirectNeuralRenderingPassCount"])
+            config["passes"] = config["pass_count"]
+        except Exception:
+            pass
+
+    if "DirectNeuralRenderingEncoding" in mod_sec:
+        try:
+            config["encoding"] = int(mod_sec["DirectNeuralRenderingEncoding"])
+            config["hdr"] = config["encoding"]
+        except Exception:
+            pass
+
+    if "DLSSPresetQuality" in mod_sec:
+        try:
+            config["dlss_preset"] = int(mod_sec["DLSSPresetQuality"])
+        except Exception:
+            pass
+
+    # Legacy Fallback Parsing
+    if "NeuralUplift" in legacy_sec and "DirectNeuralRenderingStatus" not in mod_sec:
+        try:
+            config["uplift"] = int(legacy_sec["NeuralUplift"])
+            config["status"] = config["uplift"]
+        except Exception:
+            pass
+
+    if "NRHookPoint" in legacy_sec and "DirectNeuralRenderingHookStage" not in mod_sec:
+        try:
+            config["hook_point"] = int(legacy_sec["NRHookPoint"])
+            config["hook_stage"] = config["hook_point"]
+        except Exception:
+            pass
+
+    if "NRPasses" in legacy_sec and "DirectNeuralRenderingPassCount" not in mod_sec:
+        try:
+            config["passes"] = int(legacy_sec["NRPasses"])
+            config["pass_count"] = config["passes"]
+        except Exception:
+            pass
+
+    if "NRResolutionScale" in legacy_sec and "DirectNeuralRenderingProcessingScale" not in mod_sec:
+        try:
+            config["res_scale"] = float(legacy_sec["NRResolutionScale"])
+            config["processing_scale"] = config["res_scale"]
+        except Exception:
+            pass
+
+    if "NRIntensity" in legacy_sec and "DirectNeuralRenderingIntensity" not in mod_sec:
+        try:
+            config["intensity"] = float(legacy_sec["NRIntensity"])
+        except Exception:
+            pass
+
+    if "NRStyle" in legacy_sec and "DirectNeuralRenderingStyle" not in mod_sec:
+        try:
+            config["style"] = int(legacy_sec["NRStyle"])
+        except Exception:
+            pass
+
+    if "NRVramBuffering" in legacy_sec:
+        val = legacy_sec["NRVramBuffering"].strip()
         if val in ["0", "Full", "full"]:
             config["vram"] = "Full"
         elif val in ["1", "Reduced", "reduced"]:
@@ -140,17 +256,9 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
         else:
             config["vram"] = val
 
-    # NRPresentNonBlocking
-    if "NRPresentNonBlocking" in sec:
+    if "NRPresentNonBlocking" in legacy_sec:
         try:
-            config["non_blocking"] = int(sec["NRPresentNonBlocking"])
-        except Exception:
-            pass
-
-    # HDRCompatibilityMode
-    if "HDRCompatibilityMode" in sec:
-        try:
-            config["hdr"] = int(sec["HDRCompatibilityMode"])
+            config["non_blocking"] = int(legacy_sec["NRPresentNonBlocking"])
         except Exception:
             pass
 
@@ -159,11 +267,12 @@ def read_game_dlss5_config(target_path: Union[str, Path]) -> Dict[str, Any]:
 
 def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any]) -> bool:
     """
-    Writes DLSS 5 configuration into target_path (directory or ini file) across all three
-    section headers ([RenoDX.DLSS5], [DLSS5], [DLSS5-NR]) simultaneously.
-    Also ensures [ADDON] LoadFromDllMain does not contain deadlock tokens.
-    Automatically guards against D3D12 command list collisions and VRAM over-allocation
-    when Multi-Frame Generation (Mode A, Mode B, Mode C) is present.
+    Writes DLSS 5 configuration into target_path (directory or ini file).
+    Populates:
+    1. Modern ShortFuse RenoDX sections: [RenoDX], [DLSS], [RenoDX.DLSS]
+    2. Backward-compatible sections: [RenoDX.DLSS5], [DLSS5], [DLSS5-NR]
+    3. Safely cleans [ADDON] LoadFromDllMain to prevent loader lock deadlock.
+    Enforces Present hook stage (2) and Reduced VRAM buffering when Multi-Frame Generation is present.
     """
     tp = Path(target_path)
     reshade_ini = tp if tp.is_file() or tp.suffix.lower() == ".ini" else (tp / "ReShade.ini")
@@ -185,16 +294,16 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         ]
         has_mfg = any(p.exists() for p in mfg_indicators)
 
-    raw_hp = config.get("hook_point", 2)
+    raw_stage = config.get("hook_stage", config.get("hook_point", 2))
     try:
-        hook_val = int(raw_hp)
+        hook_val = int(raw_stage)
     except Exception:
         hook_val = 2
 
-    # Under Multi-Frame Generation (dashdogy / renodx / OptiScaler), DLSS 5 NR cannot
-    # capture directly on the direct command list at 'After Upscaling' (0) due to command list
+    # Under Multi-Frame Generation (dashdogy / renodx / OptiScaler), DLSS 5 cannot
+    # capture directly on the direct command list at 'After Upscaling' (0 or 1) due to command list
     # collision with optical flow generation (list_refused=direct).
-    # Hook point 2 (Present) or 3 (Auto with fallback) is strictly enforced to prevent
+    # Hook point 2 (Present) is strictly enforced under MFG to prevent
     # 0x887A0006 DXGI_ERROR_DEVICE_HUNG TDR crashes.
     if has_mfg and hook_val in (0, 1):
         effective_hp = 2
@@ -202,11 +311,6 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         effective_hp = hook_val
 
     vram_val = str(config.get("vram", "Reduced"))
-    # In full 4K UE5 titles with Nanite/Lumen, 'Full' (0) buffering keeps the 'After Upscaling'
-    # safety net on the direct command list even under Present, triggering command list collisions
-    # with Frame Generation (list_refused=direct) and PCIe paging thrashing (13s TDR timeouts).
-    # 'Reduced' (1) disables the After Upscaling safety net under Present, running 100% clean.
-    # Note: DLSS 5 addon parses NRVramBuffering as an INTEGER: 0=Full, 1=Reduced, 2=Minimal.
     if has_mfg and (vram_val.lower() in ["full", "0"]):
         vram_int_str = "1"
     elif vram_val.lower() in ["reduced", "1"]:
@@ -216,27 +320,87 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     else:
         vram_int_str = "0"
 
-    dlss5_dict = {
+    status_val = int(config.get("status", config.get("uplift", 1)))
+    intensity_val = float(config.get("intensity", 1.0))
+    style_val = int(config.get("style", 2))
+    proc_scale_val = float(config.get("processing_scale", config.get("res_scale", 0.67)))
+    pass_cnt_val = int(config.get("pass_count", config.get("passes", 1)))
+    encoding_val = int(config.get("encoding", config.get("hdr", 0)))
+    dlss_preset_val = int(config.get("dlss_preset", 11))
+    local_struct_val = float(config.get("local_structure", 1.0))
+    local_tone_val = float(config.get("local_tone", 1.0))
+    auto_mask_val = int(config.get("auto_mask", 0))
+    skin_struct_val = float(config.get("skin_structure", 1.0))
+    reuse_up_val = int(config.get("reuse_upscaling", 1))
+    ui_corr_val = int(config.get("ui_correction", 0))
+    block_hud_val = int(config.get("block_hudless", 0))
+    exp_mode_val = int(config.get("exposure_mode", 0))
+    exp_val = float(config.get("exposure", 1.0))
+    white_nits_val = float(config.get("diffuse_white", 203.0))
+
+    # 1. Modern RenoDX / ShortFuse direct dictionary
+    renodx_dict = {
+        "DirectNeuralRenderingStatus": str(status_val),
+        "DirectNeuralRenderingHookStage": str(effective_hp),
+        "DirectNeuralRenderingReuseDlssUpscalingResources": str(reuse_up_val),
+        "DirectNeuralRenderingUiCorrectionMode": str(ui_corr_val),
+        "DirectNeuralRenderingIntensity": f"{intensity_val:.6f}",
+        "DirectNeuralRenderingStyle": str(style_val),
+        "DirectNeuralRenderingLocalStructureStrength": f"{local_struct_val:.6f}",
+        "DirectNeuralRenderingLocalToneStrength": f"{local_tone_val:.6f}",
+        "DirectNeuralRenderingAutoMask": str(auto_mask_val),
+        "DirectNeuralRenderingSkinStructureStrength": f"{skin_struct_val:.6f}",
+        "DirectNeuralRenderingProcessingScale": f"{proc_scale_val:.6f}",
+        "DirectNeuralRenderingPassCount": str(pass_cnt_val),
+        "DirectNeuralRenderingEncoding": str(encoding_val),
+        "DirectNeuralRenderingSignalEncoding": str(config.get("signal_encoding", 0)),
+        "DirectNeuralRenderingDiffuseWhiteNits": f"{white_nits_val:.1f}",
+        "DirectNeuralRenderingBlockHudless": str(block_hud_val),
+        "DirectNeuralRenderingExposure": f"{exp_val:.6f}",
+        "DirectNeuralRenderingExposureMode": str(exp_mode_val),
+        "DLSSQualityMode": str(config.get("dlss_quality_mode", 0)),
+        "DLSSAutoExposure": str(config.get("dlss_auto_exposure", 0)),
+        "DLSSPresetDLAA": str(dlss_preset_val),
+        "DLSSPresetQuality": str(dlss_preset_val),
+        "DLSSPresetBalanced": str(dlss_preset_val),
+        "DLSSPresetPerformance": str(dlss_preset_val),
+        "DLSSPresetUltraQuality": str(dlss_preset_val),
+        "DLSSPresetUltraPerformance": str(dlss_preset_val),
+    }
+
+    # 2. [DLSS] section dictionary (includes OptiScaler / ReShade standard keys)
+    dlss_section_dict = dict(renodx_dict)
+    dlss_section_dict.update({
+        "RenderPresetOverride": "true",
+        "UseGenericAppIdWithDlss": "false",
+        "RenderPresetForAll": str(dlss_preset_val),
+    })
+
+    # 3. Legacy compatibility dictionary
+    legacy_dlss5_dict = {
         "ConfigVersion": "11",
         "EnableHooks": "2",
         "RuntimeSelectionMode": "1",
-        "NeuralUplift": str(config.get("uplift", 1)),
+        "NeuralUplift": str(status_val),
         "NRHookPoint": str(effective_hp),
         "NRAutoFgFallback": "1",
-        "NRPasses": str(config.get("passes", 1)),
-        "NRResolutionScale": f"{float(config.get('res_scale', 0.67)):.2f}",
-        "NRIntensity": f"{float(config.get('intensity', 1.0)):.2f}",
-        "NRStyle": str(config.get("style", 2)),
+        "NRPasses": str(pass_cnt_val),
+        "NRResolutionScale": f"{proc_scale_val:.2f}",
+        "NRIntensity": f"{intensity_val:.2f}",
+        "NRStyle": str(style_val),
         "NRVramBuffering": vram_int_str,
         "NRPresentNonBlocking": str(config.get("non_blocking", 1)),
-        "HDRCompatibilityMode": str(config.get("hdr", 0)),
+        "HDRCompatibilityMode": str(encoding_val),
         "NRRuntimePath": r".\nvngx_dlssnr.dll"
     }
 
     updates: Dict[str, Dict[str, Any]] = {
-        "RenoDX.DLSS5": dlss5_dict,
-        "DLSS5": dlss5_dict,
-        "DLSS5-NR": dlss5_dict,
+        "RenoDX": renodx_dict,
+        "DLSS": dlss_section_dict,
+        "RenoDX.DLSS": renodx_dict,
+        "RenoDX.DLSS5": legacy_dlss5_dict,
+        "DLSS5": legacy_dlss5_dict,
+        "DLSS5-NR": legacy_dlss5_dict,
     }
 
     # Ensure ADDON section does not dead-lock loader
@@ -248,13 +412,13 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
             items = [x.strip() for x in main_dlls.split(",") if x.strip()]
             filtered = [
                 x for x in items
-                if "lecram" not in x.lower() and x != "1"
+                if "lecram" not in x.lower() and "renodx-dlss" not in x.lower() and x != "1"
             ]
             updates["ADDON"] = {"LoadFromDllMain": ",".join(filtered)}
 
     ok = IniConfigManager.write_ini_sections(reshade_ini, updates)
 
-    # Also persist per-game settings cache
+    # Persist per-game settings cache
     if target_dir.exists():
         game_cfg_file = target_dir / ".dlss5_config.json"
         try:
