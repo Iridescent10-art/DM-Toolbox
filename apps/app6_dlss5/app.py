@@ -580,10 +580,16 @@ class DLSS5MainWindow(DMBaseWindow):
                 # Find and select the added game
                 for i in range(self.combo_games.count()):
                     item = self.combo_games.itemData(i)
-                    if item and item.exe_path.lower() == file_path.lower():
+                    if item and item.exe_path.lower() == info.exe_path.lower():
                         self.combo_games.setCurrentIndex(i)
                         break
-                ModernDialog.success(self, "添加成功", f"已成功添加并识别游戏:\n{info.name}\n路径: {info.exe_path}")
+                ModernDialog.success(
+                    self,
+                    "添加成功",
+                    f"已成功添加并识别游戏:\n{info.name}\n主程序: {info.exe_path}\n注入目标目录: {info.target_dir}"
+                )
+            else:
+                ModernDialog.warning(self, "添加失败", "所选文件无法识别为有效游戏主程序，请检查路径。")
         except Exception as e:
             ModernDialog.error(self, "添加失败", str(e))
 

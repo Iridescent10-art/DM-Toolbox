@@ -110,7 +110,86 @@ class GameCacheManager:
         #    after a successful restore, so the whole UI "jumped back" to Mode C.
         cls.reconcile_patch_state(games)
 
+        # 4. Reconcile game binaries and target directories.
+        #    If a cached game points to a root launcher (like REDprelauncher.exe),
+        #    upgrade it to point to the real 64-bit binary subfolder (e.g. bin/x64).
+        cls.reconcile_game_binaries(games)
+
         return games, last_exe
+
+    @classmethod
+    def reconcile_game_binaries(cls, games: List[GameInfo]) -> bool:
+        """
+        Reconcile game binaries and target directories.
+        If a cached game entry points to a launcher (like REDprelauncher.exe or PlayRDR2.exe)
+        or has its target_dir at the root instead of the real 64-bit binary subfolder (e.g. bin/x64),
+        upgrade it to point to the real binary so DLSS5 and MFG injection paths are 100% correct.
+        """
+        try:
+            from apps.app2_mfg.core.scanner import GameScanner, KNOWN_GAME_NAMES
+        except ModuleNotFoundError:
+            try:
+                from core.scanner import GameScanner, KNOWN_GAME_NAMES
+            except ModuleNotFoundError:
+                return False
+
+        scanner = GameScanner()
+        changed = False
+
+        for game in games:
+            try:
+                exe_name = (game.exe_name or "").lower()
+                is_suspicious_launcher = any(k in exe_name for k in [
+                    "redprelauncher", "playrdr2", "systeminfosetupassistant",
+                    "prelaunch", "helper", "assistant"
+                ])
+                root_to_check = game.install_dir if game.install_dir and os.path.isdir(game.install_dir) else None
+                if not root_to_check and game.target_dir and os.path.isdir(game.target_dir):
+                    root_to_check = game.target_dir
+
+                if root_to_check:
+                    better_exe, better_dir = scanner._find_primary_executable_and_dir(root_to_check)
+                    if better_exe and better_dir:
+                        norm_cur_exe = (game.exe_path or "").lower()
+                        norm_better_exe = better_exe.lower()
+                        if norm_better_exe != norm_cur_exe or is_suspicious_launcher:
+                            game.exe_path = better_exe
+                            game.exe_name = os.path.basename(better_exe)
+                            game.target_dir = better_dir
+                            stem = Path(better_exe).stem.lower()
+                            if stem in KNOWN_GAME_NAMES:
+                                game.name = KNOWN_GAME_NAMES[stem]
+                            changed = True
+            except Exception:
+                continue
+
+        if changed:
+            try:
+                cache = cls.load_cache()
+                for bucket in ("custom_added_games", "scanned_games_cache"):
+                    new_bucket = []
+                    for item in cache.get(bucket, []):
+                        old_exe = (item.get("exe_path") or "").lower()
+                        matched_game = next((g for g in games if (g.exe_path or "").lower() == old_exe or (item.get("target_dir") or "").lower() == (g.install_dir or "").lower() or (item.get("install_dir") or "").lower() == (g.install_dir or "").lower()), None)
+                        if matched_game:
+                            item["exe_path"] = matched_game.exe_path
+                            item["exe_name"] = matched_game.exe_name
+                            item["target_dir"] = matched_game.target_dir
+                            if matched_game.install_dir:
+                                item["install_dir"] = matched_game.install_dir
+                            if matched_game.name:
+                                item["name"] = matched_game.name
+                        new_bucket.append(item)
+                    cache[bucket] = new_bucket
+
+                target_f = get_cache_file()
+                target_f.parent.mkdir(parents=True, exist_ok=True)
+                with open(target_f, "w", encoding="utf-8") as f:
+                    json.dump(cache, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+        return changed
 
     @staticmethod
     def reconcile_patch_state(games: List[GameInfo]) -> None:

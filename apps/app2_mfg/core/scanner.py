@@ -12,8 +12,12 @@ import winreg
 import ctypes
 from pathlib import Path
 from typing import List, Dict, Optional, Set, Tuple
-from core.models import GameInfo, QualificationStatus
-from core.utils import get_pe_file_version, is_process_running
+try:
+    from apps.app2_mfg.core.models import GameInfo, QualificationStatus
+    from apps.app2_mfg.core.utils import get_pe_file_version, is_process_running
+except ModuleNotFoundError:
+    from core.models import GameInfo, QualificationStatus
+    from core.utils import get_pe_file_version, is_process_running
 
 IGNORE_EXE_PATTERNS = {
     "crashreportclient.exe", "unrealcefsubprocess.exe", "launcher.exe",
@@ -32,7 +36,8 @@ IGNORE_EXE_PATTERNS = {
     "assistant.exe", "bugreport.exe", "client.exe", "fping.exe", "startup_runner.exe",
     "tinydl.exe", "ace-helper.exe", "leagueclient.exe", "leagueclientux.exe",
     "leagueclientuxrender.exe", "leaguecrashhandler64.exe", "riotclientcrashhandler.exe",
-    "riotclientservices.exe", "tfttencentclient.exe"
+    "riotclientservices.exe", "tfttencentclient.exe", "redprelauncher.exe", "redlauncher.exe",
+    "playrdr2.exe", "systeminfosetupassistant.exe", "redengineerrorreporter.exe", "crashreporter.exe"
 }
 
 PRUNE_EXACT_NAMES = {
@@ -85,12 +90,19 @@ KNOWN_GAME_NAMES = {
     "zenless": "绝区零 (Zenless Zone Zero)",
     "wutheringwaves": "鸣潮 (Wuthering Waves)",
     "endfield": "明日方舟：终末地 (Arknights Endfield)",
-    "starcitizen": "星际公民 (Star Citizen)"
+    "starcitizen": "星际公民 (Star Citizen)",
+    "cyberpunk2077": "赛博朋克 2077 (Cyberpunk 2077)",
+    "cyberpunk 2077": "赛博朋克 2077 (Cyberpunk 2077)",
+    "witcher3": "巫师 3：狂猎 (The Witcher 3: Wild Hunt)",
+    "the witcher 3": "巫师 3：狂猎 (The Witcher 3: Wild Hunt)",
+    "rdr2": "荒野大镖客：救赎 2 (Red Dead Redemption 2)",
+    "red dead redemption 2": "荒野大镖客：救赎 2 (Red Dead Redemption 2)",
+    "3dmark": "3DMark (Futuremark)"
 }
 
 STANDARD_EXE_SUBDIRS = [
-    "", "Binaries/Win64", "Binaries/Win64r", "Bin64", "bin/x64", "bin", "x64",
-    "Game", "game/bin", "ph/work/bin/x64", "Game/Binaries/Win64"
+    "bin/x64", "bin/x64_dx12", "Binaries/Win64", "Binaries/Win64r", "Bin64", "x64", "bin",
+    "Game/Binaries/Win64", "Game", "game/bin", "ph/work/bin/x64", ""
 ]
 
 def get_local_drives() -> List[str]:
@@ -727,13 +739,22 @@ class GameScanner:
             valid = [c for c in candidates if not re.search(r'\.part\d+\.exe$', os.path.basename(c).lower())]
             if not valid:
                 valid = candidates
+            # High priority: exact/known game executables
             for c in valid:
                 lower = os.path.basename(c).lower()
-                if "shipping.exe" in lower or "win64" in lower or "yysls.exe" in lower or "starcitizen.exe" in lower or "endfield.exe" in lower:
+                if any(k in lower for k in [
+                    "shipping.exe", "win64", "yysls.exe", "starcitizen.exe", 
+                    "endfield.exe", "cyberpunk2077.exe", "witcher3.exe", 
+                    "rdr2.exe", "3dmark.exe", "blackmyth", "b1.exe"
+                ]):
                     return c
+            # Filter out launchers and helpers
             for c in valid:
                 lower = os.path.basename(c).lower()
-                if not any(k in lower for k in ["launch", "setup", "unist", "crash", "helper", "tool", "config", "patch"]):
+                if not any(k in lower for k in [
+                    "launch", "prelaunch", "setup", "unist", "crash", 
+                    "helper", "tool", "config", "patch", "repair", "report", "assistant"
+                ]):
                     return c
             return valid[0]
 
@@ -760,3 +781,165 @@ class GameScanner:
         if not exe and target_dir != search_root:
             exe, _ = self._find_primary_executable_and_dir(target_dir)
         return exe
+
+    def get_game_info_from_exe(self, file_path: str) -> Optional[GameInfo]:
+        """
+        Analyze a user-selected executable file:
+        1. If user picked a launcher/prelauncher in a root directory (e.g. REDprelauncher.exe),
+           automatically detect the real 64-bit engine binary in standard subdirectories (e.g. bin/x64/Cyberpunk2077.exe).
+        2. If user picked an executable in a root folder that has subfolder binaries, promote the subfolder binary.
+        3. If user picked the real binary, target_dir is its directory and install_dir is resolved upwards.
+        4. Accurately resolve qualification, ReShade, and patch status.
+        """
+        if not file_path:
+            return None
+
+        abs_file = os.path.abspath(file_path)
+        if not os.path.isfile(abs_file):
+            return None
+
+        dir_name = os.path.dirname(abs_file)
+        file_name = os.path.basename(abs_file)
+        file_lower = file_name.lower()
+
+        if not file_lower.endswith(".exe"):
+            return None
+
+        # Check if the picked file is a launcher/prelauncher or helper
+        is_launcher = (file_lower in IGNORE_EXE_PATTERNS) or any(
+            k in file_lower for k in ["launch", "prelaunch", "setup", "unist", "assistant", "helper", "reporter"]
+        )
+
+        real_exe = abs_file
+        target_dir = dir_name
+
+        # If launcher or root folder, check if a better executable exists in standard subdirectories
+        sub_exe, sub_dir = self._find_primary_executable_and_dir(dir_name)
+        if sub_exe and sub_dir:
+            if is_launcher or sub_dir.lower() != dir_name.lower():
+                real_exe = sub_exe
+                target_dir = sub_dir
+
+        # Determine install_dir (parent of target_dir if target_dir is a known binary subfolder)
+        install_dir = target_dir
+        norm_td = target_dir.replace("\\", "/").rstrip("/")
+        for sub in ["bin/x64_dx12", "bin/x64", "Binaries/Win64r", "Binaries/Win64", "Bin64", "x64", "bin", "Game/Binaries/Win64", "Game"]:
+            if norm_td.lower().endswith("/" + sub.lower()):
+                cut_len = len(sub)
+                parent_candidate = target_dir[:len(target_dir) - cut_len].rstrip("/\\")
+                if os.path.isdir(parent_candidate):
+                    install_dir = os.path.abspath(parent_candidate)
+                break
+
+        # Resolve game title
+        real_name = os.path.basename(real_exe)
+        stem = Path(real_exe).stem.lower()
+        game_name = stem
+        if stem in KNOWN_GAME_NAMES:
+            game_name = KNOWN_GAME_NAMES[stem]
+        else:
+            for part in reversed(Path(install_dir).parts):
+                if part.lower() in KNOWN_GAME_NAMES:
+                    game_name = KNOWN_GAME_NAMES[part.lower()]
+                    break
+            else:
+                for part in reversed(Path(target_dir).parts):
+                    if part.lower() in KNOWN_GAME_NAMES:
+                        game_name = KNOWN_GAME_NAMES[part.lower()]
+                        break
+                else:
+                    inst_base = os.path.basename(install_dir)
+                    if inst_base and inst_base.lower() not in ["bin", "x64", "win64", "win64r", "binaries"]:
+                        game_name = inst_base
+                    else:
+                        game_name = os.path.splitext(real_name)[0]
+
+        # Check Streamline interposer & nvngx_dlssg
+        interposer_path = None
+        dlssg_path = None
+
+        direct_check_dirs = [
+            target_dir,
+            os.path.join(target_dir, "Streamline"),
+            install_dir,
+            os.path.join(install_dir, "Streamline"),
+            os.path.join(install_dir, "Binaries", "Win64"),
+            os.path.join(install_dir, "bin", "x64")
+        ]
+        seen_chk = set()
+        for d in direct_check_dirs:
+            norm_d = d.lower()
+            if norm_d in seen_chk or not os.path.exists(d):
+                continue
+            seen_chk.add(norm_d)
+            try:
+                files_lower = {f.lower(): f for f in os.listdir(d)}
+                if not interposer_path and "sl.interposer.dll" in files_lower:
+                    interposer_path = os.path.join(d, files_lower["sl.interposer.dll"])
+                if not dlssg_path and "nvngx_dlssg.dll" in files_lower:
+                    dlssg_path = os.path.join(d, files_lower["nvngx_dlssg.dll"])
+            except Exception:
+                pass
+
+        streamline_ver = get_pe_file_version(interposer_path) if interposer_path else None
+        dlssg_ver = get_pe_file_version(dlssg_path) if dlssg_path else None
+
+        if interposer_path and dlssg_path:
+            qualification = QualificationStatus.QUALIFIED
+        elif interposer_path:
+            qualification = QualificationStatus.MISSING_DLSSG
+        else:
+            qualification = QualificationStatus.NOT_SUPPORTED
+
+        # Check existing ReShade
+        has_reshade = False
+        target_files_lower = [f.lower() for f in os.listdir(target_dir)] if os.path.exists(target_dir) else []
+        if "reshade64.dll" in target_files_lower:
+            has_reshade = True
+        elif "dxgi.dll" in target_files_lower:
+            dxgi_file = os.path.join(target_dir, "dxgi.dll")
+            try:
+                with open(dxgi_file, "rb") as f:
+                    content = f.read(16 * 1024 * 1024)
+                if b"crosire" in content.lower() or b"reshade" in content.lower():
+                    has_reshade = True
+            except Exception:
+                pass
+
+        # Check patch manifest
+        manifest_path = os.path.join(target_dir, ".mfg_patch_manifest.json")
+        is_patched = False
+        patched_backend = None
+        installed_version = None
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    mdata = json.load(f)
+                    is_patched = True
+                    patched_backend = mdata.get("active_backend")
+                    installed_version = mdata.get("installed_version")
+            except Exception:
+                is_patched = True
+
+        running = is_process_running(os.path.basename(real_exe))
+
+        return GameInfo(
+            name=game_name,
+            source="手动自定义",
+            install_dir=install_dir,
+            target_dir=target_dir,
+            exe_path=real_exe,
+            exe_name=os.path.basename(real_exe),
+            qualification=qualification,
+            streamline_ver=streamline_ver,
+            dlssg_ver=dlssg_ver,
+            has_reshade=has_reshade,
+            is_patched=is_patched,
+            patched_backend=patched_backend,
+            installed_version=installed_version,
+            is_running=running
+        )
+
+    def scan_games(self) -> List[GameInfo]:
+        """Backward-compatible entry point for game library scan."""
+        return self.scan_all_libraries()

@@ -1,3 +1,20 @@
+# 🎉 DM-Toolbox v1.3.11 · 修复手动添加游戏报错 / 智能识别 64 位主引擎与精准注入路径 (2077/巫师3等)
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.3.11 核心更新与优化
+
+1. **彻底修复手动添加游戏报错 (`'GameScanner' object has no attribute 'get_game_info_from_exe'`)**
+   - 在 `GameScanner` 核心嗅探器中全面实现 `get_game_info_from_exe(file_path)` 与 `scan_games()` 兼容方法；
+   - 彻底解决 DLSS 5 插件及多帧生成插件中手动点击选择可执行文件时的异常弹窗，支持选择主程序或启动器时秒级智能解析。
+
+2. **64 位真实游戏主程序嗅探与注入目录精准纠偏 (解决 2077 / 巫师 3 / 大镖客 2 注入失效问题)**
+   - **智能识别根目录启动器**：针对赛博朋克 2077、巫师 3、荒野大镖客 2 等将 `REDprelauncher.exe`、`PlayRDR2.exe` 置于根目录的游戏，嗅探器自动识别启动器伪装，深度穿透并优先绑定真实 64 位 DirectX 12 渲染引擎（如 `bin/x64/Cyberpunk2077.exe`、`bin/x64_dx12/witcher3.exe`、`RDR2.exe`）；
+   - **精确注入路径对齐**：调整扫描器标准子目录判定权重（`bin/x64` > `bin/x64_dx12` > `Binaries/Win64` > ... > 根目录），彻底消除将 `dxgi.dll`、`ReShade.ini`、`nvngx_dlssnr.dll` 误注入到游戏外层根目录导致 DLSS 5 / 插帧不生效的问题；
+   - **历史缓存智能自愈升级**：`GameCacheManager` 启动时自动遍历检测现有游戏缓存，将陈旧的启动器记录无感自愈迁移至真实二进制主程序与注入目录，保证存量游戏开箱即用。
+
+---
+
 # 🎉 DM-Toolbox v1.3.10 · JXR HDR 转换器支持直接拖拽图片与多选图片批量拖入 / UIPI 提权穿透
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**

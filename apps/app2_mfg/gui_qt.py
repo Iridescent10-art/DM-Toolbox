@@ -5430,10 +5430,12 @@ class ModernMFGGUI(QMainWindow):
         self._process_manual_selection(dir_path, is_file=False)
 
     def _process_manual_selection(self, path: str, is_file: bool):
-        target_dir = os.path.dirname(path) if is_file else path
-        game_name = os.path.splitext(os.path.basename(path))[0] if is_file else os.path.basename(path)
-
-        info = self.scanner.analyze_game_directory(game_name, "手动自定义", target_dir)
+        if is_file:
+            info = self.scanner.get_game_info_from_exe(path)
+        else:
+            target_dir = path
+            game_name = os.path.basename(path)
+            info = self.scanner.analyze_game_directory(game_name, "手动自定义", target_dir)
         if not info:
             ModernDialog.warning(self, "检测提示", "所选路径中未发现有效游戏主程序！", self.is_dark_mode)
             return
