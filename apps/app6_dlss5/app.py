@@ -88,7 +88,7 @@ from dm_ui_core import (
 
     apply_dm_window_frame, get_global_theme, set_global_theme,
 
-    SCROLLBAR_LIGHT_QSS, SCROLLBAR_DARK_QSS
+    SCROLLBAR_LIGHT_QSS, SCROLLBAR_DARK_QSS, ModernDialog
 
 )
 
@@ -532,11 +532,13 @@ class MultiFrameGenPanel(QFrame):
 
         self.radio_mode_b = QRadioButton("模式 B: RenoDX 插件优化")
 
-        self.radio_mode_c = QRadioButton("模式 C: OptiScaler 跨卡转译")
+        self.radio_mode_c = QRadioButton("模式 C: DLSSG-SM86 原生插帧 (20/30系)")
+
+        self.radio_mode_d = QRadioButton("模式 D: OptiScaler 跨卡转译")
 
 
 
-        for idx, rb in enumerate([self.radio_mode_a, self.radio_mode_b, self.radio_mode_c]):
+        for idx, rb in enumerate([self.radio_mode_a, self.radio_mode_b, self.radio_mode_c, self.radio_mode_d]):
 
             rb.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -855,7 +857,7 @@ class MultiFrameGenPanel(QFrame):
 
         self.lbl_note_c = QLabel(
 
-            "💡 <b>模式 C 修复说明</b>：OptiScaler 部署为 <code>dxgi.dll</code>，链式加载 <code>ReShade64.dll</code>；"
+            "💡 <b>模式 D 修复说明</b>：OptiScaler 部署为 <code>dxgi.dll</code>，链式加载 <code>ReShade64.dll</code>；"
 
             "关闭 <code>Dxgi=false</code> 显卡欺骗使 DLSS 选项常驻，<code>Dx12Upscaler=dlss</code> 直通 DLSS 5，确保 XeFG 满血生效。"
 
@@ -864,6 +866,53 @@ class MultiFrameGenPanel(QFrame):
         self.lbl_note_c.setWordWrap(True)
 
         pc_layout.addWidget(self.lbl_note_c)
+
+        # Page D: Mode D (DLSSG-SM86)
+        self.page_d = QWidget()
+        pd_layout = QVBoxLayout(self.page_d)
+        pd_layout.setContentsMargins(6, 6, 6, 6)
+        pd_layout.setSpacing(6)
+
+        grid_d = QGridLayout()
+        grid_d.setHorizontalSpacing(16)
+        grid_d.setVerticalSpacing(6)
+
+        self.lbl_d_opt = QLabel("一致性优化档位:")
+        self.combo_d_opt = QComboBox()
+        self.combo_d_opt.addItem("档位 2: 有损轻量加速 (出厂推荐 · PSNR 44-53dB 极高保真)", 2)
+        self.combo_d_opt.addItem("档位 1: 逐位一致加速 (画面输出与官方原厂逐位完全一致)", 1)
+        self.combo_d_opt.addItem("档位 0: 原厂内核 (不做加速 · 最保守)", 0)
+        self.combo_d_opt.addItem("档位 3: 极速激进加速 (最大幅度降低插帧计算开销)", 3)
+        self.combo_d_opt.currentIndexChanged.connect(self._on_param_changed)
+        grid_d.addWidget(self.lbl_d_opt, 0, 0)
+        grid_d.addWidget(self.combo_d_opt, 0, 1)
+
+        self.lbl_d_preset = QLabel("DLSS-G 预设档位:")
+        self.combo_d_preset = QComboBox()
+        self.combo_d_preset.addItem("Auto (跟随游戏/驱动 · 默认推荐)", "Auto")
+        self.combo_d_preset.addItem("C (FG Lite 轻量插帧 · GPU 耗时降低 32-54%)", "C")
+        self.combo_d_preset.addItem("B (强制开启 UI 重构 · 需游戏支持)", "B")
+        self.combo_d_preset.addItem("A (强制关闭 UI 重构)", "A")
+        self.combo_d_preset.currentIndexChanged.connect(self._on_param_changed)
+        grid_d.addWidget(self.lbl_d_preset, 0, 2)
+        grid_d.addWidget(self.combo_d_preset, 0, 3)
+
+        self.chk_d_int8 = QCheckBox("启用 RTX 20/30 DLSS 超分 INT8 硬件加速 (性能/超级性能档位下 GPU 耗时降低 5%~24%)")
+        self.chk_d_int8.setChecked(False)
+        self.chk_d_int8.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.chk_d_int8.stateChanged.connect(self._on_param_changed)
+        grid_d.addWidget(self.chk_d_int8, 1, 0, 1, 4)
+
+        pd_layout.addLayout(grid_d)
+
+        self.lbl_note_d = QLabel(
+            "💡 <b>模式 C 原生插帧保障</b>：专为 RTX 20/30 系显卡设计，绕过架构门槛直接运行原生 DLSS-G 310.9.16 运行库与 SM86/SM75 加速内核；"
+            "DLSS 5 作为 <code>dxgi.dll</code> 协同运行，DLSS-G 采用 <code>version.dll</code>，无冲突丝滑共存！"
+        )
+        self.lbl_note_d.setWordWrap(True)
+        pd_layout.addWidget(self.lbl_note_d)
+
+        self.stack.addWidget(self.page_d)
 
         self.stack.addWidget(self.page_c)
 
@@ -923,7 +972,7 @@ class MultiFrameGenPanel(QFrame):
 
     def _on_mode_radio_clicked(self, btn_id: int):
 
-        modes = ["A", "B", "C"]
+        modes = ["A", "B", "C", "D"]
 
         if 0 <= btn_id < len(modes):
 
@@ -937,7 +986,9 @@ class MultiFrameGenPanel(QFrame):
 
                 "B": "🟢 当前模式：模式 B RenoDX 插件优化 (单宿主双 Addon)",
 
-                "C": "🟢 当前模式：模式 C OptiScaler 跨卡转译 (dxgi + ReShade64 链式)"
+                "C": "🟢 当前模式：模式 C OptiScaler 跨卡转译 (dxgi + ReShade64 链式)",
+
+                "D": "🟢 当前模式：模式 D DLSSG-SM86 原生插帧 (20/30系 原生 DLSS-G + INT8 超分)"
 
             }
 
@@ -989,11 +1040,11 @@ class MultiFrameGenPanel(QFrame):
 
         detected_mode = ConfigSyncService.detect_active_mode(td)
 
-        if detected_mode in ["A", "B", "C"]:
+        if detected_mode in ["A", "B", "C", "D"]:
 
             self.active_mode = detected_mode
 
-            rb = [self.radio_mode_a, self.radio_mode_b, self.radio_mode_c][["A", "B", "C"].index(detected_mode)]
+            rb = [self.radio_mode_a, self.radio_mode_b, self.radio_mode_c, self.radio_mode_d][["A", "B", "C", "D"].index(detected_mode)]
 
             rb.blockSignals(True)
 
@@ -1001,7 +1052,7 @@ class MultiFrameGenPanel(QFrame):
 
             rb.blockSignals(False)
 
-            self.stack.setCurrentIndex(["A", "B", "C"].index(detected_mode))
+            self.stack.setCurrentIndex(["A", "B", "C", "D"].index(detected_mode))
 
             mode_desc = {
 
@@ -1009,7 +1060,9 @@ class MultiFrameGenPanel(QFrame):
 
                 "B": "🟢 已检测到已安装：模式 B RenoDX 插件优化",
 
-                "C": "🟢 已检测到已安装：模式 C OptiScaler 跨卡转译"
+                "C": "🟢 已检测到已安装：模式 C OptiScaler 跨卡转译",
+
+                "D": "🟢 已检测到已安装：模式 D DLSSG-SM86 原生插帧"
 
             }
 
@@ -1141,6 +1194,21 @@ class MultiFrameGenPanel(QFrame):
 
             self.lbl_rcas_val.setText(f"{rcas_val:.2f}")
 
+        # Mode D specifics
+        elif self.active_mode == "D":
+            if hasattr(self, "chk_d_int8"):
+                self.chk_d_int8.setChecked(str(cfg.get("super_resolution_mode", "Off")).upper() == "ON")
+            if hasattr(self, "combo_d_opt"):
+                opt_val = int(cfg.get("optimized", 2))
+                idx_o = self.combo_d_opt.findData(opt_val)
+                if idx_o >= 0:
+                    self.combo_d_opt.setCurrentIndex(idx_o)
+            if hasattr(self, "combo_d_preset"):
+                pre_val = str(cfg.get("dlssg_preset", "Auto"))
+                idx_pr = self.combo_d_preset.findData(pre_val)
+                if idx_pr >= 0:
+                    self.combo_d_preset.setCurrentIndex(idx_pr)
+
 
 
         self._is_loading = False
@@ -1199,7 +1267,10 @@ class MultiFrameGenPanel(QFrame):
 
             "rcas_sharpness": self.slider_rcas.value() / 100.0,
 
-            "dx12_upscaler": "dlss"
+            "dx12_upscaler": "dlss",
+            "optimized": self.combo_d_opt.currentData() if hasattr(self, "combo_d_opt") else 2,
+            "dlssg_preset": self.combo_d_preset.currentData() if hasattr(self, "combo_d_preset") else "Auto",
+            "super_resolution_mode": "On" if (hasattr(self, "chk_d_int8") and self.chk_d_int8.isChecked()) else "Off" 
 
         }
 
@@ -2186,6 +2257,57 @@ class DLSS5SettingsPanel(QFrame):
 
 
 class DLSS5Window(DMBaseWindow):
+    def wheelEvent(self, event):
+        if hasattr(self, "scroll_area") and self.scroll_area is not None:
+            bar = self.scroll_area.verticalScrollBar()
+            if bar is not None and bar.maximum() > 0:
+                delta = 0
+                p_delta = event.pixelDelta().y()
+                if p_delta != 0:
+                    delta = p_delta
+                else:
+                    a_delta = event.angleDelta().y()
+                    if a_delta != 0:
+                        delta = a_delta
+                if delta != 0:
+                    bar.setValue(bar.value() - delta)
+                    if hasattr(self, "scroll_area") and self.scroll_area and self.scroll_area.viewport():
+                        self.scroll_area.viewport().update()
+                    event.accept()
+                    return
+        super().wheelEvent(event)
+
+    def keyPressEvent(self, event):
+        if hasattr(self, "scroll_area") and self.scroll_area is not None:
+            bar = self.scroll_area.verticalScrollBar()
+            if bar is not None and bar.maximum() > 0:
+                key = event.key()
+                if key == Qt.Key.Key_PageUp:
+                    bar.setValue(max(0, bar.value() - bar.pageStep()))
+                    event.accept()
+                    return
+                elif key == Qt.Key.Key_PageDown:
+                    bar.setValue(min(bar.maximum(), bar.value() + bar.pageStep()))
+                    event.accept()
+                    return
+                elif key == Qt.Key.Key_Home:
+                    bar.setValue(0)
+                    event.accept()
+                    return
+                elif key == Qt.Key.Key_End:
+                    bar.setValue(bar.maximum())
+                    event.accept()
+                    return
+                elif key == Qt.Key.Key_Up:
+                    bar.setValue(max(0, bar.value() - 40))
+                    event.accept()
+                    return
+                elif key == Qt.Key.Key_Down:
+                    bar.setValue(min(bar.maximum(), bar.value() + 40))
+                    event.accept()
+                    return
+        super().keyPressEvent(event)
+
 
     """DLSS 5 神经重构与画质注入器主窗口。"""
 
@@ -2274,12 +2396,22 @@ class DLSS5Window(DMBaseWindow):
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-
-
+        self.scroll_area.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         container = QWidget()
-
         container.setObjectName("ScrollContainer")
+        container.setMouseTracking(True)
+
+        def _on_scroll_changed(v):
+            if hasattr(self, "scroll_area") and self.scroll_area:
+                vp = self.scroll_area.viewport()
+                if vp:
+                    vp.update()
+                w = self.scroll_area.widget()
+                if w:
+                    w.update()
+
+        self.scroll_area.verticalScrollBar().valueChanged.connect(_on_scroll_changed)
 
         vbox = QVBoxLayout(container)
 
@@ -3199,11 +3331,17 @@ class DLSS5Window(DMBaseWindow):
 
         else:
 
-            self.block_dlss5.set_status("⚪ 未注入", c_gray, "点击下方按钮一键注入")
+            if status.get("has_residual", False):
+                # Addon gone but residual files exist (runtime/ini/manifest) → allow cleanup
+                self.block_dlss5.set_status("🟡 残留文件待清理", c_yellow, "插件已移除但存在残留，可点击还原彻底清理")
+                self.btn_inject.setText("⚡ 一键注入 DLSS 5")
+            else:
+                # Completely clean
+                self.block_dlss5.set_status("⚪ 未注入 (干净)", c_gray, "游戏目录干净，可一键注入")
+                self.btn_inject.setText("⚡ 一键注入 DLSS 5")
 
-            self.btn_inject.setText("⚡ 一键注入 DLSS 5")
-
-            self.btn_restore.setEnabled(False)
+            # Always enable restore button when game is selected to give immediate response
+            self.btn_restore.setEnabled(True)
 
 
 
@@ -3453,24 +3591,29 @@ class DLSS5Window(DMBaseWindow):
 
         dlss5_cfg = self.dlss5_panel.get_params() if hasattr(self, "dlss5_panel") else None
 
+        QApplication.processEvents()
         ok, msg = DLSS5Injector.inject(target_dir, dlss5_config=dlss5_cfg)
+        QApplication.processEvents()
 
         if hasattr(self, "dlss5_panel"):
-
             self.dlss5_panel.save_config(target_dir)
 
-
-
         if ok:
-
             ModernDialog.success(self, f"注入成功 - {game_name}", msg, self.is_dark_mode)
-
         else:
-
             ModernDialog.error(self, "注入失败", msg, self.is_dark_mode)
 
-
-
+        self.activateWindow()
+        self.raise_()
+        self.setFocus()
+        if hasattr(self, "scroll_area") and self.scroll_area:
+            self.scroll_area.setFocus()
+            if self.scroll_area.viewport():
+                self.scroll_area.viewport().update()
+            if self.scroll_area.widget():
+                self.scroll_area.widget().update()
+        self.update()
+        QApplication.processEvents()
         self.refresh_current_game_status()
 
 
@@ -3531,7 +3674,20 @@ class DLSS5Window(DMBaseWindow):
 
         has_fg = fg_info.get("has_fg", False)
 
-
+        if not has_fg and not status.get("has_residual", False) and not status.get("is_injected", False):
+            ModernDialog.info(self, "提示", f"游戏【{game_name}】当前已是官方纯净状态，未检测到任何注入或残留文件。")
+            self.activateWindow()
+            self.raise_()
+            self.setFocus()
+            if hasattr(self, "scroll_area") and self.scroll_area:
+                self.scroll_area.setFocus()
+                if self.scroll_area.viewport():
+                    self.scroll_area.viewport().update()
+                if self.scroll_area.widget():
+                    self.scroll_area.widget().update()
+            self.update()
+            QApplication.processEvents()
+            return
 
         force_clean_all = False
         if has_fg:
@@ -3566,14 +3722,25 @@ class DLSS5Window(DMBaseWindow):
                 return
             force_clean_all = True
 
+        QApplication.processEvents()
         ok, msg = DLSS5Injector.restore(target_dir, force_clean_all=force_clean_all)
+        QApplication.processEvents()
         if ok:
             ModernDialog.success(self, f"还原成功 - {game_name}", msg, self.is_dark_mode)
         else:
             ModernDialog.error(self, "还原失败", msg, self.is_dark_mode)
 
-
-
+        self.activateWindow()
+        self.raise_()
+        self.setFocus()
+        if hasattr(self, "scroll_area") and self.scroll_area:
+            self.scroll_area.setFocus()
+            if self.scroll_area.viewport():
+                self.scroll_area.viewport().update()
+            if self.scroll_area.widget():
+                self.scroll_area.widget().update()
+        self.update()
+        QApplication.processEvents()
         self.refresh_current_game_status()
 
 

@@ -32,6 +32,12 @@ LEGACY_OPTISCALER_KEYS: Tuple[Tuple[str, str], ...] = (
     ("Hotfix", "UseDelayedInit"),                # real key belongs to [Dx11withDx12], not [Hotfix]
     ("Sharpness", "Enabled"),                    # [Sharpness] only has OverrideSharpness/Sharpness
     ("CAS", "Sharpness"),                        # sharpening value lives in [Sharpness]
+    ("LoadDlls", "LoadReshade"),                 # v0.9.4 uses [Plugins] LoadReshade
+    ("LoadDlls", "ReshadePath"),                 # v0.9.4 uses [Plugins]
+)
+
+LEGACY_OPTISCALER_SECTIONS: Tuple[str, ...] = (
+    "LoadDlls",
 )
 
 
@@ -242,6 +248,43 @@ class IniConfigManager:
                     continue
             out_lines.append(line)
 
+        if removed:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.writelines(out_lines)
+            except Exception:
+                return 0
+        return removed
+
+    @staticmethod
+    def remove_ini_sections(file_path: Union[str, Path], sections: List[str]) -> int:
+        """
+        Removes entire sections (including header and content) from an INI.
+        """
+        path = Path(file_path)
+        if not path.exists() or not sections:
+            return 0
+        target_secs = {s.strip().upper() for s in sections}
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception:
+            return 0
+        out_lines: List[str] = []
+        in_target_sec = False
+        removed = 0
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and "]" in stripped:
+                sec_name = stripped[1:stripped.index("]")].strip().upper()
+                in_target_sec = (sec_name in target_secs)
+                if in_target_sec:
+                    removed += 1
+                    continue
+            if in_target_sec:
+                removed += 1
+                continue
+            out_lines.append(line)
         if removed:
             try:
                 with open(path, "w", encoding="utf-8") as f:
@@ -484,10 +527,6 @@ class IniConfigManager:
                 "LoadAsiPlugins": "true",
                 "LoadReshade": "true",
             },
-            "LoadDlls": {
-                "LoadReshade": "true",
-                "ReshadePath": "ReShade64.dll",
-            },
             "Upscalers": {
                 "Dx12Upscaler": "dlss"
             },
@@ -509,15 +548,16 @@ class IniConfigManager:
             "Hotfix": {
                 "SkipFirstFrames": "5",
                 "CheckForUpdate": "false",
-                "CreateD3D12DeviceForLuma": "false"
+                "CreateD3D12DeviceForLuma": "true",
+                "SimulateWaitableObject": "true"
             },
             "Hooks": {
                 "EarlyHooking": "false",
-                "UseNtdllHooks": "true"
+                "UseNtdllHooks": "false"
             },
             "Spoofing": {
                 "Dxgi": "false",
-                "StreamlineSpoofing": "true",
+                "StreamlineSpoofing": "false",
                 "DxgiFactoryWrapping": "false"
             },
             "Menu": {
@@ -559,6 +599,7 @@ class IniConfigManager:
 
         # 2. Strip keys that do not exist in v0.9.4 (written by older DM-Toolbox builds).
         cls.remove_ini_keys(opti_ini, LEGACY_OPTISCALER_KEYS)
+        cls.remove_ini_sections(opti_ini, list(LEGACY_OPTISCALER_SECTIONS))
 
         # 3. Never keep a second config: OptiScaler keeps showing the red
         #    "nvngx.ini detected" banner while the legacy alias exists.
@@ -1086,3 +1127,119 @@ class IniConfigManager:
 
         return config if (config or ini3.exists()) else None
 
+
+
+    @classmethod
+    def sync_mode_d_forward(
+        cls,
+        target_dir: Union[str, Path],
+        config: Dict[str, Any],
+        exe_name: Optional[str] = None
+    ) -> bool:
+        """
+        Forward sync: writes DLSSG-SM86 parameters to TargetExeDir/dlssg_sm86.ini
+        preserving comments, structure, and original formatting.
+        """
+        import shutil
+        target = Path(target_dir)
+        ini_path = target / "dlssg_sm86.ini"
+
+        if not ini_path.exists():
+            tpl_candidates = [
+                Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "0.4.0" / "dlssg_sm86.ini",
+                Path(__file__).resolve().parent.parent.parent.parent / "defaults" / "app2_mfg" / "dlssg_sm86_preset.json"
+            ]
+            for cand in tpl_candidates:
+                if cand.name.endswith(".ini") and cand.exists():
+                    try:
+                        shutil.copy2(cand, ini_path)
+                        break
+                    except Exception:
+                        pass
+
+        enabled = int(config.get("enabled", 1))
+        engine = str(config.get("engine", "DLSS")).strip()
+        max_f = int(config.get("max_generated_frames", 3))
+        opt = int(config.get("optimized", 2))
+        preset = str(config.get("dlssg_preset", "Auto")).strip()
+        sr_mode = str(config.get("super_resolution_mode", "Off")).strip()
+        log_lvl = int(config.get("logging_level", 1))
+
+        updates = {
+            "General": {
+                "Enabled": enabled
+            },
+            "FrameGeneration": {
+                "Engine": engine,
+                "MaxGeneratedFrames": max_f
+            },
+            "DLSSG": {
+                "Optimized": opt,
+                "Preset": preset
+            },
+            "SuperResolution": {
+                "Mode": sr_mode
+            },
+            "Logging": {
+                "Level": log_lvl,
+                "Directory": r"dlssg_sm86\logs"
+            },
+            "Runtime": {
+                "Mode": "Bundled"
+            }
+        }
+
+        return cls.write_ini_sections(ini_path, updates)
+
+    @classmethod
+    def read_mode_d_reverse(cls, target_dir: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Reverse sync: read parameters from TargetExeDir/dlssg_sm86.ini.
+        """
+        target = Path(target_dir)
+        ini_path = target / "dlssg_sm86.ini"
+        if not ini_path.exists():
+            return None
+
+        data = cls.read_ini_sections(ini_path)
+        if not data:
+            return None
+
+        config: Dict[str, Any] = {}
+        gen = data.get("General", {})
+        if "Enabled" in gen:
+            try:
+                config["enabled"] = int(gen["Enabled"])
+            except Exception:
+                pass
+
+        fg = data.get("FrameGeneration", {})
+        if "Engine" in fg:
+            config["engine"] = fg["Engine"]
+        if "MaxGeneratedFrames" in fg:
+            try:
+                config["max_generated_frames"] = int(fg["MaxGeneratedFrames"])
+            except Exception:
+                pass
+
+        dlssg = data.get("DLSSG", {})
+        if "Optimized" in dlssg:
+            try:
+                config["optimized"] = int(dlssg["Optimized"])
+            except Exception:
+                pass
+        if "Preset" in dlssg:
+            config["dlssg_preset"] = dlssg["Preset"]
+
+        sr = data.get("SuperResolution", {})
+        if "Mode" in sr:
+            config["super_resolution_mode"] = sr["Mode"]
+
+        log_sec = data.get("Logging", {})
+        if "Level" in log_sec:
+            try:
+                config["logging_level"] = int(log_sec["Level"])
+            except Exception:
+                pass
+
+        return config if config else None

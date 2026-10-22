@@ -104,17 +104,20 @@ QScrollArea {
 }
 QScrollBar:vertical {
     background: transparent;
-    width: 8px;
+    width: 10px;
     margin: 4px 2px 4px 0px;
     border: none;
 }
 QScrollBar::handle:vertical {
-    background: rgba(144, 157, 181, 0.45);
-    min-height: 36px;
-    border-radius: 4px;
+    background: rgba(100, 116, 139, 0.60);
+    min-height: 48px;
+    border-radius: 5px;
 }
 QScrollBar::handle:vertical:hover {
-    background: rgba(100, 116, 145, 0.75);
+    background: rgba(51, 65, 85, 0.85);
+}
+QScrollBar::handle:vertical:pressed {
+    background: rgba(30, 41, 59, 0.95);
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
@@ -154,17 +157,20 @@ QScrollArea {
 }
 QScrollBar:vertical {
     background: transparent;
-    width: 8px;
+    width: 10px;
     margin: 4px 2px 4px 0px;
     border: none;
 }
 QScrollBar::handle:vertical {
-    background: rgba(100, 116, 139, 0.5);
-    min-height: 36px;
-    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.55);
+    min-height: 48px;
+    border-radius: 5px;
 }
 QScrollBar::handle:vertical:hover {
-    background: rgba(148, 163, 184, 0.8);
+    background: rgba(203, 213, 225, 0.85);
+}
+QScrollBar::handle:vertical:pressed {
+    background: rgba(241, 245, 249, 0.95);
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
@@ -206,7 +212,8 @@ def apply_dm_window_frame(window: QWidget, is_dark: Optional[bool] = None) -> bo
     if is_dark is None:
         is_dark = (get_global_theme() == "dark")
 
-    window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    if isinstance(window, QDialog):
+        window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
     try:
         hwnd = int(window.winId())
@@ -566,7 +573,6 @@ class DMBaseWindow(QMainWindow):
 
         # Frameless window configuration
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowMinMaxButtonsHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
 
         # 屏幕几何自适应保护
@@ -966,8 +972,38 @@ class DMBaseWindow(QMainWindow):
                 self._edge_cursor_active = False
                 return True
 
+        # Wheel event handling: active for both normal and maximized window states
+        if isinstance(watched, QWidget) and et == QEvent.Type.Wheel:
+            try:
+                if watched.window() is self:
+                    from PySide6.QtWidgets import QComboBox, QScrollBar
+                    if not isinstance(watched, QScrollBar):
+                        if not (isinstance(watched, QComboBox) and watched.view() and watched.view().isVisible()):
+                            if hasattr(self, "scroll_area") and self.scroll_area is not None:
+                                bar = self.scroll_area.verticalScrollBar()
+                                if bar is not None and bar.maximum() > 0:
+                                    # Support both high-precision touchpads (pixelDelta) and standard mouse wheels (angleDelta)
+                                    delta = 0
+                                    p_delta = event.pixelDelta().y()
+                                    if p_delta != 0:
+                                        delta = p_delta
+                                    else:
+                                        a_delta = event.angleDelta().y()
+                                        if a_delta != 0:
+                                            delta = a_delta
+                                    if delta != 0:
+                                        bar.setValue(bar.value() - delta)
+                                        if hasattr(self, "scroll_area") and self.scroll_area and self.scroll_area.viewport():
+                                            self.scroll_area.viewport().update()
+                                        return True
+            except Exception:
+                pass
+
         if not self.isMaximized() and isinstance(watched, QWidget):
             try:
+                from PySide6.QtWidgets import QScrollBar
+                if isinstance(watched, QScrollBar) or (hasattr(self, "scroll_area") and watched is self.scroll_area.verticalScrollBar()):
+                    return super().eventFilter(watched, event)
                 if watched.window() is self:
                     if et == QEvent.Type.MouseMove:
                         local_pos = self.mapFromGlobal(event.globalPosition().toPoint())
@@ -1307,6 +1343,35 @@ class ModernDialog(QDialog):
                 )
         except Exception:
             pass
+
+    def done(self, r: int):
+        grabber = QWidget.mouseGrabber()
+        if grabber is not None:
+            try:
+                grabber.releaseMouse()
+            except Exception:
+                pass
+        p = self.parent()
+        super().done(r)
+        if p is not None:
+            try:
+                p_win = p.window() if hasattr(p, "window") else p
+                if p_win is not None:
+                    p_win.activateWindow()
+                    p_win.raise_()
+                    p_win.setFocus()
+                    if hasattr(p_win, "scroll_area") and p_win.scroll_area is not None:
+                        p_win.scroll_area.setFocus()
+                        if p_win.scroll_area.viewport():
+                            p_win.scroll_area.viewport().update()
+                        if p_win.scroll_area.widget():
+                            p_win.scroll_area.widget().update()
+                    p_win.update()
+            except Exception:
+                pass
+        qApp = QApplication.instance()
+        if qApp is not None:
+            qApp.processEvents()
 
     @classmethod
     def _resolve_is_dark(cls, parent=None, is_dark: Optional[bool] = None) -> bool:

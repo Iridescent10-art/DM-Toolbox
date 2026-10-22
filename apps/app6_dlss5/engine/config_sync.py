@@ -26,7 +26,8 @@ from apps.app2_mfg.core.ini_sync import IniConfigManager, DLSS_PRESET_MAP, VK_KE
 from apps.app2_mfg.core.optiscaler_config import (
     load_mode_a_preset, save_mode_a_preset,
     load_reshade_preset, save_reshade_preset,
-    load_optiscaler_preset, save_optiscaler_preset
+    load_optiscaler_preset, save_optiscaler_preset,
+    load_dlssg_sm86_preset, save_dlssg_sm86_preset
 )
 from apps.app2_mfg.core.state_cleaner import CleanGameDirectoryState
 from apps.app6_dlss5.engine.injector import DLSS5Injector, check_dlss5_status
@@ -52,8 +53,10 @@ class ConfigSyncService:
                     data = json.load(f)
                     backend = data.get("active_backend") or data.get("backend") or ""
                     backend_s = str(backend).lower()
-                    if "optiscaler" in backend_s:
+                    if "dlssg" in backend_s or "sm86" in backend_s:
                         return "C"
+                    if "optiscaler" in backend_s:
+                        return "D"
                     if "reshade" in backend_s or "renodx" in backend_s:
                         return "B"
                     if "standalone" in backend_s or "dashdogy" in backend_s:
@@ -61,8 +64,10 @@ class ConfigSyncService:
             except Exception:
                 pass
 
-        if (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists():
+        if (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
             return "C"
+        if (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists():
+            return "D"
         if (td / "renodx-mfgunlock.addon64").exists():
             return "B"
         if (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists() or (td / "version.dll").exists():
@@ -110,11 +115,19 @@ class ConfigSyncService:
             return preset
 
         elif mode == "C":
-            preset = load_optiscaler_preset()
+            preset = load_dlssg_sm86_preset()
             if td.exists():
-                disk_c = IniConfigManager.read_mode_c_reverse(td)
+                disk_c = IniConfigManager.read_mode_d_reverse(td)
                 if disk_c:
                     preset.update(disk_c)
+            return preset
+
+        elif mode == "D":
+            preset = load_optiscaler_preset()
+            if td.exists():
+                disk_d = IniConfigManager.read_mode_c_reverse(td)
+                if disk_d:
+                    preset.update(disk_d)
             return preset
 
         return {}
@@ -138,7 +151,7 @@ class ConfigSyncService:
             return False, f"目标目录不存在: {target_dir}"
 
         mode = mode.upper()
-        if mode not in ("A", "B", "C"):
+        if mode not in ("A", "B", "C", "D"):
             return False, f"未知的工作模式: {mode}"
 
         updater = ComponentUpdater()
@@ -197,22 +210,46 @@ class ConfigSyncService:
             IniConfigManager.sync_mode_b_forward(td, preset_b)
 
         elif mode == "C":
-            preset_c = load_optiscaler_preset()
-            preset_c["interpolation_count"] = int(params.get("interpolation_count", max(1, int(params.get("multiplier", 3)) - 1)))
-            preset_c["dlss_preset"] = params.get("dlss_preset", "K")
-            preset_c["menu_key"] = params.get("menu_key", "Insert")
-            preset_c["fg_output"] = params.get("fg_output", "xefg")
-            preset_c["fg_input"] = params.get("fg_input", "dlssg")
-            preset_c["dx12_upscaler"] = params.get("dx12_upscaler", "dlss")
-            preset_c["rcas_enabled"] = bool(params.get("rcas_enabled", False))
-            preset_c["rcas_sharpness"] = float(params.get("rcas_sharpness", 0.0))
-            save_optiscaler_preset(preset_c)
+            preset_c = load_dlssg_sm86_preset()
+            if "max_generated_frames" in params:
+                preset_c["max_generated_frames"] = int(params["max_generated_frames"])
+            elif "multiplier" in params:
+                preset_c["max_generated_frames"] = max(1, min(5, int(params["multiplier"]) - 1))
+            if "optimized" in params:
+                preset_c["optimized"] = int(params["optimized"])
+            if "dlssg_preset" in params:
+                preset_c["dlssg_preset"] = str(params["dlssg_preset"])
+            if "super_resolution_mode" in params:
+                preset_c["super_resolution_mode"] = str(params["super_resolution_mode"])
+            if "engine" in params:
+                preset_c["engine"] = str(params["engine"])
+            if "proxy_dll" in params:
+                preset_c["proxy_dll"] = str(params["proxy_dll"])
+            save_dlssg_sm86_preset(preset_c)
 
-            ok, msg = patcher.patch_game(game_info, requested_backend=BackendType.OPTISCALER_FSR)
+            ok, msg = patcher.patch_game(game_info, requested_backend=BackendType.DLSSG_SM86)
             if not ok:
                 return False, f"模式 C 注入失败: {msg}"
 
-            IniConfigManager.sync_mode_c_forward(td, preset_c, exe_name=game_info.exe_name)
+            IniConfigManager.sync_mode_d_forward(td, preset_c, exe_name=game_info.exe_name)
+
+        elif mode == "D":
+            preset_d = load_optiscaler_preset()
+            preset_d["interpolation_count"] = int(params.get("interpolation_count", max(1, int(params.get("multiplier", 3)) - 1)))
+            preset_d["dlss_preset"] = params.get("dlss_preset", "K")
+            preset_d["menu_key"] = params.get("menu_key", "Insert")
+            preset_d["fg_output"] = params.get("fg_output", "xefg")
+            preset_d["fg_input"] = params.get("fg_input", "dlssg")
+            preset_d["dx12_upscaler"] = params.get("dx12_upscaler", "dlss")
+            preset_d["rcas_enabled"] = bool(params.get("rcas_enabled", False))
+            preset_d["rcas_sharpness"] = float(params.get("rcas_sharpness", 0.0))
+            save_optiscaler_preset(preset_d)
+
+            ok, msg = patcher.patch_game(game_info, requested_backend=BackendType.OPTISCALER_FSR)
+            if not ok:
+                return False, f"模式 D 注入失败: {msg}"
+
+            IniConfigManager.sync_mode_c_forward(td, preset_d, exe_name=game_info.exe_name)
 
         # Step 3: Deploy DLSS 5 addon & runtime
         ok_dlss5, msg_dlss5 = DLSS5Injector.inject(str(td), dlss5_config=params.get("dlss5_params"))
@@ -222,11 +259,12 @@ class ConfigSyncService:
         mode_names = {
             "A": "模式 A (dashdogy 独立代理)",
             "B": "模式 B (RenoDX 插件优化)",
-            "C": "模式 C (OptiScaler 跨卡转译)"
+            "C": "模式 C (DLSSG-SM86 原生插帧)",
+            "D": "模式 D (OptiScaler 跨卡转译)"
         }
         res_msg = (
             f"✅ 【{mode_names.get(mode)} + DLSS 5 神经重构】联动注入成功！\n\n"
             f"⚡ 插帧配置已自动同步至游戏目录及控制台。\n"
-            f"🎮 启动游戏后按对应热键即可调校（模式 A: Backspace，模式 B: Home，模式 C: Insert）。"
+            f"🎮 启动游戏后按对应热键即可调校（模式 A: Backspace，模式 B: Home，模式 D: Insert）。"
         )
         return True, res_msg

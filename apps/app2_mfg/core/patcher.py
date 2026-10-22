@@ -70,8 +70,13 @@ class PatchEngine:
         if active_backend == BackendType.SMART_AUTO:
             gpu_name = get_system_gpu_name()
             if not is_rtx_40_or_newer(gpu_name):
-                # RTX 20/30 or GTX or AMD/Intel GPU -> Auto select OptiScaler FSR 3.1 bridge!
-                active_backend = BackendType.OPTISCALER_FSR
+                # RTX 20/30 (SM75/SM86) -> Auto select Mode D (Native DLSS-G)!
+                # GTX / AMD / Intel GPU -> Auto select Mode C (OptiScaler FSR 3.1 bridge)
+                gpu_upper = gpu_name.upper()
+                if "RTX 30" in gpu_upper or "RTX 20" in gpu_upper or "SM86" in gpu_upper or "SM75" in gpu_upper or "A100" in gpu_upper:
+                    active_backend = BackendType.DLSSG_SM86
+                else:
+                    active_backend = BackendType.OPTISCALER_FSR
             else:
                 # RTX 40 / 50 series -> Native DLSS-G MFG Unlocker
                 if game.has_reshade:
@@ -91,7 +96,14 @@ class PatchEngine:
         )
 
         try:
-            target_mode_char = "A" if (active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value) else ("B" if (active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value) else "C")
+            if active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
+                target_mode_char = "A"
+            elif active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
+                target_mode_char = "B"
+            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
+                target_mode_char = "C"
+            else:
+                target_mode_char = "D"
             has_dlss5 = is_dlss5_present(game.target_dir)
             CleanGameDirectoryState(game.target_dir, preserve_dlss5=has_dlss5, target_mode=target_mode_char)
 
@@ -105,6 +117,10 @@ class PatchEngine:
                     return False, err
             elif active_backend == BackendType.OPTISCALER_FSR or backend_str == BackendType.OPTISCALER_FSR.value:
                 success, err = self._apply_optiscaler_patch(game, manifest)
+                if not success:
+                    return False, err
+            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
+                success, err = self._apply_dlssg_sm86_patch(game, manifest)
                 if not success:
                     return False, err
             else:
@@ -136,7 +152,7 @@ class PatchEngine:
                     callout = (
                         f"在游戏设置中开启【DLSS 帧生成】即按预设生效！\n"
                         f"✨ 进游戏按【{key_name}】呼出 OptiScaler 调校菜单\n"
-                        f"✨ 已自动注入预设: {summary_str}{warn_text}"
+                        f"✨ 已自动注入模式 D 预设: {summary_str}{warn_text}"
                     )
                 except Exception:
                     callout = "在游戏画质设置中开启【DLSS 帧生成】(进游戏按【Insert】呼出 OptiScaler 菜单)"
@@ -150,6 +166,20 @@ class PatchEngine:
                     callout = f"按 【Backspace】 打开菜单\n✨ 已自动写入模式 A 预设: {summary_a}"
                 except Exception:
                     callout = "按 【Backspace】 打开菜单"
+            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
+                try:
+                    from core.optiscaler_config import load_dlssg_sm86_preset, get_dlssg_sm86_preset_summary
+                    from core.ini_sync import IniConfigManager
+                    preset_d = load_dlssg_sm86_preset()
+                    summary_d = get_dlssg_sm86_preset_summary(preset_d)
+                    IniConfigManager.sync_mode_d_forward(game.target_dir, preset_d, game.exe_name)
+                    callout = (
+                        f"在游戏画质设置中直接开启【DLSS 帧生成】即刻生效！\n"
+                        f"⚡ 已自动注入模式 C 原生预设: {summary_d}\n"
+                        f"✨ 专为 RTX 20/30 系优化，原生 DLSS 3/4.5 多倍插帧 + INT8 超分加速"
+                    )
+                except Exception:
+                    callout = "在游戏画质设置中直接开启【DLSS 帧生成】"
             else:
                 callout = "按 【Home】 在 ReShade 面板中打开菜单"
 
@@ -330,6 +360,8 @@ class PatchEngine:
                 pass
 
         td = Path(target_dir)
+        if (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
+            return BackendType.DLSSG_SM86.value
         if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
             return BackendType.OPTISCALER_FSR.value
         if (td / "renodx-mfgunlock.addon64").exists() or ((td / "ReShade.ini").exists() and (td / "dxgi.dll").exists()):
@@ -713,14 +745,37 @@ class PatchEngine:
         # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin in OptiScaler/plugins/
         # OptiScaler 10+ loads ASI plugins via LoadAsiPlugins=true, unlocking multi-frame generation
         # (2X/3X/4X/5X/6X) for XeSS 2.0 / XeFG frame generation pipelines across RTX 20/30/40/50 and all GPUs!
-        mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
-        if mfg_dll_path and os.path.exists(mfg_dll_path):
-            plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
-            os.makedirs(plugins_dir, exist_ok=True)
-            dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
-            shutil.copy2(mfg_dll_path, dst_asi)
-            if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
-                manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
+        has_dlss5 = os.path.exists(os.path.join(target_dir, "renodx-dlss.addon64")) or \
+                    os.path.exists(os.path.join(target_dir, ".dlss5_patch_manifest.json"))
+        plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
+        dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
+        if has_dlss5:
+            # Avoid MinHook collision on slInit with renodx-dlss.addon64;
+            # Mode C natively utilizes [XeFG] InterpolationCount for 2X~6X frame generation.
+            # Remove ALL known ASI name variants (standard + loadlate) to prevent any MinHook conflict.
+            for _asi_name in ["MFGUnlocker.asi", "MFGUnlocker-loadlate.asi"]:
+                _asi_path = os.path.join(plugins_dir, _asi_name)
+                if os.path.exists(_asi_path):
+                    try:
+                        safe_force_remove(_asi_path)
+                    except Exception:
+                        pass
+            # Purge d3d12-ReShade64.dll: OptiScaler accepts both "ReShade64.dll" and
+            # "d3d12-ReShade64.dll" as chain-load targets. If both exist simultaneously,
+            # two ReShade instances initialize and register duplicate D3D12 hooks -> crash.
+            _d3d12_reshade = os.path.join(target_dir, "d3d12-ReShade64.dll")
+            if os.path.exists(_d3d12_reshade):
+                try:
+                    safe_force_remove(_d3d12_reshade)
+                except Exception:
+                    pass
+        else:
+            mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
+            if mfg_dll_path and os.path.exists(mfg_dll_path):
+                os.makedirs(plugins_dir, exist_ok=True)
+                shutil.copy2(mfg_dll_path, dst_asi)
+                if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
+                    manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
 
         # 4. Write the ONE legal config file (OptiScaler.ini) and delete the legacy alias.
         #    v0.9.4 shows a red banner while nvngx.ini exists, and reads FG init keys at
@@ -832,3 +887,112 @@ class PatchEngine:
             return True
 
         return False
+
+    def _apply_dlssg_sm86_patch(self, game: GameInfo, manifest: PatchManifest) -> Tuple[bool, str]:
+        """
+        Deploy Mode D (DLSSG for SM86/SM75 Native DLSS-G & INT8 Super Resolution)
+        1. Clean conflicting Mode A, B, C files
+        2. Deploy selected proxy DLL (default: version.dll)
+        3. Deploy dlssg_sm86 folder (runtime, backend, kernels, sr, xefg)
+        4. Deploy and forward sync dlssg_sm86.ini
+        5. DLSS 5 coexistence: ensure ReShade is deployed on dxgi.dll if DLSS 5 present
+        """
+        source_dir = self.updater.get_latest_cached_dir(BackendType.DLSSG_SM86)
+        if not source_dir or not os.path.exists(source_dir):
+            return False, "本地缓存中未找到 DLSSG-SM86 组件！\n请先在主界面点击【检查并同步最新版本】进行下载。"
+
+        target_dir = game.target_dir
+        kill_locking_processes(target_dir, game.exe_name)
+        cleanup_pending_files(target_dir)
+
+        # 1. Clean conflicting Mode A, B, C files
+        for conflicting_file in [
+            "OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll",
+            "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64",
+            "RTX40MFG-UI.ini", "RTXMFG-UI.ini", "mfg_unlocker.ini", "RTXMFG-Universal.json"
+        ]:
+            f_p = os.path.join(target_dir, conflicting_file)
+            if os.path.exists(f_p):
+                safe_force_remove(f_p)
+
+        has_dlss5 = is_dlss5_present(target_dir)
+
+        # 2. Load Mode D preset to check preferred proxy DLL
+        try:
+            from core.optiscaler_config import load_dlssg_sm86_preset
+            preset_d = load_dlssg_sm86_preset()
+        except Exception:
+            preset_d = {"proxy_dll": "version.dll"}
+
+        selected_proxy = str(preset_d.get("proxy_dll", "version.dll")).strip().lower()
+        if not selected_proxy.endswith(".dll"):
+            selected_proxy = "version.dll"
+
+        # Locate proxy source file
+        source_proxy = os.path.join(source_dir, selected_proxy)
+        if not os.path.exists(source_proxy):
+            # Check alternatives folder
+            alt_path = os.path.join(source_dir, "alternatives", selected_proxy)
+            if os.path.exists(alt_path):
+                source_proxy = alt_path
+            else:
+                source_proxy = os.path.join(source_dir, "version.dll")
+
+        if not os.path.exists(source_proxy):
+            return False, f"DLSSG-SM86 资源目录中缺少代理文件 {selected_proxy} 或 version.dll！"
+
+        dest_proxy_path = os.path.join(target_dir, selected_proxy)
+        if os.path.exists(dest_proxy_path):
+            safe_force_remove(dest_proxy_path)
+        shutil.copy2(source_proxy, dest_proxy_path)
+        manifest.created_files.append(selected_proxy)
+
+        # 3. Deploy dlssg_sm86 directory (runtime, backend, kernels, sr, xefg)
+        src_dlssg_sub = os.path.join(source_dir, "dlssg_sm86")
+        if not os.path.exists(src_dlssg_sub):
+            src_dlssg_sub = source_dir
+
+        dst_dlssg_sub = os.path.join(target_dir, "dlssg_sm86")
+        os.makedirs(dst_dlssg_sub, exist_ok=True)
+        if "dlssg_sm86" not in manifest.created_files:
+            manifest.created_files.append("dlssg_sm86")
+
+        for root, dirs, files in os.walk(src_dlssg_sub):
+            rel = os.path.relpath(root, src_dlssg_sub)
+            if rel == ".":
+                dest_root = dst_dlssg_sub
+            else:
+                dest_root = os.path.join(dst_dlssg_sub, rel)
+            os.makedirs(dest_root, exist_ok=True)
+            for file in files:
+                src_f = os.path.join(root, file)
+                dst_f = os.path.join(dest_root, file)
+                shutil.copy2(src_f, dst_f)
+
+        # 4. Deploy and forward sync dlssg_sm86.ini
+        src_ini = os.path.join(source_dir, "dlssg_sm86.ini")
+        dst_ini = os.path.join(target_dir, "dlssg_sm86.ini")
+        if os.path.exists(src_ini) and not os.path.exists(dst_ini):
+            shutil.copy2(src_ini, dst_ini)
+        if "dlssg_sm86.ini" not in manifest.created_files:
+            manifest.created_files.append("dlssg_sm86.ini")
+
+        try:
+            from core.ini_sync import IniConfigManager
+            IniConfigManager.sync_mode_d_forward(target_dir, preset_d, game.exe_name)
+        except Exception:
+            pass
+
+        # 5. DLSS 5 Coexistence: ensure ReShade is deployed on dxgi.dll if DLSS 5 present
+        if has_dlss5:
+            dxgi_path = os.path.join(target_dir, "dxgi.dll")
+            if not os.path.exists(dxgi_path) or not self._is_reshade_addon_dll(dxgi_path):
+                reshade_src = self.updater.get_reshade_framework_dll()
+                if reshade_src and os.path.exists(reshade_src):
+                    safe_force_remove(dxgi_path)
+                    shutil.copy2(reshade_src, dxgi_path)
+                    if "dxgi.dll" not in manifest.created_files:
+                        manifest.created_files.append("dxgi.dll")
+            safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
+
+        return True, ""

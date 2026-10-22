@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DLSSG Installation Manual</title>
+<style>
+/* The English edition of MANUAL.html (same layout, colour tokens and anchors).  The step-by-step installation manual
+   for people new to mods: it ships at the release package root and is opened straight from disk, so it is one
+   self-contained file: system fonts, no network, no images.  One reading column, numbered steps (they are a real
+   sequence), file names as mono chips, tinted boxes only for what can go wrong.  docs/INSTALL.en.md is the complete
+   reference; this page covers installing, the switches a player touches and reporting. */
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --ink: #17202a;
+  --muted: #586473;
+  --line: #d6dce3;
+  --accent: #2c5c9c;
+  --accent-ink: #ffffff;
+  --code-bg: #e8edf2;
+  --tip-bg: #e9f1fb; --tip-line: #b8cfee; --tip-ink: #1d416e;
+  --warn-bg: #fff3df; --warn-line: #efcb8c; --warn-ink: #6e4300;
+  --stop-bg: #fcebea; --stop-line: #efb6b2; --stop-ink: #8a1f1b;
+  --chip-all: #dde7f4; --chip-all-ink: #23497c;
+  --chip-30: #e3efe4; --chip-30-ink: #255c2b;
+  --chip-40: #efe6f5; --chip-40-ink: #5b2e7a;
+  --font-body: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --surface: #19202a; --ink: #e3e8ee; --muted: #9ba7b5; --line: #2b3541;
+    --accent: #86ade6; --accent-ink: #0f1620; --code-bg: #222c37;
+    --tip-bg: #14243a; --tip-line: #2c4a70; --tip-ink: #a9c8f0;
+    --warn-bg: #2c2314; --warn-line: #5c4620; --warn-ink: #f1c97c;
+    --stop-bg: #2e1719; --stop-line: #5d2a2c; --stop-ink: #f2a9a4;
+    --chip-all: #1f3150; --chip-all-ink: #b3cdf2;
+    --chip-30: #1d3321; --chip-30-ink: #a9dbb0;
+    --chip-40: #2f2140; --chip-40-ink: #d9bdf0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #19202a; --ink: #e3e8ee; --muted: #9ba7b5; --line: #2b3541;
+  --accent: #86ade6; --accent-ink: #0f1620; --code-bg: #222c37;
+  --tip-bg: #14243a; --tip-line: #2c4a70; --tip-ink: #a9c8f0;
+  --warn-bg: #2c2314; --warn-line: #5c4620; --warn-ink: #f1c97c;
+  --stop-bg: #2e1719; --stop-line: #5d2a2c; --stop-ink: #f2a9a4;
+  --chip-all: #1f3150; --chip-all-ink: #b3cdf2;
+  --chip-30: #1d3321; --chip-30-ink: #a9dbb0;
+  --chip-40: #2f2140; --chip-40-ink: #d9bdf0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+.page { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; display: grid; gap: 2.25rem; }
+@media (max-width: 480px) { .page { padding: 1.5rem 1rem 3rem; gap: 1.75rem; } }
+header { display: grid; gap: .6rem; }
+.eyebrow { font-size: .8rem; letter-spacing: .08em; color: var(--muted); }
+h1 { font-family: var(--font-display); font-size: clamp(1.7rem, 4.5vw, 2.3rem); line-height: 1.25; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 40rem; }
+.build { font-size: .85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+.build code { font-size: .8rem; }
+h2 { font-family: var(--font-display); font-size: 1.35rem; line-height: 1.35; margin: 0; text-wrap: balance; }
+h3 { font-size: 1.05rem; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+p { margin: 0; }
+section { display: grid; gap: .9rem; min-width: 0; }
+.step { padding-top: 1.75rem; border-top: 1px solid var(--line); }
+.step-head { display: flex; align-items: baseline; gap: .8rem; }
+.num {
+  flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); font-family: var(--font-display); font-weight: 700; font-size: 1rem;
+  font-variant-numeric: tabular-nums; transform: translateY(.15rem);
+}
+ol, ul { margin: 0; padding-left: 1.4rem; display: grid; gap: .45rem; }
+li { padding-left: .15rem; }
+li > ul, li > ol { margin-top: .4rem; }
+code, kbd, .file {
+  font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); border-radius: 4px; padding: .08em .35em;
+  overflow-wrap: anywhere;
+}
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface); }
+.box { border: 1px solid; border-radius: 8px; padding: .85rem 1rem; display: grid; gap: .45rem; min-width: 0; }
+.box .label { font-weight: 700; font-size: .9rem; letter-spacing: .04em; }
+.tip { background: var(--tip-bg); border-color: var(--tip-line); color: var(--tip-ink); }
+.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+.stop { background: var(--stop-bg); border-color: var(--stop-line); color: var(--stop-ink); }
+.box code, .box kbd { color: var(--ink); }
+.chip { display: inline-block; font-size: .78rem; font-weight: 600; line-height: 1.5; padding: .05rem .55rem; border-radius: 999px; white-space: nowrap; }
+.chip.all { background: var(--chip-all); color: var(--chip-all-ink); }
+.chip.c30 { background: var(--chip-30); color: var(--chip-30-ink); }
+.chip.c40 { background: var(--chip-40); color: var(--chip-40-ink); }
+nav { display: grid; gap: .6rem; }
+a { color: var(--accent); text-underline-offset: .2em; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scroll { overflow-x: auto; min-width: 0; }
+pre {
+  margin: 0; font-family: var(--font-mono); font-size: .85rem; line-height: 1.6; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; white-space: pre; color: var(--ink);
+}
+pre .hl { color: var(--accent); font-weight: 700; }
+pre .dim { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: .55rem .7rem; border: 1px solid var(--line); }
+th { font-weight: 700; background: var(--code-bg); }
+td code { white-space: nowrap; }
+.copy-wrap { display: grid; gap: .5rem; }
+.copy-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+button.copy {
+  font: inherit; font-size: .9rem; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  border-radius: 6px; padding: .3rem .9rem;
+}
+.copy-state { font-size: .85rem; color: var(--muted); }
+footer { font-size: .85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 1.25rem; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="eyebrow">Installation manual · step by step, written for a first install</div>
+  <h1>DLSSG Installation Manual</h1>
+  <p class="lede">This project lets RTX 20 / 30 graphics cards use DLSS Frame Generation, and on RTX 40 / 50 it uses this project's frame-generation kernels by default; on RTX 30 / 20 you can also turn on this project's INT8 Super Resolution kernels. Follow the steps below one at a time: each step says where to go and what to click.</p>
+  <div class="build"><span><a href="MANUAL.html" lang="zh-CN">中文</a> · <b>English</b></span><span>For the DLSSG 0.4.0 release package</span><span>Every setting in full: <code>docs\INSTALL.en.md</code></span></div>
+</header>
+
+<section class="box stop" aria-label="Read these three first">
+  <div class="label">Read these three first</div>
+  <ol>
+    <li>Only <b>NVIDIA RTX 20 / 30 / 40 / 50</b> series graphics cards are supported. GTX cards and AMD or Intel graphics cannot use it. Frame generation works only in DirectX 12 games.</li>
+    <li><b>Never install it in online games with anti-cheat</b>, such as Delta Force, Naraka: Bladepoint, Marvel Rivals, Call of Duty or GTA V: you risk a ban.</li>
+    <li>Every time you copy files or change a setting, <b>fully quit the game and start it again</b> for the change to take effect.</li>
+  </ol>
+</section>
+
+<nav aria-label="Steps">
+  <h2>Steps</h2>
+  <ol>
+    <li><a href="#prepare">Prepare: turn on Hardware-accelerated GPU scheduling</a></li>
+    <li><a href="#unzip">Unzip the release package</a></li>
+    <li><a href="#find">Find the game's EXE folder</a></li>
+    <li><a href="#copy">Copy the files</a></li>
+    <li><a href="#check">Check that it is installed</a></li>
+    <li><a href="#use">Use it</a></li>
+    <li><a href="#report">How to report a problem</a></li>
+  </ol>
+  <p>Also: <a href="#ini">How to edit the settings file</a> · <a href="#upgrade">Upgrade</a> · <a href="#uninstall">Uninstall</a> · <a href="#faq">FAQ</a> (including what to do when the game does not load <code>version.dll</code>)</p>
+</nav>
+
+<section class="step" id="prepare">
+  <div class="step-head"><span class="num">1</span><h2>Prepare: turn on Hardware-accelerated GPU scheduling</h2></div>
+  <p>Frame generation needs Windows' Hardware-accelerated GPU scheduling to be on. While it is off, the frame generation option cannot be turned on in any game.</p>
+  <ol>
+    <li>Open the Start menu, type <b>graphics settings</b> and open the result (on Windows 11 the page is called Graphics).</li>
+    <li>Find <b>Hardware-accelerated GPU scheduling</b> and turn it on. On Windows 11 you first click "Change default graphics settings" (called "Advanced graphics settings" in some versions) to see it.</li>
+    <li>If you have just turned it on, <b>restart the PC</b>. If it was already on, there is nothing to do.</li>
+  </ol>
+  <p>Two more things:</p>
+  <ul>
+    <li>Update the graphics driver to the latest version if you can (in the NVIDIA App or GeForce Experience).</li>
+    <li>If this game has another mod that changes DLSS or frame generation (for example OptiScaler, DLSS Enabler or another version of dlssg-to-fsr3), uninstall it first as that mod's instructions say.</li>
+  </ul>
+</section>
+
+<section class="step" id="unzip">
+  <div class="step-head"><span class="num">2</span><h2>Unzip the release package</h2></div>
+  <ol>
+    <li>Right-click the release zip, choose <b>Extract All…</b>, then click "Extract". 7-Zip, WinRAR or Bandizip work too.</li>
+    <li>Always extract first; do not drag files straight out of the zip.</li>
+  </ol>
+  <p>In the unpacked folder only the 3 items highlighted below go into the game; leave the rest for now:</p>
+  <div class="scroll"><pre>unpacked folder\
+├─ <span class="hl">version.dll</span>
+├─ <span class="hl">dlssg_sm86.ini</span>
+├─ <span class="hl">dlssg_sm86\</span>              <span class="dim">(the whole folder)</span>
+├─ alternatives\            <span class="dim">only when the game does not load version.dll, see the FAQ</span>
+├─ MANUAL.en.html           <span class="dim">this installation manual</span>
+├─ README.en.md             <span class="dim">release notes, opens in Notepad</span>
+└─ docs\ and a few others   <span class="dim">not needed</span></pre></div>
+</section>
+
+<section class="step" id="find">
+  <div class="step-head"><span class="num">3</span><h2>Find the game's EXE folder</h2></div>
+  <p>The files go <b>next to the EXE the game actually runs</b>. Many games have only a launcher in their install folder and the real EXE in a deeper folder; in the wrong place nothing happens.</p>
+  <h3>The sure way (works for every game)</h3>
+  <ol>
+    <li>Start the game as usual and get to the main menu.</li>
+    <li>Press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd> to open Task Manager and go to <b>Details</b> (on Windows 10, click "More details" first if the window is small).</li>
+    <li>Find the game's process (its name is usually close to the game's, and the one using the most CPU and memory usually is it), right-click it and choose <b>Open file location</b>.</li>
+    <li>The folder that opens is where the files go. Keep this window open, then fully quit the game.</li>
+  </ol>
+  <h3>A few common games</h3>
+  <p>In your Steam library right-click the game → "Manage" → "Browse local files", then go into the folder below:</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Game</th><th>Folder with the EXE</th></tr></thead>
+    <tbody>
+      <tr><td>The Witcher 3: Wild Hunt</td><td><code>The Witcher 3\bin\x64_dx12</code></td></tr>
+      <tr><td>Cyberpunk 2077</td><td><code>Cyberpunk 2077\bin\x64</code></td></tr>
+      <tr><td>Black Myth: Wukong</td><td><code>BlackMythWukong\b1\Binaries\Win64</code></td></tr>
+      <tr><td>Hogwarts Legacy</td><td><code>Hogwarts Legacy\Phoenix\Binaries\Win64</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>Most Unreal Engine games keep it in <code>GameName\Binaries\Win64</code>.</p>
+</section>
+
+<section class="step" id="copy">
+  <div class="step-head"><span class="num">4</span><h2>Copy the files</h2></div>
+  <ol>
+    <li>First check whether the game folder already has any of these files: <code>version.dll</code>, <code>winmm.dll</code>, <code>dbghelp.dll</code>, <code>dinput8.dll</code>, <code>dxgi.dll</code>, <code>d3d12.dll</code>.
+      <ul>
+        <li>None of them: go on to the next step.</li>
+        <li>Some, and you put them there when you installed this project before: go on to the next step and delete the old ones.</li>
+        <li>Some, and you don't know what they are (most likely another mod): create a folder on the desktop called "game backup" and <b>cut</b> these files into it; put them back when you uninstall this project.</li>
+      </ul>
+    </li>
+    <li>If you installed this project before (any version): first delete the old <code>version.dll</code>, <code>winmm.dll</code>, <code>dbghelp.dll</code>, <code>dinput8.dll</code>, <code>dlssg_sm86.ini</code> and the <code>dlssg_sm86</code> folder from the game folder (older versions placed four DLLs; now only one is used). If you had changed settings in the old <code>dlssg_sm86.ini</code>, note what you changed and make the same changes in the new one after installing.</li>
+    <li>Go back to the unpacked folder, hold <kbd>Ctrl</kbd> and click these 3 items one after another: <code>version.dll</code>, <code>dlssg_sm86.ini</code> and the <code>dlssg_sm86</code> folder, then press <kbd>Ctrl</kbd> + <kbd>C</kbd>.</li>
+    <li>Switch to the game folder and press <kbd>Ctrl</kbd> + <kbd>V</kbd>. If Windows asks "Replace or Skip Files", choose <b>Replace the files in the destination</b>.</li>
+  </ol>
+  <p>After copying, the game folder should look like this:</p>
+  <div class="scroll"><pre>folder with the game's EXE\
+├─ <span class="dim">(the game's own EXE and other files, leave them alone)</span>
+├─ <span class="hl">version.dll</span>
+├─ <span class="hl">dlssg_sm86.ini</span>
+└─ <span class="hl">dlssg_sm86\</span>
+   ├─ backend\
+   ├─ kernels\
+   ├─ runtime\
+   └─ sr\</pre></div>
+  <div class="box tip">
+    <div class="label">Only one DLL at a time</div>
+    <p>This project gets into the game through this one file, <code>version.dll</code>. That works for the vast majority of games; when a game does not load it, use another one from <code>alternatives</code> instead (see <a href="#faq-dll">Try another DLL</a>), but never put more than one in the game folder. The three items also have to stay together: copying only the DLL without the <code>dlssg_sm86</code> folder does nothing.</p>
+  </div>
+</section>
+
+<section class="step" id="check">
+  <div class="step-head"><span class="num">5</span><h2>Check that it is installed</h2></div>
+  <ol>
+    <li><b>RTX 20 / 30</b>: start the game and open its graphics settings. If "DLSS Frame Generation", which used to be grayed out or missing, can now be turned on, it is installed.</li>
+    <li><b>RTX 40 / 50</b> (where frame generation was available anyway), or to be sure:
+      <ol>
+        <li>Following <a href="#ini">How to edit the settings file</a>, change <code>Level=1</code> under <code>[Logging]</code> to <code>Level=2</code> and save.</li>
+        <li>Start the game, turn on frame generation and play for a minute or two, then fully quit the game.</li>
+        <li>Open <code>dlssg_sm86\logs</code> in the game folder. If there is a file like <code>loader_&lt;numbers&gt;.jsonl</code>, it is installed.</li>
+      </ol>
+    </li>
+  </ol>
+  <div class="box tip">
+    <div class="label">An empty logs folder is normal</div>
+    <p>The factory setting <code>Level=1</code> writes a log only when something goes wrong, so until you change it to <code>2</code>, an empty <code>dlssg_sm86\logs</code>, or none at all, is normal. Afterwards you can change it back to <code>1</code> or keep <code>2</code> (the logs get a bit bigger).</p>
+  </div>
+  <p>If with <code>Level=2</code> and frame generation on there is still no file starting with <code>loader_</code> in <code>logs</code>, it is not installed. First make sure you used the right folder, then follow <a href="#faq-dll">Try another DLL</a>.</p>
+</section>
+
+<section class="step" id="use">
+  <div class="step-head"><span class="num">6</span><h2>Use it</h2></div>
+
+  <h3>6.1 Frame generation <span class="chip all">All RTX cards</span></h3>
+  <ol>
+    <li>Turn on <b>DLSS Frame Generation</b> in the game's graphics settings (some games call it DLSS Multi Frame Generation). Pick the multiplier (2X / 3X / 4X) in the game: whatever the game offers can be selected.</li>
+    <li>The factory limit is 4X. If the game's menu offers 6X or a "dynamic" multi frame generation and you want 6X: following <a href="#ini">How to edit the settings file</a>, change <code>MaxGeneratedFrames=3</code> under <code>[FrameGeneration]</code> to <code>5</code>. If the frame-generation component the game ships supports only 4X, it stays at 4X after this change.</li>
+    <li>Frame generation needs a high enough base frame rate to look good: if the frame rate with frame generation off is too low, turning it on tends to bring ghosting and broken edges, more visibly the higher the multiplier. Then lower the graphics settings first to raise the base frame rate.</li>
+  </ol>
+  <div class="box warn">
+    <div class="label">RTX 40 / 50 note</div>
+    <p>The first time you turn on frame generation the picture freezes for a few seconds while the driver compiles this project's kernels; it does not happen again, except once more after a driver update. This is normal.</p>
+    <p>The multipliers you can pick are decided by the game; this project does not change them (for example many games offer only 2X on RTX 40). To switch back to NVIDIA's official frame-generation kernels, add the line <code>AccelerateNewerGpus=0</code> under <code>[Compatibility]</code>.</p>
+  </div>
+
+  <h3>6.2 Super Resolution INT8 <span class="chip c30">RTX 30 / 20 only</span></h3>
+  <p>It is off from the factory (<code>Mode=Off</code> under <code>[SuperResolution]</code>). On RTX 40 / 50 skip this section: this project does not change super resolution on 40 / 50, and <code>On</code> has no effect there.</p>
+  <ol>
+    <li>Following <a href="#ini">How to edit the settings file</a>, change <code>Mode=Off</code> under <code>[SuperResolution]</code> to <code>Mode=On</code> and save.</li>
+    <li>In the game's graphics settings set DLSS Super Resolution (some games call it DLSS mode or upscaling mode) to <b>Performance</b> or <b>Ultra Performance</b>. In most games only these two modes use this project's INT8 super resolution; Quality, Balanced and DLAA stay NVIDIA's own as usual.</li>
+    <li>If the game has <b>DLSS Ray Reconstruction</b>, turn it off: while it is on the game does not use super resolution, and this setting does nothing.</li>
+    <li>If you use the NVIDIA App: if you set a DLSS override (model presets) for this game in the NVIDIA App, turn it off first, or choose "Latest".</li>
+  </ol>
+  <div class="box warn">
+    <div class="label">One mode per session</div>
+    <p>Within one run of the game, only the first of Performance and Ultra Performance you use is accelerated. To switch to the other one: change it in the settings, <b>fully quit the game and start it again</b>. If you switch back and forth inside the game, the mode you switched to is not accelerated this time. This is not a fault.</p>
+  </div>
+  <p>Once it is on, the game's DLSS Super Resolution is replaced with the version in the package (310.7.129). If the game's own version is older, not all of the change in picture and frame rate comes from INT8.</p>
+
+  <h3>6.3 Other settings <span class="chip all">Usually left alone</span></h3>
+  <p>They are all in <code>dlssg_sm86.ini</code>; see <a href="#ini">How to edit the settings file</a>. For a setting marked "not present", add a line under that section yourself.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Setting</th><th>Section</th><th>Factory</th><th>When to change it</th></tr></thead>
+    <tbody>
+      <tr><td><code>Optimized</code></td><td><code>[DLSSG]</code></td><td><code>2</code></td><td>Frame generation's acceleration level. If the generated frames look wrong, try <code>1</code> (its picture is exactly the same as with no acceleration at all); <code>0</code> means no acceleration at all. Settings files from older versions have it under <code>[FrameGeneration]</code>; that still works.</td></tr>
+      <tr><td><code>MaxGeneratedFrames</code></td><td><code>[FrameGeneration]</code></td><td><code>3</code> (up to 4X)</td><td>Change to <code>5</code> for 6X (see 6.1).</td></tr>
+      <tr><td><code>Preset</code></td><td><code>[DLSSG]</code></td><td><code>Auto</code></td><td><code>C</code> = FG Lite: roughly a third to a half less GPU time per generated frame, slightly lower image quality (mostly on the HUD and at object edges). Also runs this project's accelerated kernels, whatever DLSS-G version the game ships. <code>B</code> (UI recomposition forced on) only works when the game provides both a HUD-less image and a UI plane, which most games do not; the log then has one <code>preset_ineffective</code> record.</td></tr>
+      <tr><td><code>Engine</code></td><td><code>[FrameGeneration]</code></td><td><code>DLSS</code></td><td><code>XeSS</code> = generate frames with Intel's XeSS-FG model (2X only). On RTX 30 it is slower than the default DLSS (about 3 ms more per generated frame at 4K) and uses about 0.4-0.5 GB more video memory; a game whose back buffer is RGBA16F (some HDR output) switches back to DLSS by itself. See 6.4.</td></tr>
+      <tr><td><code>Mode</code></td><td><code>[SuperResolution]</code></td><td><code>Off</code></td><td>Change to <code>On</code> on RTX 30 / 20 to use INT8 super resolution (see 6.2).</td></tr>
+      <tr><td><code>Level</code></td><td><code>[Logging]</code></td><td><code>1</code> (errors only)</td><td>Change to <code>2</code> to check the install or to report a problem.</td></tr>
+      <tr><td><code>FrameTiming</code></td><td><code>[Logging]</code></td><td>not present (off)</td><td>Add <code>FrameTiming=1</code> to record what every frame costs (frame interval, GPU time of super resolution and of frame generation); the logs get one more file, starting with <code>frames_</code>.</td></tr>
+      <tr><td><code>AccelerateNewerGpus</code></td><td><code>[Compatibility]</code></td><td>not present (on)</td><td>Add <code>AccelerateNewerGpus=0</code> on RTX 40 / 50 to switch back to NVIDIA's official frame-generation kernels.</td></tr>
+    </tbody>
+  </table></div>
+  <p>No other setting is in the factory file and they are rarely needed; all of them are described in <code>docs\INSTALL.en.md</code> (opens in Notepad).</p>
+  <h3>6.4 XeSS frame generation (optional) <span class="chip all">All RTX cards</span></h3>
+  <p>Following <a href="#ini">how to edit the settings file</a>, change <code>Engine=DLSS</code> under <code>[FrameGeneration]</code> to <code>Engine=XeSS</code>. Turn on DLSS frame generation in the game as usual; the multiplier is 2X only (a higher value in the settings file still gives 2X). The <code>[XeSSFG]</code> section has two settings: <code>FlowResolution</code> (<code>Coarse</code> / <code>Middle</code> / <code>Fine</code>, factory <code>Middle</code>; finer is slower) and <code>UseHudless</code> (factory <code>1</code>: use the game's HUD-less image when it provides one, otherwise not). The <code>[DLSSG]</code> settings do nothing under XeSS.</p>
+  <p>When the game's back buffer is RGBA16F (some HDR output uses it) or lacks an input XeSS needs, that game uses DLSS frame generation instead, and the log (at the factory level) has one <code>xefg_fallback</code> record naming the reason.</p>
+
+</section>
+
+<section class="step" id="report">
+  <div class="step-head"><span class="num">7</span><h2>How to report a problem</h2></div>
+  <ol>
+    <li>Following <a href="#ini">How to edit the settings file</a>, change <code>Level</code> under <code>[Logging]</code> to <code>2</code> (skip this if it already is).</li>
+    <li>Delete the old files in <code>dlssg_sm86\logs</code> first, then start the game, make the problem happen once and fully quit the game.</li>
+    <li>Compress the whole <code>dlssg_sm86\logs</code> folder from the game folder: right-click <code>logs</code> → "Compress to ZIP file" (on Windows 10: right-click → "Send to" → "Compressed (zipped) folder").</li>
+    <li>Submit that zip, together with the text below filled in, wherever you downloaded this project (for example the Issues of its GitHub page).</li>
+    <li>For picture problems attach a screenshot or a recording: <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> takes a screenshot, <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>R</kbd> starts recording.</li>
+  </ol>
+  <div class="copy-wrap">
+    <div class="copy-row"><button class="copy" type="button" id="copy-report">Copy this</button><span class="copy-state" id="copy-state" role="status"></span></div>
+    <div class="scroll"><pre id="report-template">Version: 0.4.0
+DLL in use (version.dll, or which one you switched to):
+GPU model:
+Driver version:
+Game name and version:
+Resolution:
+DLSS Super Resolution mode:
+Frame generation multiplier:
+Changes to dlssg_sm86.ini (write "none" if unchanged):
+The problem (in which scene, how it happens):</pre></div>
+  </div>
+  <div class="box tip">
+    <div class="label">Where to find the GPU model and driver version</div>
+    <p>Press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd> to open Task Manager → "Performance" → the GPU on the left that says NVIDIA. The GPU model is at the top right, and "Driver version" below it is the driver version. A photo or a screenshot of it is fine too.</p>
+  </div>
+</section>
+
+<section class="step" id="ini">
+  <h2>How to edit the settings file</h2>
+  <p>All settings are in <code>dlssg_sm86.ini</code> in the game folder (editing the copy in the unpacked folder does nothing).</p>
+  <ol>
+    <li>Fully quit the game.</li>
+    <li>In the game folder right-click <code>dlssg_sm86.ini</code> → "Open with" → "Notepad". On Windows 11 you may have to click "Show more options" first.</li>
+    <li>Find the section in square brackets, for example <code>[Logging]</code>, find the line to change below it and change only the value after the equals sign, for example <code>Level=1</code> to <code>Level=2</code>. Lines that start with a semicolon <code>;</code> are explanations; leave them alone.</li>
+    <li>For a setting you add as a new line (for example <code>AccelerateNewerGpus=0</code>): write it on a line of its own below that section's bracket line and before the next bracket line, never inside another section.</li>
+    <li>Press <kbd>Ctrl</kbd> + <kbd>S</kbd> to save, close Notepad, then start the game.</li>
+  </ol>
+  <div class="box tip">
+    <div class="label">A typo does no harm</div>
+    <p>A value that is written wrong falls back to its default on its own, and every other setting still applies (the log records one <code>configuration_warning</code>). To go back to the factory settings, copy <code>dlssg_sm86.ini</code> from the unpacked folder over it again.</p>
+  </div>
+</section>
+
+<section class="step" id="upgrade">
+  <h2>Upgrade</h2>
+  <ol>
+    <li>Fully quit the game.</li>
+    <li>As in step 4: first delete the old DLL (<code>version.dll</code>, or the one you switched to), <code>dlssg_sm86.ini</code> and the <code>dlssg_sm86</code> folder from the game folder, then copy the 3 new items.</li>
+    <li>Make the settings you had changed again in the new <code>dlssg_sm86.ini</code>.</li>
+    <li>If you are upgrading from 0.3.x you can also delete the folder <code>%LOCALAPPDATA%\DlssgSm86</code> (type that into File Explorer's address bar and press Enter to open it); the new version no longer uses it.</li>
+  </ol>
+</section>
+
+<section class="step" id="uninstall">
+  <h2>Uninstall</h2>
+  <ol>
+    <li>Fully quit the game.</li>
+    <li>Delete <code>version.dll</code> (or the DLL you switched to), <code>dlssg_sm86.ini</code> and the <code>dlssg_sm86</code> folder from the game folder.</li>
+    <li>If you backed up files in step 4, put them back.</li>
+    <li>To be extra sure: in your Steam library right-click the game → "Properties" → "Installed Files" → "Verify integrity of game files". It restores game files that were overwritten but does not delete extra files, so item 2 above you always do yourself.</li>
+  </ol>
+</section>
+
+<section class="step" id="faq">
+  <h2>FAQ</h2>
+  <h3>The frame generation option is still grayed out</h3>
+  <ul>
+    <li>Make sure Hardware-accelerated GPU scheduling from step 1 is on and that you restarted the PC.</li>
+    <li>Make sure the files are in the real EXE folder (find it again with Task Manager as in step 3) and that all three items are there.</li>
+    <li>Make sure the game itself supports DLSS Frame Generation and runs on DirectX 12.</li>
+    <li>Still no luck: send the logs as in step 7; they show why.</li>
+  </ul>
+  <h3>Level is 2, but logs is still empty</h3>
+  <ul>
+    <li>The most common cause is the wrong folder; find it again as in step 3.</li>
+    <li>If the folder is right, this game does not load <code>version.dll</code>: follow "Try another DLL" below.</li>
+    <li>Antivirus software (Windows Security or a third-party one) may have blocked or deleted <code>version.dll</code> or the other files. This project's DLLs are signed with a self-signed certificate, which some antivirus software flags by mistake. Look in the antivirus quarantine or block history, restore the files and add them as trusted.</li>
+    <li>Windows 11's Smart App Control can also block them while it is on. If that happens, please report it to us; we do not recommend turning it off just for this project.</li>
+  </ul>
+  <h3 id="faq-dll">Try another DLL</h3>
+  <p>The unpacked <code>alternatives</code> folder holds the same program under 5 other names. Try them one at a time in the order below, <b>with only one in the game folder each time</b>:</p>
+  <ol>
+    <li>Fully quit the game and delete <code>version.dll</code> (or the one you tried last) from the game folder.</li>
+    <li>Copy the next one from <code>alternatives</code> to the game folder, in this order: <code>winmm.dll</code> → <code>dbghelp.dll</code> → <code>dinput8.dll</code> → <code>dxgi.dll</code> → <code>d3d12.dll</code>.</li>
+    <li>Start the game, turn on frame generation and play for a minute or two, quit, and check whether a file starting with <code>loader_</code> appeared in <code>dlssg_sm86\logs</code> (<code>Level</code> has to be <code>2</code> first, see step 5). If it did, keep this one; if not, go back to item 1 and try the next.</li>
+  </ol>
+  <p>If none of the five works, report it to us. <code>dxgi.dll</code> and <code>d3d12.dll</code> come last because they sit on the game's rendering path: use them only when the earlier ones fail, and never both at once.</p>
+  <h3>The game does not start or crashes</h3>
+  <ul>
+    <li>First remove this project's files as in "Uninstall" and make sure the game itself runs normally.</li>
+    <li>If the game itself is fine, install again, change <code>Level</code> to <code>2</code>, make it crash once, then send the logs as in step 7 and say at which point it crashed.</li>
+  </ul>
+  <h3>Generated frames flicker, show corruption or ghosting</h3>
+  <ul>
+    <li>Check the base frame rate first: if the frame rate with frame generation off is too low, ghosting and broken edges with it on are how frame generation itself behaves; lower the graphics settings to raise the base frame rate and look again.</li>
+    <li>Change <code>Optimized=2</code> under <code>[DLSSG]</code> to <code>1</code> and try again (its picture is exactly the same as with no acceleration at all).</li>
+    <li>RTX 40 / 50: add <code>AccelerateNewerGpus=0</code> under <code>[Compatibility]</code> to switch back to the official kernels and try again.</li>
+    <li>If it is still there, report it as in step 7 and say with which settings it appears and with which it does not.</li>
+  </ul>
+  <h3>Super resolution is on, but nothing seems to change</h3>
+  <ul>
+    <li>Only RTX 30 / 20 have this; on RTX 40 / 50 super resolution is not changed.</li>
+    <li>Set the game's DLSS to Performance or Ultra Performance; Quality, Balanced and DLAA are not affected.</li>
+    <li>Turn off DLSS Ray Reconstruction; turn off a DLSS override set for this game in the NVIDIA App, or choose "Latest".</li>
+    <li>If you switched modes inside the game, fully quit and start again (see "One mode per session" in 6.2).</li>
+  </ul>
+  <h3>I changed a setting, but nothing seems to change</h3>
+  <ul>
+    <li>Always fully quit the game after a change. You can check in Task Manager that the game's process is gone before starting it again.</li>
+    <li>Make sure you edited the <code>dlssg_sm86.ini</code> <b>in the game folder</b>, not the copy in the unpacked folder, and saved it with <kbd>Ctrl</kbd> + <kbd>S</kbd>.</li>
+  </ul>
+  <h3>With frame generation on, the controls feel slightly delayed</h3>
+  <ul>
+    <li>Frame generation makes the picture smoother, but input latency is a little higher than with it off; that is how frame generation works. If the delay clearly gets in the way, lower the multiplier, or report it as in step 7.</li>
+  </ul>
+</section>
+
+<footer>
+  DLSSG 0.4.0 installation manual · Every setting in full: <code>docs\INSTALL.en.md</code> · Release notes: <code>README.en.md</code> · License: <code>LICENSE.md</code>, <code>THIRD_PARTY_NOTICES.txt</code>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var button = document.getElementById("copy-report");
+  var state = document.getElementById("copy-state");
+  var source = document.getElementById("report-template");
+  if (!button || !source) return;
+  function selectText() {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents(source);
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } catch (e) {}
+  }
+  button.addEventListener("click", function () {
+    var text = source.innerText;
+    var done = function () { state.textContent = "Copied: paste it into your report and fill it in"; };
+    var fallback = function () { selectText(); state.textContent = "Selected: press Ctrl + C to copy"; };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } else {
+        fallback();
+      }
+    } catch (e) {
+      fallback();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -379,14 +379,20 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DirectNeuralRenderingDiffuseWhiteOverride": "0",
         "DLSSQualityMode": str(config.get("dlss_quality_mode", 0)),
         "DLSSAutoExposure": str(config.get("dlss_auto_exposure", 0)),
-        "DLSSPresetQuality": str(dlss_preset_val),
-        "DLSSPresetDLAA": str(dlss_preset_val),
-        "DLSSPresetBalanced": str(dlss_preset_val),
-        "DLSSPresetPerformance": str(dlss_preset_val),
-        "DLSSPresetUltraQuality": str(dlss_preset_val),
-        "DLSSPresetUltraPerformance": str(dlss_preset_val),
         "OptionsMode": "0",
     }
+    # Only write explicit DLSS Preset keys when user actively specifies a preset (>0).
+    # When dlss_preset_val is 0 (Default / Passthrough), do NOT write DLSSPreset* keys so
+    # that NVIDIA App driver-level profile (e.g. DLSS Frame Generation Model C) passes untouched.
+    if dlss_preset_val > 0:
+        renodx_global_dict.update({
+            "DLSSPresetQuality": str(dlss_preset_val),
+            "DLSSPresetDLAA": str(dlss_preset_val),
+            "DLSSPresetBalanced": str(dlss_preset_val),
+            "DLSSPresetPerformance": str(dlss_preset_val),
+            "DLSSPresetUltraQuality": str(dlss_preset_val),
+            "DLSSPresetUltraPerformance": str(dlss_preset_val),
+        })
 
     # 2. RenoDX Preset sections ([RENODX-DLSS-preset1/2/3], [renodx-preset1/2/3])
     renodx_preset_dict = {
@@ -398,7 +404,6 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DirectNeuralRenderingIntensity": str(int(intensity_val)) if intensity_val.is_integer() else f"{intensity_val:.6f}",
         "DirectNeuralRenderingAutoMask": str(auto_mask_val),
         "DirectNeuralRenderingPassCount": str(pass_cnt_val),
-        "DirectNeuralRenderingPreset": str(dlss_preset_val),
         "DirectNeuralRenderingSignalEncoding": str(config.get("signal_encoding", 0)),
         "DirectNeuralRenderingBlockHudless": str(block_hud_val),
         "DirectNeuralRenderingExposure": str(int(exp_val)) if exp_val.is_integer() else f"{exp_val:.6f}",
@@ -408,6 +413,8 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DirectNeuralRenderingUpsampleFilter": "0",
         "DirectNeuralRenderingScaleReconstruction": "0",
     }
+    if dlss_preset_val > 0:
+        renodx_preset_dict["DirectNeuralRenderingPreset"] = str(dlss_preset_val)
 
     # 3. RenoDX / ShortFuse direct dictionary
     renodx_dict = {
@@ -431,12 +438,6 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DirectNeuralRenderingExposureMode": str(exp_mode_val),
         "DLSSQualityMode": str(config.get("dlss_quality_mode", 0)),
         "DLSSAutoExposure": str(config.get("dlss_auto_exposure", 0)),
-        "DLSSPresetDLAA": str(dlss_preset_val),
-        "DLSSPresetQuality": str(dlss_preset_val),
-        "DLSSPresetBalanced": str(dlss_preset_val),
-        "DLSSPresetPerformance": str(dlss_preset_val),
-        "DLSSPresetUltraQuality": str(dlss_preset_val),
-        "DLSSPresetUltraPerformance": str(dlss_preset_val),
         # Internal evaluator and runtime keys (DLSSNR.*)
         "DLSSNR.Enabled": str(status_val),
         "DLSSNR.Intensity": f"{intensity_val:.6f}",
@@ -449,8 +450,17 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "DLSSNR.UICorrection": str(ui_corr_val),
         "DLSSNR.Scale": f"{proc_scale_val:.6f}",
         "DLSSNR.ScalingRatio": f"{proc_scale_val:.6f}",
-        "DLSSNR.Hint.Render.Preset": str(dlss_preset_val),
     }
+    if dlss_preset_val > 0:
+        renodx_dict.update({
+            "DLSSPresetDLAA": str(dlss_preset_val),
+            "DLSSPresetQuality": str(dlss_preset_val),
+            "DLSSPresetBalanced": str(dlss_preset_val),
+            "DLSSPresetPerformance": str(dlss_preset_val),
+            "DLSSPresetUltraQuality": str(dlss_preset_val),
+            "DLSSPresetUltraPerformance": str(dlss_preset_val),
+            "DLSSNR.Hint.Render.Preset": str(dlss_preset_val),
+        })
 
     # Combined dictionary for general/root/RenoDX sections
     renodx_combined_dict = dict(renodx_dict)
@@ -458,14 +468,17 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
     renodx_combined_dict.update(renodx_preset_dict)
 
     # 4. [DLSS] section dictionary (includes OptiScaler / ReShade standard keys)
-    # When dlss_preset_val is 0 (Default), do NOT override native game models (RenderPresetOverride=false)
+    # When dlss_preset_val is 0 (Default), do NOT override native game or driver models
     dlss_section_dict = dict(renodx_combined_dict)
     if dlss_preset_val == 0:
-        dlss_section_dict.update({
-            "RenderPresetOverride": "false",
-            "UseGenericAppIdWithDlss": "false",
-            "RenderPresetForAll": "0",
-        })
+        dlss_section_dict["RenderPresetOverride"] = "false"
+        dlss_section_dict["UseGenericAppIdWithDlss"] = "false"
+        # Strictly purge any preset keys from [DLSS] section
+        for pk in list(dlss_section_dict.keys()):
+            if pk.upper().startswith("DLSSPRESET") or pk.upper() in (
+                "RENDERPRESETFORALL", "DIRECTNEURALRENDERINGPRESET", "DLSSNR.HINT.RENDER.PRESET"
+            ):
+                del dlss_section_dict[pk]
     else:
         dlss_section_dict.update({
             "RenderPresetOverride": "true",
@@ -504,6 +517,7 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
         "": renodx_combined_dict,  # Root / global section (ReShade nullptr section, 100% in-game effective)
         "OVERLAY": overlay_dict,  # ReShade 6.x Official Simplified Chinese UI
         "GENERAL": {"TutorialProgress": "4"},  # Bypass ReShade tutorial directly into Chinese UI
+        "INSTALL": {"HookDirectX": "1", "HookStreamline": "0"},  # Route ReShade through Streamline instead of wrapping DXGI directly
         "RenoDX": renodx_combined_dict,
         "RENODX-DLSS": renodx_global_dict,
         "RENODX-DLSS-preset1": renodx_preset_dict,
@@ -532,6 +546,24 @@ def write_game_dlss5_config(target_path: Union[str, Path], config: Dict[str, Any
                 if "lecram" not in x.lower() and "renodx-dlss" not in x.lower() and x != "1"
             ]
             updates["ADDON"] = {"LoadFromDllMain": ",".join(filtered)}
+
+    if dlss_preset_val == 0 and reshade_ini.exists():
+        # Cleanly purge residual DLSSPreset* and RenderPreset* keys so driver-level Model C passes through
+        preset_keys_to_clean = [
+            ("", "DLSSPresetQuality"), ("", "DLSSPresetDLAA"), ("", "DLSSPresetBalanced"),
+            ("", "DLSSPresetPerformance"), ("", "DLSSPresetUltraQuality"), ("", "DLSSPresetUltraPerformance"),
+            ("", "DirectNeuralRenderingPreset"), ("", "DLSSNR.Hint.Render.Preset"), ("", "RenderPresetForAll"),
+            ("RENODX-DLSS", "DLSSPresetQuality"), ("RENODX-DLSS", "DLSSPresetDLAA"),
+            ("RENODX-DLSS", "DLSSPresetBalanced"), ("RENODX-DLSS", "DLSSPresetPerformance"),
+            ("RENODX-DLSS", "DLSSPresetUltraQuality"), ("RENODX-DLSS", "DLSSPresetUltraPerformance"),
+            ("RENODX-DLSS-preset1", "DirectNeuralRenderingPreset"),
+            ("RENODX-DLSS-preset2", "DirectNeuralRenderingPreset"),
+            ("RENODX-DLSS-preset3", "DirectNeuralRenderingPreset"),
+            ("RenoDX", "DLSSPresetQuality"), ("RenoDX", "DLSSPresetDLAA"),
+            ("DLSS", "RenderPresetForAll"), ("DLSS", "DLSSPresetQuality"),
+            ("DLSS-NR", "DLSSPresetQuality")
+        ]
+        IniConfigManager.remove_ini_keys(reshade_ini, preset_keys_to_clean)
 
     ok = IniConfigManager.write_ini_sections(reshade_ini, updates)
 

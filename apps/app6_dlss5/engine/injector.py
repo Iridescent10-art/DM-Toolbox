@@ -602,6 +602,24 @@ def set_optiscaler_load_reshade(target_dir: str, enable: bool = True) -> bool:
 
     if enable:
         enforce_optiscaler_anti_d_preset(ini_path)
+        try:
+            from apps.app2_mfg.core.ini_sync import IniConfigManager, LEGACY_OPTISCALER_KEYS, LEGACY_OPTISCALER_SECTIONS
+            IniConfigManager.write_ini_sections(ini_path, {
+                "Hotfix": {
+                    "CreateD3D12DeviceForLuma": "true",
+                    "SimulateWaitableObject": "true",
+                },
+                "Hooks": {
+                    "UseNtdllHooks": "false",
+                },
+                "Spoofing": {
+                    "StreamlineSpoofing": "false",
+                },
+            })
+            IniConfigManager.remove_ini_keys(ini_path, LEGACY_OPTISCALER_KEYS)
+            IniConfigManager.remove_ini_sections(ini_path, list(LEGACY_OPTISCALER_SECTIONS))
+        except Exception:
+            pass
 
     return True
 
@@ -656,8 +674,24 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
 
     is_injected = has_addon
 
+    # has_residual: True when there are any DLSS5-related files or FG remnants left
+    # that the restore function can clean up, keeping Restore accessible.
+    has_residual = (
+        has_addon
+        or manifest_data is not None          # manifest still present
+        or runtime_path.exists()              # nvngx_dlssnr.dll still on disk
+        or has_reshade64                      # ReShade64.dll left over
+        or ini_path.exists()                  # ReShade.ini left over
+        or (td / ".dlss5_config.json").exists()
+        or (td / ".mfg_patch_manifest.json").exists()
+        or (td / "dxgi.dll.dlss5_bak").exists()
+        or (td / "dxgi.dll.bak").exists()
+        or fg_info.get("has_fg", False)
+    )
+
     return {
         "is_injected": is_injected,
+        "has_residual": has_residual,
         "host_ready": host_ready,
         "has_addon": has_addon,
         "addon_file": addon_file,
@@ -796,12 +830,6 @@ DirectNeuralRenderingDiffuseWhiteNits=100.0
 DirectNeuralRenderingBlockHudless=0
 DirectNeuralRenderingExposure=1.000000
 DirectNeuralRenderingExposureMode=1
-DLSSPresetQuality=0
-DLSSPresetDLAA=0
-DLSSPresetBalanced=0
-DLSSPresetPerformance=0
-DLSSPresetUltraQuality=0
-DLSSPresetUltraPerformance=0
 DLSSNR.Enabled=1
 DLSSNR.Intensity=1.000000
 DLSSNR.Style=2
@@ -813,7 +841,6 @@ DLSSNR.UseAutoMask=1
 DLSSNR.UICorrection=0
 DLSSNR.Scale=1.000000
 DLSSNR.ScalingRatio=1.000000
-DLSSNR.Hint.Render.Preset=0
 
 [GENERAL]
 EffectSearchPaths=.\
@@ -821,6 +848,10 @@ TextureSearchPaths=.\
 NoReloadOnInit=1
 PerformanceMode=0
 TutorialProgress=4
+
+[INSTALL]
+HookDirectX=1
+HookStreamline=0
 
 [OVERLAY]
 Language=zh-CN
@@ -1002,6 +1033,21 @@ class DLSS5Injector:
                     manifest["injected_files"].append("ReShade64.dll")
 
             set_optiscaler_load_reshade(target_dir, enable=True)
+
+            # Purge d3d12-ReShade64.dll to prevent dual ReShade initialization crash.
+            # OptiScaler chain-loads both "ReShade64.dll" and "d3d12-ReShade64.dll";
+            # having both present causes two ReShade instances to hook D3D12 simultaneously.
+            _d3d12_rs = td / "d3d12-ReShade64.dll"
+            if _d3d12_rs.exists():
+                safe_force_remove(str(_d3d12_rs))
+
+            # Purge all MFGUnlocker ASI variants from OptiScaler/plugins/ to avoid
+            # MinHook re-entrancy when renodx-dlss.addon64 hooks slInit at the same point.
+            _plugins_dir = td / "OptiScaler" / "plugins"
+            for _asi in ["MFGUnlocker.asi", "MFGUnlocker-loadlate.asi"]:
+                _asi_p = _plugins_dir / _asi
+                if _asi_p.exists():
+                    safe_force_remove(str(_asi_p))
 
         else:
             # Clean game, Dashdogy FG (Mode A), or orphaned proxy: dxgi.dll MUST be ReShade with Addon support!

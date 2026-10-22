@@ -143,7 +143,7 @@ class VerificationSuite:
         # 2. File tree assertions
         dxgi = TARGET_DIR / "dxgi.dll"
         version_dll = TARGET_DIR / "version.dll"
-        dlss5_addon = TARGET_DIR / "lecram-dlss5-beta10.addon64"
+        dlss5_addon = (TARGET_DIR / "renodx-dlss.addon64")
         reshade64 = TARGET_DIR / "ReShade64.dll"
         opti_ini = TARGET_DIR / "OptiScaler.ini"
         renodx_addon = TARGET_DIR / "renodx-mfgunlock.addon64"
@@ -151,7 +151,7 @@ class VerificationSuite:
 
         assert dxgi.exists(), "Mode A requires dxgi.dll (ReShade with Addon support) for DLSS 5!"
         assert version_dll.exists(), "Mode A requires version.dll for dashdogy proxy!"
-        assert dlss5_addon.exists(), "Mode A requires lecram-dlss5-beta10.addon64!"
+        assert dlss5_addon.exists(), "Mode A requires renodx-dlss.addon64!"
         assert not reshade64.exists(), "Mode A must NOT have ReShade64.dll (must use dxgi.dll directly)!"
         assert not opti_ini.exists(), "Mode A must NOT have OptiScaler.ini!"
         assert not renodx_addon.exists(), "Mode A must NOT have renodx-mfgunlock.addon64!"
@@ -160,7 +160,7 @@ class VerificationSuite:
         print("   ✅ Mode A file tree assertions passed:")
         print("      • dxgi.dll (ReShade 64-bit full addon host) PRESENT")
         print("      • version.dll (dashdogy proxy slot) PRESENT")
-        print("      • lecram-dlss5-beta10.addon64 PRESENT")
+        print("      • renodx-dlss.addon64 PRESENT")
         print("      • ReShade64.dll & OptiScaler.ini strictly PURGED")
 
         # 3. Config assertions
@@ -179,7 +179,7 @@ class VerificationSuite:
         reshade_log = TARGET_DIR / "ReShade.log"
         assert reshade_log.exists(), "ReShade.log was not generated in Mode A!"
         log_content = reshade_log.read_text(encoding="utf-8", errors="ignore")
-        assert "lecram-dlss5-beta10.addon64" in log_content or "DLSS 5" in log_content, (
+        assert "renodx-dlss.addon64" in log_content or "DLSS 5" in log_content, (
             "DLSS 5 Addon was not logged as loaded in ReShade.log!"
         )
         print("   ✅ Mode A Smoke Test Passed: yysls.exe ran stably, ReShade.log confirmed DLSS 5 Addon loaded successfully.")
@@ -216,20 +216,20 @@ class VerificationSuite:
         # 2. File tree assertions
         dxgi = TARGET_DIR / "dxgi.dll"
         version_dll = TARGET_DIR / "version.dll"
-        dlss5_addon = TARGET_DIR / "lecram-dlss5-beta10.addon64"
+        dlss5_addon = (TARGET_DIR / "renodx-dlss.addon64")
         renodx_addon = TARGET_DIR / "renodx-mfgunlock.addon64"
         reshade_ini = TARGET_DIR / "ReShade.ini"
         opti_ini = TARGET_DIR / "OptiScaler.ini"
 
         assert dxgi.exists(), "Mode B requires dxgi.dll (ReShade single host)!"
-        assert dlss5_addon.exists(), "Mode B requires lecram-dlss5-beta10.addon64!"
+        assert dlss5_addon.exists(), "Mode B requires renodx-dlss.addon64!"
         assert renodx_addon.exists(), "Mode B requires renodx-mfgunlock.addon64!"
         assert not version_dll.exists(), "Mode B must NOT have version.dll!"
         assert not opti_ini.exists(), "Mode B must NOT have OptiScaler.ini!"
 
         print("   ✅ Mode B file tree assertions passed:")
         print("      • dxgi.dll (single host ReShade 64-bit) PRESENT")
-        print("      • Dual Addons: lecram-dlss5-beta10.addon64 & renodx-mfgunlock.addon64 PRESENT")
+        print("      • Dual Addons: renodx-dlss.addon64 & renodx-mfgunlock.addon64 PRESENT")
         print("      • version.dll & OptiScaler.ini strictly PURGED")
 
         # 3. Config assertions
@@ -261,7 +261,7 @@ class VerificationSuite:
         reshade_log = TARGET_DIR / "ReShade.log"
         assert reshade_log.exists(), "ReShade.log was not generated in Mode B!"
         log_content = reshade_log.read_text(encoding="utf-8", errors="ignore")
-        assert "lecram-dlss5-beta10.addon64" in log_content or "DLSS 5" in log_content, (
+        assert "renodx-dlss.addon64" in log_content or "DLSS 5" in log_content, (
             "DLSS 5 Addon not logged in ReShade.log!"
         )
         assert "renodx-mfgunlock.addon64" in log_content or "RenoDX" in log_content, (
@@ -301,7 +301,7 @@ class VerificationSuite:
         # 2. File tree assertions
         dxgi = TARGET_DIR / "dxgi.dll"
         reshade64 = TARGET_DIR / "ReShade64.dll"
-        dlss5_addon = TARGET_DIR / "lecram-dlss5-beta10.addon64"
+        dlss5_addon = (TARGET_DIR / "renodx-dlss.addon64")
         libxess_fg = TARGET_DIR / "libxess_fg.dll"
         version_dll = TARGET_DIR / "version.dll"
         renodx_addon = TARGET_DIR / "renodx-mfgunlock.addon64"
@@ -309,7 +309,7 @@ class VerificationSuite:
 
         assert dxgi.exists(), "Mode C requires dxgi.dll (OptiScaler)!"
         assert reshade64.exists(), "Mode C requires ReShade64.dll for DLSS 5 chainload!"
-        assert dlss5_addon.exists(), "Mode C requires lecram-dlss5-beta10.addon64!"
+        assert dlss5_addon.exists(), "Mode C requires renodx-dlss.addon64!"
         assert libxess_fg.exists(), "Mode C requires libxess_fg.dll for XeFG!"
         assert not version_dll.exists(), "Mode C must NOT have version.dll!"
         assert not renodx_addon.exists(), "Mode C must NOT have renodx-mfgunlock.addon64!"

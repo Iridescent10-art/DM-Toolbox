@@ -45,10 +45,11 @@
 
 ### 2. ⚡ DLSS 多帧生成补丁 (`app2_mfg`)
 - **帧率倍增黑科技**：为全架构显卡（RTX 20/30/40 系、GTX、AMD Radeon、Intel Arc）解除 DLSS-G / FSR3 / XeSS 插帧限制。
-- **内置 3 大主流插帧核心模式**：
+- **内置 4 大主流插帧核心模式**：
   - **模式 A (dashdogy 独立代理)**：高稳定性帧生成解除核心，支持 2X/3X/4X 多倍率插帧、Bink 链式劫持与原生代理；
   - **模式 B (RenoDX 插件优化)**：RenoDX 深度光流调度插件，支持 2X~6X 极速插帧、Blackwell 架构内核、薄几何体 ISR/VWB 与 BAM 边缘抗撕裂；
-  - **模式 C (OptiScaler 跨卡转译)**：跨架构转译框架，原生解锁 Intel XeFG 2X~4X 官方插帧与 XeSS 2.0 AI 超分。
+  - **模式 C (DLSSG-SM86 原生插帧)**：基于 `sdli1995/dlssg_for_sm86` 深度定制，专为 RTX 20 系 (Turing / SM75) 与 RTX 30 系 (Ampere / SM86) 显卡打造的原生硬件级 DLSS-G 运行库支持。内置 Ampere/Turing 专用光流与插帧内核，原生解锁最高 6X 动态多倍插帧；支持 FG Lite (Preset C，降低 32%~54% GPU 耗时) 与 4 级一致性加速档位；专享 RTX 20/30 DLSS INT8 超分辨率硬件加速，无需跨卡转译损耗，丝滑释放原生画质与超高帧率！
+  - **模式 D (OptiScaler 跨卡转译)**：跨架构转译框架，为全显卡（包含非 RTX 卡、GTX 系列、AMD Radeon 与 Intel Arc）提供通用跨架构转译，原生解锁 Intel XeFG 2X~4X 官方插帧与 XeSS 2.0 AI 超分。
 - **DLSS 4/4.5 Transformer 超分模型矩阵**：
   - 扩充完整 AI 模型预设矩阵：包含 **Preset M**（DLSS 4.5 第二代 Transformer 旗舰画质）、**Preset L**（DLSS 4.5 超性能）、**Preset K**（DLSS 4 经典锐利推荐）、**Preset J**（DLSS 4 细节强化）以及 CNN 终极版（Preset E/C/F）；
   - 默认选中项与一键恢复推荐统一设为 **`Default`**（保持游戏原生默认档位），支持 INI 正向反向双向无缝映射同步。
@@ -57,7 +58,10 @@
 - **游戏内外参数【双向实时同步】**：
   - **正向同步**：统一通过 `IniConfigManager` 保持注释与结构，UI 调整参数后即刻写入游戏根目录 `RTXMFG-UI.ini`、`mfg_unlocker.ini`、`OptiScaler.ini`（v0.9.4 唯一合法配置，自动清除遗留 `nvngx.ini`）与 `ReShade.ini` (`[RenoDX.MFGUnlock]`)；
   - **反向同步**：内置 `QFileSystemWatcher` 后台防抖监听（400ms Debounce + 抑制自循环），游戏内按快捷键调参保存后，桌面软件 UI 自动反向同步刷新！
-- **集成 ReShade HDR (RHI)**：内置 42MB 独立离线 `RHI-Setup.exe` 与主程序路径直达助手，一键为游戏注入高动态 HDR 滤镜。
+- **集成 ReShade HDR (RHI) 与云端智能测速同步**：
+  - 内置独立离线 RHI-Setup.exe，直连 RankFTW/RHI 官方 GitHub 仓库热更新；
+  - 拥有与主工具箱完全一致的 **智能测速优选**（GH-Proxy / GHFast / 直连等多节点并发 Ping 测速与徽章标注），自动锁定最低延迟节点，支持多节点无缝故障转移；
+  - 一键异步检查并同步 Mode A/B/C/D 四大插帧后端与 RHI 工具包，安全隔离存放于系统 AppData，不污染游戏或软件目录。
 
 > [!WARNING]
 > **反作弊与多人联机安全须知 (Anti-Cheat Warning)**：
@@ -129,6 +133,7 @@
 
 DM-Toolbox 的诞生与演进离不开全球开源社区与图形学极客们的无私奉献。在此特别向本项目所引用、集成或借鉴的上游优秀开源项目及核心作者表达崇高的敬意与诚挚的感谢：
 
+- **[dlssg_for_sm86](https://github.com/sdli1995/dlssg_for_sm86)** (by sdli1995) - 专为 NVIDIA RTX 20 (SM75) 与 RTX 30 (SM86) 显卡打造的原生 DLSS-G 帧生成与 INT8 超分辨率硬件加速运行库。
 - **[OptiScaler](https://github.com/cdozdil/OptiScaler)** (by cdozdil) - 卓越的跨显卡架构超分辨率与帧生成转译框架，为全卡畅玩提供底层驱动级可能。
 - **[MFG-Unlocker](https://github.com/dashdogy)** (by dashdogy) - 极具创新的 DLSS 多帧生成解除与链式代理核心。
 - **[RenoDX](https://github.com/clshortfuse/renodx)** (by clshortfuse / mavismmg) - 深度光流调度与高级帧生成优化插件。

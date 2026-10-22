@@ -39,5 +39,16 @@
         "sha256": "f9f5d03cd392f5e171d72745ae657677f14060c97dcb436a275cdf9b358435d1"
       }
     }
+  },
+  "dlssg_sm86": {
+    "latest_tag": "0.4.0",
+    "cached_versions": {
+      "0.4.0": {
+        "file": "version.dll",
+        "path": "",
+        "dir": "",
+        "sha256": "7b3f90435be4f94348bf8d128c84871c7f904c704f7690601a263277c327a7b2"
+      }
+    }
   }
 }
