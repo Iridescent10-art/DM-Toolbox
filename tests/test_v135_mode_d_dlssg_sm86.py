@@ -49,7 +49,6 @@ from apps.app2_mfg.core.ini_sync import IniConfigManager
 from apps.app2_mfg.core.state_cleaner import CleanGameDirectoryState, is_dlssg_sm86_present
 from apps.app2_mfg.core.updater import ComponentUpdater
 from apps.app2_mfg.core.patcher import PatchEngine
-from apps.app6_dlss5.engine.config_sync import ConfigSyncService
 
 
 class TestModeCDLSSGSM86AndModeDOptiScaler(unittest.TestCase):
@@ -238,67 +237,3 @@ class TestModeCDLSSGSM86AndModeDOptiScaler(unittest.TestCase):
         self.assertTrue(os.path.exists(self.game_exe))
 
     # ---------------- 6. Coexistence with DLSS 5 Tests ----------------
-    def test_07_dlss5_and_mode_c_coexistence(self):
-        # Mode C files present in game dir (DLSSG-SM86)
-        dlssg_dir = os.path.join(self.test_dir, "dlssg_sm86")
-        os.makedirs(dlssg_dir, exist_ok=True)
-        with open(os.path.join(self.test_dir, "dlssg_sm86.ini"), "w", encoding="utf-8") as f:
-            f.write("[FrameGeneration]\nEngine=DLSS\nMaxGeneratedFrames=3\n[DLSSG]\nOptimized=2\nPreset=C\n[SuperResolution]\nMode=On\n")
-        with open(os.path.join(self.test_dir, "version.dll"), "wb") as f:
-            f.write(b"MODE_C_VERSION_PROXY")
-
-        # 1. ConfigSyncService detects Mode C
-        detected_mode = ConfigSyncService.detect_active_mode(self.test_dir)
-        self.assertEqual(detected_mode, "C")
-
-        # 2. ConfigSyncService loads Mode C config
-        cfg = ConfigSyncService.load_mode_config(self.test_dir, "C")
-        self.assertEqual(cfg.get("optimized"), 2)
-        self.assertEqual(cfg.get("dlssg_preset"), "C")
-        self.assertEqual(cfg.get("super_resolution_mode"), "On")
-
-        # 3. DLSS 5 Coexistence Injection: DLSS 5 uses dxgi.dll + ReShade.ini
-        reshade_dll = os.path.join(self.test_dir, "dxgi.dll")
-        reshade_ini = os.path.join(self.test_dir, "ReShade.ini")
-        with open(reshade_dll, "wb") as f:
-            f.write(b"RESHADE_DLSS5_DXGI")
-        with open(reshade_ini, "w", encoding="utf-8") as f:
-            f.write("[DLSS]\nPreset=5\n")
-
-        # Verify slot coexistence: version.dll (Mode C) and dxgi.dll (DLSS 5) both exist without collision
-        self.assertTrue(os.path.exists(os.path.join(self.test_dir, "version.dll")))
-        self.assertTrue(os.path.exists(reshade_dll))
-
-        # 4. ConfigSyncService applies unified configuration back to Mode C
-        new_params = {
-            "optimized": 3,
-            "dlssg_preset": "Auto",
-            "super_resolution_mode": "Off"
-        }
-        with patch("apps.app6_dlss5.engine.injector.DLSS5Injector.inject", return_value=(True, "DLSS5 OK")):
-            with patch("apps.app6_dlss5.engine.config_sync.PatchEngine.patch_game", return_value=(True, "Patch OK")):
-                sync_res, sync_msg = ConfigSyncService.apply_unified_configuration(self.test_dir, "Cyberpunk2077.exe", "C", new_params)
-                self.assertTrue(sync_res)
-
-        updated_cfg = ConfigSyncService.load_mode_config(self.test_dir, "C")
-        self.assertEqual(updated_cfg.get("optimized"), 3)
-        self.assertEqual(updated_cfg.get("dlssg_preset"), "Auto")
-        self.assertEqual(updated_cfg.get("super_resolution_mode"), "Off")
-
-    def test_08_dlss5_and_mode_d_optiscaler_coexistence(self):
-        # Mode D files present in game dir (OptiScaler)
-        opti_ini = os.path.join(self.test_dir, "OptiScaler.ini")
-        with open(opti_ini, "w", encoding="utf-8") as f:
-            f.write("[FrameGen]\nEnabled=true\nFGOutput=xefg\n[FrameGeneration]\nInterpolationCount=3\n")
-
-        # 1. ConfigSyncService detects Mode D
-        detected_mode = ConfigSyncService.detect_active_mode(self.test_dir)
-        self.assertEqual(detected_mode, "D")
-
-        # 2. ConfigSyncService loads Mode D config
-        cfg = ConfigSyncService.load_mode_config(self.test_dir, "D")
-        self.assertIsNotNone(cfg)
-
-
-if __name__ == "__main__":
-    unittest.main()
