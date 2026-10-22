@@ -1658,7 +1658,7 @@ class MultiFrameGenPanel(QFrame):
 
 class DLSS5SettingsPanel(QFrame):
     """
-    内嵌于主界面的【DLSS 5 神经重构核心调优面板】(基于 RenoDX ShortFuse 官方汉化版架构)。
+    内嵌于主界面的【DLSS 5 神经重构核心调优面板】(基于 RenoDX DLSS 5 v11.9 旗舰原生架构)。
     支持在启动游戏前直接调控 DLSS 5 NR Addon 核心运行参数：
     - 显卡架构与专用模型专选 (RTX 50 系列专用模型 vs RTX 20/30/40 系列官方优化模型)
     - 神经重构状态 (DirectNeuralRenderingStatus)
@@ -2525,7 +2525,7 @@ class DLSS5Window(DMBaseWindow):
 
 
 
-        self.banner_desc = QLabel("集成最新 RenoDX ShortFuse DLSS 5 神经网络渲染引擎，支持风格、细节与皮肤保护全维度精细调优。")
+        self.banner_desc = QLabel("集成最新 RenoDX DLSS 5 v11.9 旗舰神经网络渲染引擎，深度适配原生多帧生成调度与全维度画质增强。")
 
         self.banner_desc.setWordWrap(True)
 
@@ -2991,7 +2991,7 @@ class DLSS5Window(DMBaseWindow):
 
             # Check DLSS 5 injection on disk
 
-            addon_exists = ((Path(p_dir) / "renodx-dlss.addon64").exists() or (Path(p_dir) / "lecram-dlss5-beta10.addon64").exists()) if p_dir else False
+            addon_exists = ((Path(p_dir) / "renodx-dlss5.addon64").exists() or (Path(p_dir) / "renodx-dlss5-v11.9.addon64").exists() or (Path(p_dir) / "renodx-dlss.addon64").exists()) if p_dir else False
 
 
 

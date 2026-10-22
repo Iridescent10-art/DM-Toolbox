@@ -140,18 +140,16 @@ def detect_system_gpu() -> Dict[str, Any]:
 def get_dlss5_addon_path() -> Optional[str]:
     """
     Locates the RenoDX DLSS 5 addon plugin.
-    Prioritizes renodx-dlss.addon64 (ShortFuse Chinese localized 261017 release),
+    Prioritizes renodx-dlss5.addon64 (RenoDX DLSS 5 v11.9 official release),
     with desktop folder and legacy fallbacks.
     """
     candidates = [
-        ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "renodx-dlss.addon64",
-        ROOT_DIR / "defaults" / "app6_dlss5" / "assets" / "renodx-dlss.addon64",
-        Path(r"C:\Users\17547\Desktop\dlss5插件\renodx-dlss-ShortFuse-261017汉化版.addon64"),
-        Path(r"C:\Users\17547\Desktop\dlss5插件\renodx-dlss.addon64"),
-        ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "lecram-dlss5-beta10.addon64",
-        ROOT_DIR / "defaults" / "app6_dlss5" / "assets" / "lecram-dlss5-beta10.addon64",
-        Path(__file__).resolve().parent.parent / "assets" / "renodx-dlss.addon64",
-        Path(__file__).resolve().parent.parent / "assets" / "lecram-dlss5-beta10.addon64",
+        ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "renodx-dlss5.addon64",
+        ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "renodx-dlss5-v11.9.addon64",
+        Path(r"c:\Users\17547\Desktop\renodx-dlss5-v11.9.addon64"),
+        ROOT_DIR / "defaults" / "app6_dlss5" / "assets" / "renodx-dlss5.addon64",
+        Path(__file__).resolve().parent.parent / "assets" / "renodx-dlss5.addon64",
+        Path(__file__).resolve().parent.parent / "assets" / "renodx-dlss5-v11.9.addon64",
     ]
     for cand in candidates:
         if cand.exists() and cand.is_file() and cand.stat().st_size > 0:
@@ -635,6 +633,8 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
 
     # Support all known addon filenames
     addon_candidates = [
+        td / "renodx-dlss5.addon64",
+        td / "renodx-dlss5-v11.9.addon64",
         td / "renodx-dlss.addon64",
         td / "renodx-dlss-ShortFuse-261017汉化版.addon64",
         td / "lecram-dlss5-beta10.addon64",
@@ -642,7 +642,7 @@ def check_dlss5_status(target_dir: str) -> Dict[str, Any]:
     ]
     existing_addons = [p for p in addon_candidates if p.exists()]
     has_addon = len(existing_addons) > 0
-    addon_file = existing_addons[0].name if existing_addons else "renodx-dlss.addon64"
+    addon_file = existing_addons[0].name if existing_addons else "renodx-dlss5.addon64"
 
     manifest_data = None
     if manifest_path.exists():
@@ -969,7 +969,7 @@ class DLSS5Injector:
 
         addon_src = get_dlss5_addon_path()
         if not addon_src or not os.path.exists(addon_src):
-            return False, "未找到 renodx-dlss.addon64 核心插件资产！\n请确认 assets 目录中包含该插件。"
+            return False, "未找到 renodx-dlss5.addon64 核心插件资产！\n请确认 assets 目录中包含该插件。"
 
         cfg = dlss5_config or {}
         chosen_arch = cfg.get("gpu_arch", "auto")
@@ -981,8 +981,8 @@ class DLSS5Injector:
         is_optiscaler_fg = fg_info.get("is_optiscaler_fg", False)
         is_dashdog_fg = fg_info.get("is_dashdog_fg", False)
 
-        # Canonical addon file name (ASCII name ensures clean LoadLibrary without 1114 error)
-        addon_dest = td / "renodx-dlss.addon64"
+        # Canonical addon file name (renodx-dlss5.addon64)
+        addon_dest = td / "renodx-dlss5.addon64"
         runtime_dest = td / "nvngx_dlssnr.dll"
         dxgi_dest = td / "dxgi.dll"
         reshade64_dest = td / "ReShade64.dll"
@@ -995,13 +995,13 @@ class DLSS5Injector:
         was_runtime_injected = existing_manifest.get("runtime_injected_by_dlss5", False)
 
         manifest: Dict[str, Any] = {
-            "version": "2.0.0",
-            "plugin_framework": "RenoDX-ShortFuse-261017",
-            "addon_file": "renodx-dlss.addon64",
+            "version": "2.2.0",
+            "plugin_framework": "RenoDX-DLSS5-v11.9",
+            "addon_file": "renodx-dlss5.addon64",
             "runtime_file": "nvngx_dlssnr.dll",
             "gpu_arch": chosen_arch,
             "detected_gpu": gpu_info.get("gpu_name", "Unknown"),
-            "injected_files": ["renodx-dlss.addon64"],
+            "injected_files": ["renodx-dlss5.addon64"],
             "reshade_injected_by_dlss5": was_reshade_dxgi_injected,
             "reshade64_injected_by_dlss5": was_reshade64_injected,
             "runtime_injected_by_dlss5": was_runtime_injected,
@@ -1072,9 +1072,16 @@ class DLSS5Injector:
                 except Exception as e:
                     return False, f"部署 ReShade 核心底座 dxgi.dll 失败: {e}"
 
-        # Clean any old legacy addon variants
-        safe_force_remove(str(td / "lecram-dlss5-beta10.addon64"))
-        safe_force_remove(str(td / "renodx-dlss-ShortFuse-261017汉化版.addon64"))
+        # Completely clean ALL previous/legacy DLSS 5 addon variants to prevent multi-addon collision
+        for stale_addon in [
+            "renodx-dlss.addon64",
+            "renodx-dlss5-v11.9.addon64",
+            "renodx-dlss5-Lecram-v11-Beta48.addon64",
+            "renodx-dlss-ShortFuse-261017汉化版.addon64",
+            "lecram-dlss5-beta10.addon64",
+            "dlss5-nr.addon64"
+        ]:
+            safe_force_remove(str(td / stale_addon))
 
         # Step 2: Deploy modern RenoDX DLSS addon
         try:
@@ -1307,8 +1314,16 @@ class DLSS5Injector:
             except Exception:
                 manifest_data = None
 
-        # 1. Remove all DLSS 5 addon variants
-        for addon_name in ["renodx-dlss.addon64", "renodx-dlss-ShortFuse-261017汉化版.addon64", "lecram-dlss5-beta10.addon64", "dlss5-nr.addon64"]:
+        # 1. Remove all DLSS 5 addon variants (including legacy and modern versions)
+        for addon_name in [
+            "renodx-dlss5.addon64",
+            "renodx-dlss5-v11.9.addon64",
+            "renodx-dlss5-Lecram-v11-Beta48.addon64",
+            "renodx-dlss.addon64",
+            "renodx-dlss-ShortFuse-261017汉化版.addon64",
+            "lecram-dlss5-beta10.addon64",
+            "dlss5-nr.addon64"
+        ]:
             safe_force_remove(str(td / addon_name))
 
         # 2. Remove DLSS 5 runtime DLL

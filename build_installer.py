@@ -46,8 +46,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("DM-Toolbox")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("1.3.6.0")]
-[assembly: AssemblyFileVersion("1.3.6.0")]
+[assembly: AssemblyVersion("1.3.7.0")]
+[assembly: AssemblyFileVersion("1.3.7.0")]
 
 namespace DMBOX
 {
@@ -158,7 +158,7 @@ def step2_assemble_staging_tree():
     rt_dir.mkdir(parents=True)
 
     # 核心可执行文件与运行时动态库
-    for name in ["python.exe", "pythonw.exe", "python3.dll", "python314.dll", "vcruntime140.dll", "vcruntime140_1.dll"]:
+    for name in ["python.exe", "pythonw.exe", "python3.dll", "python314.dll", "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "msvcp140_codecvt_ids.dll", "concrt140.dll", "vcomp140.dll"]:
         src_f = PYTHON_SYS_DIR / name
         if src_f.exists():
             shutil.copy2(src_f, rt_dir / name)
@@ -195,7 +195,9 @@ def step2_assemble_staging_tree():
     essential_names = {
         "QtCore.pyd", "QtGui.pyd", "QtWidgets.pyd",
         "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll",
-        "pyside6.abi3.dll", "opengl32sw.dll", "d3dcompiler_47.dll"
+        "pyside6.abi3.dll", "opengl32sw.dll", "d3dcompiler_47.dll",
+        "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "msvcp140_codecvt_ids.dll",
+        "concrt140.dll", "vcruntime140.dll", "vcruntime140_1.dll", "vcomp140.dll"
     }
 
     for item in pyside_src.iterdir():
@@ -216,26 +218,36 @@ def step2_assemble_staging_tree():
 
 def step3_validate_runtime():
     print("[3/5] 正在隔离验证运行时的完整性与独立启动能力...")
-    test_rt_py = DIST_DIR / "runtime" / "python.exe"
-    clean_env = os.environ.copy()
-    clean_env.pop("PYTHONPATH", None)
-    clean_env.pop("PYTHONHOME", None)
-    clean_env["PATH"] = f"{DIST_DIR / 'runtime'};{DIST_DIR / 'runtime' / 'DLLs'};{os.environ.get('PATH', '')}"
-    test_code = (
-        "import sys;"
-        "sys.path.insert(0, r'" + str(DIST_DIR).replace('\\', '/') + "');"
-        "from PySide6 import QtCore, QtGui, QtWidgets;"
-        "import common.ui_theme;"
-        "import common.config_manager;"
-        "import launcher.main;"
-        "import apps.app2_mfg.gui_qt;"
-        "import apps.app6_dlss5.app;"
-        "print('VERIFIED_OK');"
-    )
-    res = subprocess.run([str(test_rt_py), "-c", test_code], capture_output=True, text=True, env=clean_env)
-    if "VERIFIED_OK" not in res.stdout:
-        raise RuntimeError(f"独立运行时验证失败:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
-    print(" -> 运行时与四大应用及启动器模块验证通过，无任何外部依赖问题！")
+    # 由于个别工作区目录可能包含特定沙盒或低完整性标签，在干净隔离临时环境中验证打包运行时的完整启动链
+    temp_validate = Path(os.environ.get("TEMP", "C:/Windows/Temp")) / "DMBOX_validate"
+    if temp_validate.exists():
+        shutil.rmtree(temp_validate, ignore_errors=True)
+    
+    try:
+        shutil.copytree(DIST_DIR, temp_validate)
+        test_rt_py = temp_validate / "runtime" / "python.exe"
+        clean_env = os.environ.copy()
+        clean_env.pop("PYTHONPATH", None)
+        clean_env.pop("PYTHONHOME", None)
+        clean_env["PATH"] = f"{temp_validate / 'runtime'};{temp_validate / 'runtime' / 'DLLs'};{os.environ.get('PATH', '')}"
+        test_code = (
+            "import sys;"
+            "sys.path.insert(0, r'" + str(temp_validate).replace('\\', '/') + "');"
+            "from PySide6 import QtCore, QtGui, QtWidgets;"
+            "import common.ui_theme;"
+            "import common.config_manager;"
+            "import launcher.main;"
+            "import apps.app2_mfg.gui_qt;"
+            "import apps.app6_dlss5.app;"
+            "print('VERIFIED_OK');"
+        )
+        res = subprocess.run([str(test_rt_py), "-c", test_code], capture_output=True, text=True, env=clean_env)
+        if "VERIFIED_OK" not in res.stdout:
+            raise RuntimeError(f"独立运行时验证失败:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+        print(" -> 运行时与四大应用及启动器模块验证通过，无任何外部依赖问题！")
+    finally:
+        if temp_validate.exists():
+            shutil.rmtree(temp_validate, ignore_errors=True)
 
 
 def step4_build_inno_installer():
@@ -247,16 +259,16 @@ def step4_build_inno_installer():
     iss_content = f"""[Setup]
 ; 基本应用信息
 AppName=DM工具箱
-AppVersion=1.3.6
+AppVersion=1.3.7
 AppPublisher=DM Studio
 AppPublisherURL=https://github.com/Iridescent10-art/DM-Toolbox
 AppSupportURL=https://github.com/Iridescent10-art/DM-Toolbox
 AppUpdatesURL=https://github.com/Iridescent10-art/DM-Toolbox/releases
-VersionInfoVersion=1.3.6.0
+VersionInfoVersion=1.3.7.0
 VersionInfoCompany=DM Studio
 VersionInfoDescription=DM工具箱 安装向导
 VersionInfoProductName=DM工具箱
-VersionInfoProductVersion=1.3.6.0
+VersionInfoProductVersion=1.3.7.0
 VersionInfoCopyright=Copyright (C) 2026 DM Studio
 DefaultDirName={{autopf}}\\DMBOX
 DefaultGroupName=DM工具箱

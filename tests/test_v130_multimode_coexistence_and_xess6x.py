@@ -91,10 +91,10 @@ class TestMultiModeCoexistenceAndXeSS6X(unittest.TestCase):
         self.assertEqual(overlay_sec.get("FontSize"), "18")
 
     def test_is_dlss5_present_detection(self):
-        """Test that is_dlss5_present detects modern renodx-dlss.addon64."""
+        """Test that is_dlss5_present detects modern renodx-dlss5.addon64."""
         self.assertFalse(is_dlss5_present(self.test_dir))
 
-        addon_path = Path(self.test_dir) / "renodx-dlss.addon64"
+        addon_path = Path(self.test_dir) / "renodx-dlss5.addon64"
         addon_path.write_bytes(b"dummy_addon")
         self.assertTrue(is_dlss5_present(self.test_dir))
 
@@ -113,7 +113,7 @@ class TestMultiModeCoexistenceAndXeSS6X(unittest.TestCase):
 
         # Verify ReShade64.dll was deployed (not overwriting dxgi.dll)
         self.assertTrue((Path(self.test_dir) / "ReShade64.dll").exists())
-        self.assertTrue((Path(self.test_dir) / "renodx-dlss.addon64").exists())
+        self.assertTrue((Path(self.test_dir) / "renodx-dlss5.addon64").exists())
 
         # Verify OptiScaler.ini has LoadReshade=true
         opti_ini = Path(self.test_dir) / "OptiScaler.ini"

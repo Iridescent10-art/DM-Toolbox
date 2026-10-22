@@ -34,7 +34,7 @@ class TestModeCDLSS5CoexistenceCrashFix(unittest.TestCase):
     3. ASI conflict avoidance:
        - When DLSS 5 is present, MFGUnlocker.asi AND MFGUnlocker-loadlate.asi are NOT
          deployed into OptiScaler/plugins/ to prevent slInit MinHook conflict with
-         renodx-dlss.addon64.
+         renodx-dlss5.addon64.
        - Mode C XeFG native 2X~6X multi-frame generation via [XeFG] InterpolationCount is preserved.
     4. Dual ReShade init crash prevention:
        - d3d12-ReShade64.dll is purged when DLSS5 is active, because OptiScaler loads
@@ -164,8 +164,8 @@ class TestModeCDLSS5CoexistenceCrashFix(unittest.TestCase):
                 qualification=QualificationStatus.QUALIFIED
             )
 
-            # Case A: DLSS 5 present (renodx-dlss.addon64 exists)
-            addon_path = os.path.join(td, "renodx-dlss.addon64")
+            # Case A: DLSS 5 present (renodx-dlss5.addon64 exists)
+            addon_path = os.path.join(td, "renodx-dlss5.addon64")
             with open(addon_path, "wb") as f:
                 f.write(b"FAKE_ADDON")
 
@@ -243,7 +243,7 @@ class TestModeCDLSS5CoexistenceCrashFix(unittest.TestCase):
             )
 
             # DLSS5 present marker
-            with open(os.path.join(td, "renodx-dlss.addon64"), "wb") as f:
+            with open(os.path.join(td, "renodx-dlss5.addon64"), "wb") as f:
                 f.write(b"FAKE_ADDON")
 
             # Pre-create -loadlate ASI variant in plugins dir
@@ -289,7 +289,7 @@ class TestModeCDLSS5CoexistenceCrashFix(unittest.TestCase):
             )
 
             # DLSS5 present marker
-            with open(os.path.join(td, "renodx-dlss.addon64"), "wb") as f:
+            with open(os.path.join(td, "renodx-dlss5.addon64"), "wb") as f:
                 f.write(b"FAKE_ADDON")
 
             # Simulate d3d12-ReShade64.dll pre-existing (legacy deployment artifact)

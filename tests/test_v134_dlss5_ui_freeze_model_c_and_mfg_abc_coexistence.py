@@ -12,9 +12,9 @@ Test Suite v134:
    - [INSTALL] is configured as HookDirectX=1 and HookStreamline=0, preventing ReShade
      from intercepting Streamline slInit, which preserves NVApp's driver-level Model C.
 3. Multi-Frame Generation ABC Modes + DLSS 5 Simultaneous Injection:
-   - Mode A + DLSS 5: version.dll + dxgi.dll (ReShade) + renodx-dlss.addon64 without Streamline hook conflict.
-   - Mode B + DLSS 5: dxgi.dll hosting both renodx-mfgunlock.addon64 and renodx-dlss.addon64 with EnableHooks=2.
-   - Mode C + DLSS 5: dxgi.dll (OptiScaler) + ReShade64.dll + renodx-dlss.addon64 with ASI/d3d12 purge.
+   - Mode A + DLSS 5: version.dll + dxgi.dll (ReShade) + renodx-dlss5.addon64 without Streamline hook conflict.
+   - Mode B + DLSS 5: dxgi.dll hosting both renodx-mfgunlock.addon64 and renodx-dlss5.addon64 with EnableHooks=2.
+   - Mode C + DLSS 5: dxgi.dll (OptiScaler) + ReShade64.dll + renodx-dlss5.addon64 with ASI/d3d12 purge.
 """
 
 import os
@@ -277,13 +277,13 @@ class TestDLSS5UIFreezeAndCoexistence(unittest.TestCase):
             # Check files
             version_dll = os.path.join(td, "version.dll")
             dxgi_dll = os.path.join(td, "dxgi.dll")
-            addon_dlss5 = os.path.join(td, "renodx-dlss.addon64")
+            addon_dlss5 = os.path.join(td, "renodx-dlss5.addon64")
             opti_ini = os.path.join(td, "OptiScaler.ini")
             reshade64 = os.path.join(td, "ReShade64.dll")
 
             self.assertTrue(os.path.exists(version_dll), "Mode A must deploy version.dll")
             self.assertTrue(os.path.exists(dxgi_dll), "DLSS 5 must deploy dxgi.dll for ReShade")
-            self.assertTrue(os.path.exists(addon_dlss5), "DLSS 5 must deploy renodx-dlss.addon64")
+            self.assertTrue(os.path.exists(addon_dlss5), "DLSS 5 must deploy renodx-dlss5.addon64")
             self.assertFalse(os.path.exists(opti_ini), "Mode A must not have OptiScaler.ini")
             self.assertFalse(os.path.exists(reshade64), "Mode A must not have ReShade64.dll")
 
@@ -319,12 +319,12 @@ class TestDLSS5UIFreezeAndCoexistence(unittest.TestCase):
 
             dxgi_dll = os.path.join(td, "dxgi.dll")
             mfg_addon = os.path.join(td, "renodx-mfgunlock.addon64")
-            dlss5_addon = os.path.join(td, "renodx-dlss.addon64")
+            dlss5_addon = os.path.join(td, "renodx-dlss5.addon64")
             version_dll = os.path.join(td, "version.dll")
 
             self.assertTrue(os.path.exists(dxgi_dll), "Mode B must have dxgi.dll ReShade host")
             self.assertTrue(os.path.exists(mfg_addon), "Mode B must have renodx-mfgunlock.addon64")
-            self.assertTrue(os.path.exists(dlss5_addon), "DLSS 5 must have renodx-dlss.addon64")
+            self.assertTrue(os.path.exists(dlss5_addon), "DLSS 5 must have renodx-dlss5.addon64")
             self.assertFalse(os.path.exists(version_dll), "Mode B must not have version.dll")
 
             # Check ReShade.ini has EnableHooks=2 to avoid Streamline conflict
@@ -366,14 +366,14 @@ class TestDLSS5UIFreezeAndCoexistence(unittest.TestCase):
 
             dxgi_dll = os.path.join(td, "dxgi.dll")
             reshade64 = os.path.join(td, "ReShade64.dll")
-            dlss5_addon = os.path.join(td, "renodx-dlss.addon64")
+            dlss5_addon = os.path.join(td, "renodx-dlss5.addon64")
             opti_ini = os.path.join(td, "OptiScaler.ini")
             d3d12_rs = os.path.join(td, "d3d12-ReShade64.dll")
             asi_p = os.path.join(td, "OptiScaler", "plugins", "MFGUnlocker.asi")
 
             self.assertTrue(os.path.exists(dxgi_dll), "Mode C must have OptiScaler as dxgi.dll")
             self.assertTrue(os.path.exists(reshade64), "Mode C must chainload ReShade64.dll")
-            self.assertTrue(os.path.exists(dlss5_addon), "Mode C must have renodx-dlss.addon64")
+            self.assertTrue(os.path.exists(dlss5_addon), "Mode C must have renodx-dlss5.addon64")
             self.assertTrue(os.path.exists(opti_ini), "Mode C must have OptiScaler.ini")
             self.assertFalse(os.path.exists(d3d12_rs), "d3d12-ReShade64.dll must be purged")
             self.assertFalse(os.path.exists(asi_p), "MFGUnlocker.asi must be purged when DLSS 5 is active")

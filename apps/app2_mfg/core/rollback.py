@@ -238,6 +238,9 @@ class RollbackEngine:
         # (J) Clean DLSS 5 files and dxgi.dll
         dxgi_p = os.path.join(target_dir, "dxgi.dll")
         if clean_all:
+            safe_force_remove(os.path.join(target_dir, "renodx-dlss5.addon64"))
+            safe_force_remove(os.path.join(target_dir, "renodx-dlss5-v11.9.addon64"))
+            safe_force_remove(os.path.join(target_dir, "renodx-dlss5-Lecram-v11-Beta48.addon64"))
             safe_force_remove(os.path.join(target_dir, "renodx-dlss.addon64"))
             safe_force_remove(os.path.join(target_dir, "renodx-dlss-ShortFuse-261017汉化版.addon64"))
             safe_force_remove(os.path.join(target_dir, "lecram-dlss5-beta10.addon64"))

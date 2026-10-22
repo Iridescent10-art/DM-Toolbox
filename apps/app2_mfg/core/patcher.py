@@ -745,8 +745,7 @@ class PatchEngine:
         # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin in OptiScaler/plugins/
         # OptiScaler 10+ loads ASI plugins via LoadAsiPlugins=true, unlocking multi-frame generation
         # (2X/3X/4X/5X/6X) for XeSS 2.0 / XeFG frame generation pipelines across RTX 20/30/40/50 and all GPUs!
-        has_dlss5 = os.path.exists(os.path.join(target_dir, "renodx-dlss.addon64")) or \
-                    os.path.exists(os.path.join(target_dir, ".dlss5_patch_manifest.json"))
+        has_dlss5 = is_dlss5_present(target_dir)
         plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
         dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
         if has_dlss5:
