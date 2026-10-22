@@ -1141,7 +1141,7 @@ class IniConfigManager:
 
         enabled = int(config.get("enabled", 1))
         engine = str(config.get("engine", "DLSS")).strip()
-        max_f = int(config.get("max_generated_frames", 3))
+        max_f = int(config.get("max_generated_frames", 2))
         opt = int(config.get("optimized", 2))
         preset = str(config.get("dlssg_preset", "Auto")).strip()
         sr_mode = str(config.get("super_resolution_mode", "Off")).strip()

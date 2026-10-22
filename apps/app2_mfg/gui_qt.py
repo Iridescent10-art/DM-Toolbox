@@ -1818,10 +1818,10 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_d_mult.setMinimumHeight(36)
         self.combo_d_mult.setMinimumWidth(280)
         self.combo_d_mult.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_mult.addItem("4X 四倍插帧 (最高 4X · 出厂推荐)", 3)
-        self.combo_d_mult.addItem("6X 六倍插帧 (最高 6X · DLSS 4.5 极限)", 5)
-        self.combo_d_mult.addItem("3X 三倍插帧 (最高 3X)", 2)
+        self.combo_d_mult.addItem("3X 三倍插帧 (最高 3X · 出厂推荐)", 2)
         self.combo_d_mult.addItem("2X 双倍插帧 (最高 2X)", 1)
+        self.combo_d_mult.addItem("4X 四倍插帧 (最高 4X)", 3)
+        self.combo_d_mult.addItem("6X 六倍插帧 (最高 6X · DLSS 4.5 极限)", 5)
         self.combo_d_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_d_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_mult.addWidget(self.combo_d_mult, 1)
@@ -2163,7 +2163,7 @@ class OptiScalerPresetDialog(QDialog):
             if disk_d:
                 self.preset_d.update(disk_d)
 
-        max_f = int(self.preset_d.get("max_generated_frames", 3))
+        max_f = int(self.preset_d.get("max_generated_frames", 2))
         idx_d_mult = self.combo_d_mult.findData(max_f)
         if idx_d_mult >= 0:
             self.combo_d_mult.setCurrentIndex(idx_d_mult)

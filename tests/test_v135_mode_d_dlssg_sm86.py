@@ -79,7 +79,7 @@ class TestModeCDLSSGSM86AndModeDOptiScaler(unittest.TestCase):
     # ---------------- 2. Preset Management Tests ----------------
     def test_02_preset_defaults_and_io(self):
         # Verify defaults
-        self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["max_generated_frames"], 3)
+        self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["max_generated_frames"], 2)
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["optimized"], 2)
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["dlssg_preset"], "Auto")
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["super_resolution_mode"], "Off")

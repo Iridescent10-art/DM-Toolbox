@@ -1,7 +1,7 @@
 {
   "enabled": 1,
   "engine": "DLSS",
-  "max_generated_frames": 3,
+  "max_generated_frames": 2,
   "optimized": 2,
   "dlssg_preset": "Auto",
   "super_resolution_mode": "Off",

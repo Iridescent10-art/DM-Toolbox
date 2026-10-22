@@ -315,7 +315,7 @@ def apply_preset_to_ini(ini_path: str, preset: Optional[Dict[str, Any]] = None) 
 DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "enabled": 1,                      # 1=开启插帧, 0=关闭
     "engine": "DLSS",                  # "DLSS" (默认 NVIDIA 原生模型) / "XeSS" (Intel XeSS-FG 引擎)
-    "max_generated_frames": 3,         # 1=最多2X, 2=最多3X, 3=最多4X(出厂默认), 5=最多6X
+    "max_generated_frames": 2,         # 1=最多2X, 2=最多3X(出厂默认推荐), 3=最多4X, 5=最多6X
     "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=有损轻量加速(默认), 3=极速加速
     "dlssg_preset": "Auto",            # "Auto"(默认), "A", "B", "C"(FG Lite 轻量插帧)
     "super_resolution_mode": "Off",    # "Off"(默认), "On"(RTX 20/30 INT8 超分加速)
@@ -357,7 +357,7 @@ def get_dlssg_sm86_preset_summary(config: Optional[Dict[str, Any]] = None) -> st
 
     eng = config.get("engine", "DLSS")
     max_f = int(config.get("max_generated_frames", 3))
-    mult_map = {1: "2X", 2: "3X", 3: "4X (推荐)", 5: "6X (DLSS 4.5)"}
+    mult_map = {1: "2X", 2: "3X (推荐)", 3: "4X", 5: "6X (DLSS 4.5)"}
     mult_str = mult_map.get(max_f, f"{max_f+1}X")
 
     opt = int(config.get("optimized", 2))
