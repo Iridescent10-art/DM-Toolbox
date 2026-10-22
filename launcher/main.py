@@ -99,6 +99,7 @@ APP_EXACT_TITLES = {
     "app3_autohdr": "DM工具箱 - Windows Auto HDR 管理器",
     "app4_dlss": "DM工具箱 - 全架构超分与插帧水印指示器 (DLSS / XeSS / FSR / MFG)",
     "app5_jxr": "JXR HDR 转换器 - 转 Ultra HDR / PNG",
+    "app6_dlss5": "DM工具箱 - DLSS 5 插件一键注入",
 }
 
 ALLOWED_SUBPROCESS_EXECUTABLES = {"python.exe", "pythonw.exe", "dmbox.exe", "jxrconverter.exe"}
@@ -200,7 +201,15 @@ APPS_METADATA = [
         "exe_rel": "apps/app5_jxr/JxrConverter.exe",
         "work_dir": "apps/app5_jxr"
     },
-    
+    {
+        "id": "app6_dlss5",
+        "name": "DLSS 5 插件一键注入",
+        "tag": "DLSS 5 · 神经渲染",
+        "desc": "搭载 RenoDX DLSS 5 v11.9 旗舰版与 NVIDIA 神经重构 (DLSS-NR) 运行库，共用二号软件游戏库与 RHI 底座，支持一键独立注入与无损还原。",
+        "icon": "dlss5_icon.png",
+        "script_rel": "apps/app6_dlss5/app.py",
+        "work_dir": "apps/app6_dlss5"
+    }
 ]
 
 

@@ -37,7 +37,7 @@ def ensure_toolbox_root():
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
 
         # Auto-create app dedicated subdirectories in both cache and config
-        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr"]:
+        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr", "app6_dlss5"]:
             (CACHE_ROOT / app).mkdir(parents=True, exist_ok=True)
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
 
@@ -202,7 +202,7 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
 
         # Re-create subdirectories
-        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr"]:
+        for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr", "app6_dlss5"]:
             (CACHE_ROOT / app).mkdir(parents=True, exist_ok=True)
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
 
@@ -368,3 +368,100 @@ def get_real_gpu_info() -> Dict[str, Any]:
         "description": arch_desc,
         "is_rtx_40_or_newer": is_50 or is_40
     }
+
+
+# ---------------------------------------------------------------------------
+# VRAM spoof detection (App 1 hardware disguise)
+# ---------------------------------------------------------------------------
+# Nominal board memory per physical GPU model. Used to tell whether App 1 has
+# raised the *reported* VRAM far above what the card really has: games size
+# their texture streaming pools from the DXGI/DirectX memory budget, so a fake
+# 32 GB on a 12 GB board makes them over-commit until the driver hangs
+# (DXGI_ERROR_DEVICE_HUNG / nvlddmkm event 153). Longest keys first so that
+# "RTX 4070 TI" wins over "RTX 4070".
+_GPU_NOMINAL_VRAM_GB: Dict[str, int] = {
+    "RTX 5090": 32, "RTX 5080": 16, "RTX 5070 TI": 16, "RTX 5070": 12,
+    "RTX 4090": 24, "RTX 4080": 16, "RTX 4070 TI": 12, "RTX 4070": 12,
+    "RTX 4060 TI": 8, "RTX 4060": 8,
+    "RTX 3090 TI": 24, "RTX 3090": 24, "RTX 3080 TI": 12, "RTX 3080": 10,
+    "RTX 3070 TI": 8, "RTX 3070": 8, "RTX 3060 TI": 8, "RTX 3060": 12,
+    "RTX 2080 TI": 11, "RTX 2080": 8, "RTX 2070": 8, "RTX 2060": 6,
+    "GTX 1660 TI": 6, "GTX 1660": 6, "GTX 1650": 4,
+    "GTX 1080 TI": 11, "GTX 1080": 8, "GTX 1070": 8, "GTX 1060": 6,
+    "ARC B580": 12, "ARC B570": 10, "ARC A770": 16, "ARC A750": 8,
+    "RX 7900 XTX": 24, "RX 7900 XT": 20, "RX 7800 XT": 16, "RX 7700 XT": 12,
+    "RX 7600": 8, "RX 6900 XT": 16, "RX 6800 XT": 16, "RX 6800": 16,
+    "RX 6700 XT": 12, "RX 6600 XT": 8,
+}
+
+
+def get_physical_vram_gb() -> Optional[int]:
+    """Nominal VRAM of the *physical* GPU in GB, or None when the model is unknown."""
+    try:
+        name = get_real_gpu_model().upper()
+    except Exception:
+        return None
+    for model in sorted(_GPU_NOMINAL_VRAM_GB, key=len, reverse=True):
+        if model in name:
+            return _GPU_NOMINAL_VRAM_GB[model]
+    return None
+
+
+def _read_app1_config() -> Dict[str, Any]:
+    candidates = [
+        get_app_config_path("app1_hardware", "config.json"),
+        Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "config" / "app1_hardware" / "config.json",
+    ]
+    try:
+        root_dir = Path(__file__).resolve().parent.parent
+        candidates.append(root_dir / "apps" / "app1_hardware" / "config.json")
+    except Exception:
+        pass
+    for p in candidates:
+        try:
+            if p.exists():
+                with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            continue
+    return {}
+
+
+def get_spoofed_vram_gb() -> Optional[int]:
+    """VRAM (GB) that App 1 currently reports to games, or None when unset."""
+    data = _read_app1_config()
+    target = data.get("custom_target") or {}
+    try:
+        val = int(target.get("gpu_vram_gb"))
+    except (TypeError, ValueError):
+        return None
+    return val if val > 0 else None
+
+
+def describe_vram_overcommit(physical_gb: Optional[int], spoofed_gb: Optional[int]) -> Optional[str]:
+    """
+    Build a user-facing warning when the disguised VRAM exceeds the real board.
+
+    Pure function so it stays testable without registry or hardware access.
+    """
+    if not physical_gb or not spoofed_gb:
+        return None
+    if spoofed_gb <= physical_gb:
+        return None
+    return (
+        f"App1 当前把显存伪装为 {spoofed_gb} GB，但显卡实际只有 {physical_gb} GB。\n"
+        f"游戏会按 {spoofed_gb} GB 预分配纹理/渲染目标，超过真实显存后驱动会挂起并报 "
+        f"DXGI_ERROR_DEVICE_HUNG（事件 153，俗称 TDR），表现就是“玩一会儿闪退”。\n"
+        f"请到【硬件配置大师】把显存改为「{physical_gb} GB (保持原始)」，"
+        f"或执行「一键还原官方真实配置」后再试。"
+    )
+
+
+def detect_vram_overcommit() -> Optional[str]:
+    """Runtime check used by the frame-generation / DLSS 5 preflight."""
+    try:
+        return describe_vram_overcommit(get_physical_vram_gb(), get_spoofed_vram_gb())
+    except Exception:
+        return None

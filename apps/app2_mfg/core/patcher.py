@@ -20,6 +20,8 @@ from core.utils import (
     cleanup_pending_files
 )
 
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+
 PROXY_PRIORITY = ["version.dll", "winmm.dll", "dinput8.dll", "wininet.dll", "dxgi.dll"]
 
 class PatchEngine:
@@ -100,12 +102,15 @@ class PatchEngine:
                 target_mode_char = "A"
             elif active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
                 target_mode_char = "B"
-            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
+            elif active_backend == BackendType.OPTISCALER_FSR or backend_str == BackendType.OPTISCALER_FSR.value:
                 target_mode_char = "C"
-            else:
+            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
                 target_mode_char = "D"
+            else:
+                target_mode_char = "C"
             has_dlss5 = is_dlss5_present(game.target_dir)
-            CleanGameDirectoryState(game.target_dir, preserve_dlss5=has_dlss5, target_mode=target_mode_char)
+            target_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=active_backend)
+            CleanGameDirectoryState(game.target_dir, preserve_dlss5=has_dlss5, target_mode=target_mode_char, target_proxy=target_proxy)
 
             if active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
                 success, err = self._apply_standalone_patch(game, manifest, prefer_bink_hook)
@@ -149,11 +154,36 @@ class PatchEngine:
                     warn_text = "".join(
                         f"\n⚠️ {w}" for w in (IniConfigManager.last_report or {}).get("warnings", [])
                     )
-                    callout = (
-                        f"在游戏设置中开启【DLSS 帧生成】即按预设生效！\n"
-                        f"✨ 进游戏按【{key_name}】呼出 OptiScaler 调校菜单\n"
-                        f"✨ 已自动注入模式 D 预设: {summary_str}{warn_text}"
-                    )
+                    try:
+                        from common.config_manager import detect_vram_overcommit
+                        _vram = detect_vram_overcommit()
+                        if _vram:
+                            warn_text += f"\n⚠️ 【显存伪装风险】{_vram}"
+                    except Exception:
+                        pass
+                    if has_dlss5 and not has_rtx_40_or_newer:
+                        warn_text += (
+                            "\n⚠️ 检测到 RTX 20/30 系 + DLSS 5：XeFG 需要游戏原生 DLSS-G 作为插帧输入，"
+                            "而 20/30 系通常要靠 fakenvapi 伪装出 DLSS-G 开关，"
+                            "它与 DLSS 5 的 NVAPI 查询冲突（已被自动禁用）。"
+                            "如需 XeSS 多帧插帧，请单独使用模式 C（不叠加 DLSS 5），"
+                            "或改用模式 D 的原生 DLSS-G 多帧。"
+                        )
+                    if has_dlss5:
+                        callout = (
+                            f"⚡ 检测到 DLSS 5 共存态：已启用全自动双通道无缝共存！\n"
+                            f"✨ 核心插帧代理已安全挂载至【{target_proxy}】（避让 DLSS 5 ReShade 渲染底座 dxgi.dll）\n"
+                            f"✨ 模式 C 已作为后台静默帧生成平稳运行（无悬浮窗干扰）\n"
+                            f"✨ 在游戏画质设置中直接开启【DLSS 帧生成】即刻生效！\n"
+                            f"✨ 已自动注入模式 C 预设: {summary_str}{warn_text}"
+                        )
+                    else:
+                        callout = (
+                            f"在游戏设置中开启【DLSS 帧生成】即按预设生效！\n"
+                            f"✨ 进游戏按【{key_name}】呼出 OptiScaler 调校菜单\n"
+                            f"✨ 核心插帧代理已挂载至【{target_proxy}】\n"
+                            f"✨ 已自动注入模式 C 预设: {summary_str}{warn_text}"
+                        )
                 except Exception:
                     callout = "在游戏画质设置中开启【DLSS 帧生成】(进游戏按【Insert】呼出 OptiScaler 菜单)"
             elif active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
@@ -175,9 +205,14 @@ class PatchEngine:
                     IniConfigManager.sync_mode_d_forward(game.target_dir, preset_d, game.exe_name)
                     callout = (
                         f"在游戏画质设置中直接开启【DLSS 帧生成】即刻生效！\n"
-                        f"⚡ 已自动注入模式 C 原生预设: {summary_d}\n"
+                        f"⚡ 已自动注入模式 D 原生预设: {summary_d}\n"
                         f"✨ 专为 RTX 20/30 系优化，原生 DLSS 3/4.5 多倍插帧 + INT8 超分加速"
                     )
+                    try:
+                        from core.utils import describe_mode_d_mfg_status
+                        callout += describe_mode_d_mfg_status(game.target_dir)
+                    except Exception:
+                        pass
                 except Exception:
                     callout = "在游戏画质设置中直接开启【DLSS 帧生成】"
             else:
@@ -240,8 +275,8 @@ class PatchEngine:
             manifest.created_files.append("bink2w64.dll")
             return True, ""
 
-        # Mode A strict proxy slot: version.dll (NEVER touch dxgi.dll!)
-        selected_proxy = "version.dll"
+        # Mode A proxy slot: dynamically resolved based on PE imports (winmm > version)
+        selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.STANDALONE)
         dest_proxy_path = os.path.join(target_dir, selected_proxy)
         if os.path.exists(dest_proxy_path):
             safe_force_remove(dest_proxy_path)
@@ -251,14 +286,13 @@ class PatchEngine:
         # If DLSS 5 is active in Mode A, ensure ReShade is deployed as dxgi.dll
         if has_dlss5:
             dxgi_path = os.path.join(target_dir, "dxgi.dll")
-            if not os.path.exists(dxgi_path) or not self._is_reshade_addon_dll(dxgi_path):
-                reshade_src = self.updater.get_reshade_framework_dll()
+            if not os.path.exists(dxgi_path) or not self._is_reshade_dll(dxgi_path):
+                dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
+                reshade_src = str(dlss5_dxgi) if dlss5_dxgi.exists() else self.updater.get_reshade_framework_dll()
                 if reshade_src and os.path.exists(reshade_src):
                     safe_force_remove(dxgi_path)
                     shutil.copy2(reshade_src, dxgi_path)
-                    if "dxgi.dll" not in manifest.created_files:
-                        manifest.created_files.append("dxgi.dll")
-            # Remove ReShade64.dll if leftover from Mode C
+            # dxgi.dll belongs to DLSS 5, never register in created_files for Mode A!
             safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
 
         # Forward sync Mode A INI configs
@@ -321,6 +355,67 @@ class PatchEngine:
                 pass
         return imported
 
+    def _resolve_proxy_slot(
+        self,
+        game: GameInfo,
+        is_coexisting_with_dlss5: bool,
+        active_backend: Optional[BackendType] = None
+    ) -> str:
+        """
+        Dynamically determine the optimal proxy DLL slot for the target game executable.
+        - In standalone Mode C (OptiScaler without DLSS 5), dxgi.dll is the universal default.
+        - In coexistence with DLSS 5 (or when dxgi.dll is occupied by DLSS 5 ReShade 6.8):
+          Inspects the PE Import Table via _get_pe_imported_proxies(game.exe_path):
+            1. If game imports 'winmm.dll': prioritize 'winmm.dll'!
+            2. If game imports 'version.dll': use 'version.dll'!
+            3. If game imports 'dinput8.dll': use 'dinput8.dll'!
+            4. Fallback (if no proxy DLL found in import table, e.g. mock or packed binary):
+               defaults to 'version.dll' (or 'winmm.dll' if version.dll is occupied by a foreign file).
+        - For Mode A (dashdogy):
+          Inspects PE Import Table: if game imports winmm.dll and not version.dll, uses winmm.dll;
+          if game imports version.dll, uses version.dll; else defaults to version.dll.
+        - For Mode D (DLSSG-SM86):
+          If coexisting with DLSS 5, follows the same imported proxy rule.
+        """
+        if active_backend == BackendType.RESHADE_ADDON:
+            return "dxgi.dll"
+
+        if not is_coexisting_with_dlss5:
+            if active_backend == BackendType.OPTISCALER_FSR:
+                return "dxgi.dll"
+            imported = self._get_pe_imported_proxies(game.exe_path)
+            if "winmm.dll" in imported and "version.dll" not in imported:
+                return "winmm.dll"
+            if "version.dll" in imported:
+                return "version.dll"
+            if "dinput8.dll" in imported:
+                return "dinput8.dll"
+            return "version.dll"
+
+        # Under DLSS 5 coexistence: dxgi.dll is strictly reserved for ReShade 6.8.
+        # The shared coexistence router picks the slot the game imports first
+        # (winmm.dll > version.dll > dinput8.dll > wininet.dll), and never returns
+        # dxgi.dll, so both orders of injection converge to the same layout.
+        try:
+            from core.coexistence import pick_fg_proxy_slot
+            return pick_fg_proxy_slot(game.target_dir, game.exe_path)
+        except Exception:
+            pass
+        imported = self._get_pe_imported_proxies(game.exe_path)
+        if "winmm.dll" in imported:
+            return "winmm.dll"
+        if "version.dll" in imported:
+            return "version.dll"
+        if "dinput8.dll" in imported:
+            return "dinput8.dll"
+
+        # Fallback when import table does not list known proxies (e.g. mock tests or dynamic load)
+        target_dir = game.target_dir
+        ver_path = os.path.join(target_dir, "version.dll")
+        if os.path.exists(ver_path) and not (self._is_optiscaler_dll(ver_path) or self._is_dashdogy_dll(ver_path)):
+            return "winmm.dll"
+        return "version.dll"
+
     def _is_reshade_dll(self, path: str) -> bool:
         """Check if a DLL file is ReShade (excludes OptiScaler)."""
         data = self._read_dll_signature_bytes(path)
@@ -364,9 +459,9 @@ class PatchEngine:
             return BackendType.DLSSG_SM86.value
         if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
             return BackendType.OPTISCALER_FSR.value
-        if (td / "renodx-mfgunlock.addon64").exists() or ((td / "ReShade.ini").exists() and (td / "dxgi.dll").exists()):
+        if (td / "renodx-mfgunlock.addon64").exists():
             return BackendType.RESHADE_ADDON.value
-        if (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists():
+        if (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists() or (td / "bink2w64Hooked.dll").exists():
             return BackendType.STANDALONE.value
         for p in ["version.dll", "winmm.dll", "dinput8.dll"]:
             if (td / p).exists():
@@ -499,49 +594,57 @@ class PatchEngine:
         dxgi_path = os.path.join(target_dir, "dxgi.dll")
 
         # Step 1: dxgi.dll conflict detection and migration
+        has_dlss5 = is_dlss5_present(target_dir)
         need_deploy_reshade = True
-        if "dxgi.dll" in existing_files:
-            if self._is_optiscaler_dll(dxgi_path):
-                # Clean or backup OptiScaler dxgi.dll to make room for ReShade
-                bak_path = os.path.join(target_dir, "dxgi.dll.opti_bak")
-                safe_force_remove(bak_path)
-                try:
-                    os.rename(dxgi_path, bak_path)
-                    manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.opti_bak"})
-                    existing_files.discard("dxgi.dll")
-                except Exception:
-                    pass
-                need_deploy_reshade = True
-            elif self._is_reshade_addon_dll(dxgi_path):
-                # Already a valid ReShade 64-bit with Add-on Support!
+        if has_dlss5:
+            # DLSS 5 Coexistence: Directly reuse DLSS 5's ReShade 6.8 dxgi.dll!
+            if "dxgi.dll" in existing_files and self._is_reshade_dll(dxgi_path):
                 need_deploy_reshade = False
-            elif self._is_reshade_dll(dxgi_path):
-                # Standard ReShade without Add-on Support -> backup and upgrade
-                bak_path = os.path.join(target_dir, "dxgi.dll.bak")
-                safe_force_remove(bak_path)
-                try:
-                    os.rename(dxgi_path, bak_path)
-                    manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.bak"})
-                    existing_files.discard("dxgi.dll")
-                except Exception:
-                    pass
-                need_deploy_reshade = True
             else:
-                # Non-ReShade third-party proxy -> safe backup
-                bak_path = os.path.join(target_dir, "dxgi.dll.mfg_bak")
-                safe_force_remove(bak_path)
-                try:
-                    os.rename(dxgi_path, bak_path)
-                    manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.mfg_bak"})
-                    existing_files.discard("dxgi.dll")
-                except Exception:
-                    pass
+                dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
+                if dlss5_dxgi.exists():
+                    source_reshade = str(dlss5_dxgi)
                 need_deploy_reshade = True
+        else:
+            if "dxgi.dll" in existing_files:
+                if self._is_optiscaler_dll(dxgi_path):
+                    bak_path = os.path.join(target_dir, "dxgi.dll.opti_bak")
+                    safe_force_remove(bak_path)
+                    try:
+                        os.rename(dxgi_path, bak_path)
+                        manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.opti_bak"})
+                        existing_files.discard("dxgi.dll")
+                    except Exception:
+                        pass
+                    need_deploy_reshade = True
+                elif self._is_reshade_addon_dll(dxgi_path):
+                    need_deploy_reshade = False
+                elif self._is_reshade_dll(dxgi_path):
+                    bak_path = os.path.join(target_dir, "dxgi.dll.bak")
+                    safe_force_remove(bak_path)
+                    try:
+                        os.rename(dxgi_path, bak_path)
+                        manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.bak"})
+                        existing_files.discard("dxgi.dll")
+                    except Exception:
+                        pass
+                    need_deploy_reshade = True
+                else:
+                    bak_path = os.path.join(target_dir, "dxgi.dll.mfg_bak")
+                    safe_force_remove(bak_path)
+                    try:
+                        os.rename(dxgi_path, bak_path)
+                        manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.mfg_bak"})
+                        existing_files.discard("dxgi.dll")
+                    except Exception:
+                        pass
+                    need_deploy_reshade = True
 
         # Step 2: Physical injection of ReShade framework (dxgi.dll)
         if need_deploy_reshade:
             shutil.copy2(source_reshade, dxgi_path)
-            manifest.created_files.append("dxgi.dll")
+            if not has_dlss5:
+                manifest.created_files.append("dxgi.dll")
 
         # Step 3: Physical injection of renodx-mfgunlock.addon64
         dest_addon = os.path.join(target_dir, "renodx-mfgunlock.addon64")
@@ -594,7 +697,12 @@ class PatchEngine:
         if os.path.exists(dest_addon):
             safe_force_remove(dest_addon)
 
+        has_dlss5 = is_dlss5_present(target_dir)
+        selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.OPTISCALER_FSR)
+
         for proxy_cand in ["dxgi.dll", "winmm.dll", "version.dll", "dinput8.dll", "wininet.dll"]:
+            if proxy_cand == selected_proxy:
+                continue
             p_path = os.path.join(target_dir, proxy_cand)
             if os.path.exists(p_path):
                 if proxy_cand == "dxgi.dll" and self._is_reshade_dll(p_path):
@@ -607,42 +715,50 @@ class PatchEngine:
             if os.path.exists(f_p):
                 safe_force_remove(f_p)
 
-        # If dxgi.dll is ReShade, back it up so dxgi.dll is clean for OptiScaler
-        dxgi_path = os.path.join(target_dir, "dxgi.dll")
-        if os.path.exists(dxgi_path):
-            if self._is_reshade_dll(dxgi_path):
-                bak_path = os.path.join(target_dir, "dxgi.dll.reshade_bak")
-                safe_force_remove(bak_path)
-                try:
-                    os.rename(dxgi_path, bak_path)
-                    manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.reshade_bak"})
-                except Exception:
-                    pass
+        if not has_dlss5:
+            # Standalone OptiScaler: back up ReShade dxgi.dll if present
+            dxgi_path = os.path.join(target_dir, "dxgi.dll")
+            if os.path.exists(dxgi_path):
+                if self._is_reshade_dll(dxgi_path):
+                    bak_path = os.path.join(target_dir, "dxgi.dll.reshade_bak")
+                    safe_force_remove(bak_path)
+                    try:
+                        os.rename(dxgi_path, bak_path)
+                        manifest.renamed_backups.append({"original": "dxgi.dll", "backup": "dxgi.dll.reshade_bak"})
+                    except Exception:
+                        pass
 
         existing_files = {f.lower() for f in os.listdir(target_dir)}
-
-        # Mode C strict proxy slot: dxgi.dll for OptiScaler
-        selected_proxy = "dxgi.dll"
-        dest_proxy_path = os.path.join(target_dir, selected_proxy)
-        if os.path.exists(dest_proxy_path):
-            safe_force_remove(dest_proxy_path)
-        shutil.copy2(source_dll, dest_proxy_path)
-        manifest.created_files.append(selected_proxy)
-
-        # If DLSS 5 is active in Mode C, ensure ReShade is deployed as ReShade64.dll for chainloading
-        has_dlss5 = is_dlss5_present(target_dir)
         if has_dlss5:
-            reshade64_path = os.path.join(target_dir, "ReShade64.dll")
-            if not os.path.exists(reshade64_path) or not self._is_reshade_addon_dll(reshade64_path):
-                reshade_bak = os.path.join(target_dir, "dxgi.dll.reshade_bak")
-                if os.path.exists(reshade_bak) and self._is_reshade_addon_dll(reshade_bak):
-                    shutil.copy2(reshade_bak, reshade64_path)
-                    manifest.created_files.append("ReShade64.dll")
-                else:
-                    reshade_src = self.updater.get_reshade_framework_dll()
-                    if reshade_src and os.path.exists(reshade_src):
-                        shutil.copy2(reshade_src, reshade64_path)
-                        manifest.created_files.append("ReShade64.dll")
+            # Step 1: Dynamic Slot Routing for OptiScaler with DLSS 5 Coexistence
+            # Rule 1: Lock dxgi.dll to DLSS 5 ReShade 6.8 (5.33 MB)
+            dxgi_path = os.path.join(target_dir, "dxgi.dll")
+            if not os.path.exists(dxgi_path) or not self._is_reshade_dll(dxgi_path):
+                dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
+                reshade_src = str(dlss5_dxgi) if dlss5_dxgi.exists() else self.updater.get_reshade_framework_dll()
+                if reshade_src and os.path.exists(reshade_src):
+                    safe_force_remove(dxgi_path)
+                    shutil.copy2(reshade_src, dxgi_path)
+
+            dest_proxy_path = os.path.join(target_dir, selected_proxy)
+            if os.path.exists(dest_proxy_path):
+                safe_force_remove(dest_proxy_path)
+            shutil.copy2(source_dll, dest_proxy_path)
+            manifest.created_files.append(selected_proxy)
+
+            # Purge any secondary ReShade64 / d3d12-ReShade64 / dxgi.dll.reshade_bak
+            # because ReShade 6.8 is already loaded natively as dxgi.dll!
+            for r_cand in ["ReShade64.dll", "d3d12-ReShade64.dll", "dxgi.dll.reshade_bak"]:
+                rp = os.path.join(target_dir, r_cand)
+                if os.path.exists(rp):
+                    safe_force_remove(rp)
+        else:
+            # Standalone OptiScaler (without DLSS 5): dxgi.dll (or resolved slot)
+            dest_proxy_path = os.path.join(target_dir, selected_proxy)
+            if os.path.exists(dest_proxy_path):
+                safe_force_remove(dest_proxy_path)
+            shutil.copy2(source_dll, dest_proxy_path)
+            manifest.created_files.append(selected_proxy)
 
         # 2. Deploy bridge & runtime files
         gpu_name = get_system_gpu_name()
@@ -670,6 +786,20 @@ class PatchEngine:
         # already provides native DLSS-G.
         deploy_fakenvapi = needs_fakenvapi or not (has_rtx_40_or_newer or is_qualified)
 
+        # Fatal conflict fix: fakenvapi emulates a whole NVAPI device, and the
+        # DLSS 5 neural-reconstruction runtime queries NVAPI to pick its kernels.
+        # A faked adapter makes it run kernels the physical GPU cannot execute,
+        # which crashes right after the first reconstructed frame. This is true on
+        # every GPU architecture, not only on RTX 40/50, so coexistence always
+        # purges it and relies on the game's native DLSS-G as XeFG input.
+        if has_dlss5:
+            deploy_fakenvapi = False
+            try:
+                from core.coexistence import purge_fakenvapi
+                purge_fakenvapi(target_dir)
+            except Exception:
+                pass
+
         items_to_copy = [
             "OptiScaler.ini",
             "amd_fidelityfx_dx12.dll",
@@ -684,8 +814,9 @@ class PatchEngine:
         if deploy_fakenvapi:
             items_to_copy.extend(["fakenvapi.dll", "fakenvapi.ini"])
         else:
-            # Purge any leftover fakenvapi to prevent Streamline and Messiah engine crashes
-            for f_name in ["fakenvapi.dll", "fakenvapi.ini"]:
+            # Purge any leftover fakenvapi to prevent Streamline and Messiah engine crashes,
+            # and prevent RenoDX DLSS 5 NVAPI query conflicts on RTX 40+ GPUs
+            for f_name in ["fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log"]:
                 f_p = os.path.join(target_dir, f_name)
                 if os.path.exists(f_p):
                     safe_force_remove(f_p)
@@ -743,15 +874,29 @@ class PatchEngine:
                 safe_force_remove(lingering_dlssg)
 
         # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin in OptiScaler/plugins/
-        # OptiScaler 10+ loads ASI plugins via LoadAsiPlugins=true, unlocking multi-frame generation
-        # (2X/3X/4X/5X/6X) for XeSS 2.0 / XeFG frame generation pipelines across RTX 20/30/40/50 and all GPUs!
+        # OptiScaler 10+ loads ASI plugins via LoadAsiPlugins=true; dashdogy's
+        # Universal MFG Unlocker (v1.5+) patches the XeSS-FG interpolation ceiling,
+        # which is what actually enables 3X/4X XeFG. libxess_fg alone caps non-Arc
+        # GPUs at "Max supported interpolations = 1" (2X), as the real session log
+        # in issue #v1.3.8 shows.
         has_dlss5 = is_dlss5_present(target_dir)
         plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
         dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
-        if has_dlss5:
-            # Avoid MinHook collision on slInit with renodx-dlss.addon64;
-            # Mode C natively utilizes [XeFG] InterpolationCount for 2X~6X frame generation.
-            # Remove ALL known ASI name variants (standard + loadlate) to prevent any MinHook conflict.
+        unlock_mfg = bool(preset.get("unlock_mfg", True)) if isinstance(preset, dict) else True
+        mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
+
+        if unlock_mfg and mfg_dll_path and os.path.exists(mfg_dll_path):
+            os.makedirs(plugins_dir, exist_ok=True)
+            # Remove a stale late-load copy so only one injection path exists.
+            _late = os.path.join(plugins_dir, "MFGUnlocker-loadlate.asi")
+            if os.path.exists(_late):
+                safe_force_remove(_late)
+            shutil.copy2(mfg_dll_path, dst_asi)
+            if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
+                manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
+        else:
+            # Unlock disabled (or component missing): remove every ASI variant so a
+            # stale unlocker can never hook the process behind the user's back.
             for _asi_name in ["MFGUnlocker.asi", "MFGUnlocker-loadlate.asi"]:
                 _asi_path = os.path.join(plugins_dir, _asi_name)
                 if os.path.exists(_asi_path):
@@ -759,6 +904,8 @@ class PatchEngine:
                         safe_force_remove(_asi_path)
                     except Exception:
                         pass
+
+        if has_dlss5:
             # Purge d3d12-ReShade64.dll: OptiScaler accepts both "ReShade64.dll" and
             # "d3d12-ReShade64.dll" as chain-load targets. If both exist simultaneously,
             # two ReShade instances initialize and register duplicate D3D12 hooks -> crash.
@@ -768,13 +915,6 @@ class PatchEngine:
                     safe_force_remove(_d3d12_reshade)
                 except Exception:
                     pass
-        else:
-            mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
-            if mfg_dll_path and os.path.exists(mfg_dll_path):
-                os.makedirs(plugins_dir, exist_ok=True)
-                shutil.copy2(mfg_dll_path, dst_asi)
-                if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
-                    manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
 
         # 4. Write the ONE legal config file (OptiScaler.ini) and delete the legacy alias.
         #    v0.9.4 shows a red banner while nvngx.ini exists, and reads FG init keys at
@@ -827,7 +967,14 @@ class PatchEngine:
         return True, ""
 
     def _ensure_ini_early_loading(self, ini_path: str, addon_name: str) -> bool:
-        """Inject or append addon_name to [ADDON] LoadFromDllMain in ReShade.ini."""
+        """
+        Inject or append addon_name to [ADDON] LoadFromDllMain in ReShade.ini.
+        NOTE: DLSS 5 (renodx-dlss) must NEVER be loaded in DllMain because of Windows loader lock (causes error 1114/0xc0000005).
+        Only Mode B (renodx-mfgunlock.addon64) uses early loading.
+        """
+        if "dlss" in addon_name.lower() or "shortfuse" in addon_name.lower():
+            return True
+
         lines = []
         if os.path.exists(ini_path):
             try:
@@ -847,7 +994,6 @@ class PatchEngine:
             if stripped.startswith("[") and stripped.endswith("]"):
                 sec_name = stripped[1:-1].strip()
                 if in_addon_sec and not load_key_found:
-                    # Append LoadFromDllMain before leaving [ADDON]
                     new_lines.append(f"LoadFromDllMain={addon_name}\n")
                     load_key_found = True
                     modified = True
@@ -862,16 +1008,19 @@ class PatchEngine:
                 k, v = stripped.split("=", 1)
                 if k.strip().upper() == "LOADFROMDLLMAIN":
                     load_key_found = True
-                    existing_addons = [x.strip() for x in v.split(",") if x.strip()]
-                    if addon_name.lower() not in [x.lower() for x in existing_addons]:
-                        existing_addons.append(addon_name)
-                        new_lines.append(f"{k.strip()}={','.join(existing_addons)}\n")
-                        modified = True
-                        continue
+                    raw_addons = [x.strip() for x in v.split(",") if x.strip()]
+                    clean_addons = [
+                        x for x in raw_addons 
+                        if x != "1" and "dlss" not in x.lower() and "shortfuse" not in x.lower()
+                    ]
+                    if addon_name.lower() not in [x.lower() for x in clean_addons]:
+                        clean_addons.append(addon_name)
+                    new_lines.append(f"{k.strip()}={','.join(clean_addons)}\n")
+                    modified = True
+                    continue
 
             new_lines.append(line)
 
-        # If [ADDON] section was not found at all
         if not addon_sec_found:
             new_lines.append("\n[ADDON]\n")
             new_lines.append(f"LoadFromDllMain={addon_name}\n")
@@ -923,9 +1072,12 @@ class PatchEngine:
         except Exception:
             preset_d = {"proxy_dll": "version.dll"}
 
-        selected_proxy = str(preset_d.get("proxy_dll", "version.dll")).strip().lower()
-        if not selected_proxy.endswith(".dll"):
-            selected_proxy = "version.dll"
+        selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.DLSSG_SM86)
+        pref = str(preset_d.get("proxy_dll", "")).strip().lower()
+        if pref and pref.endswith(".dll") and not (has_dlss5 and pref == "dxgi.dll"):
+            imported = self._get_pe_imported_proxies(game.exe_path)
+            if not imported or pref in imported:
+                selected_proxy = pref
 
         # Locate proxy source file
         source_proxy = os.path.join(source_dir, selected_proxy)
@@ -964,6 +1116,8 @@ class PatchEngine:
                 dest_root = os.path.join(dst_dlssg_sub, rel)
             os.makedirs(dest_root, exist_ok=True)
             for file in files:
+                if file.lower() == "nvngx_dlssnr.dll":
+                    continue
                 src_f = os.path.join(root, file)
                 dst_f = os.path.join(dest_root, file)
                 shutil.copy2(src_f, dst_f)
@@ -985,13 +1139,12 @@ class PatchEngine:
         # 5. DLSS 5 Coexistence: ensure ReShade is deployed on dxgi.dll if DLSS 5 present
         if has_dlss5:
             dxgi_path = os.path.join(target_dir, "dxgi.dll")
-            if not os.path.exists(dxgi_path) or not self._is_reshade_addon_dll(dxgi_path):
-                reshade_src = self.updater.get_reshade_framework_dll()
+            if not os.path.exists(dxgi_path) or not self._is_reshade_dll(dxgi_path):
+                dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
+                reshade_src = str(dlss5_dxgi) if dlss5_dxgi.exists() else self.updater.get_reshade_framework_dll()
                 if reshade_src and os.path.exists(reshade_src):
                     safe_force_remove(dxgi_path)
                     shutil.copy2(reshade_src, dxgi_path)
-                    if "dxgi.dll" not in manifest.created_files:
-                        manifest.created_files.append("dxgi.dll")
             safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
 
         return True, ""

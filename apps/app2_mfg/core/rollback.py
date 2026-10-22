@@ -112,6 +112,8 @@ class RollbackEngine:
         # 2. Delete created files via safe_force_remove
         if manifest:
             for rel_file in manifest.created_files:
+                if rel_file.lower() in restored_originals:
+                    continue
                 full_path = os.path.join(target_dir, rel_file)
                 if not clean_all and rel_file.lower() == "dxgi.dll" and other_addons:
                     # If dxgi.dll was OptiScaler, replace with pure ReShade so DLSS 5 can run
@@ -146,7 +148,7 @@ class RollbackEngine:
 
         # 4. Deep Directory Purge & Anti-Conflict Sweep
         # (A) Remove mod directories
-        dirs_to_clean = ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx"]
+        dirs_to_clean = ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx", "dlssg_sm86", "RenoDX"]
         if clean_all:
             dirs_to_clean.append("dlss5-nr-runtime")
 
@@ -194,7 +196,7 @@ class RollbackEngine:
             "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_vk.dll",
             "libxell.dll", "libxess.dll", "libxess_dx11.dll", "libxess_fg.dll",
             "fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log",
-            "OptiScaler.ini", "OptiScaler.log", "nvngx.ini", "dlssg_to_fsr3.log"
+            "OptiScaler.ini", "OptiScaler.log", "nvngx.ini", "dlssg_to_fsr3.log", "dlssg_sm86.ini"
         ]
         for f_name in mode_c_files:
             fp = os.path.join(target_dir, f_name)
@@ -238,6 +240,12 @@ class RollbackEngine:
         # (J) Clean DLSS 5 files and dxgi.dll
         dxgi_p = os.path.join(target_dir, "dxgi.dll")
         if clean_all:
+            for addon_file in list(td_path.glob("*.addon64")) + list(td_path.glob("*.addon")):
+                safe_force_remove(str(addon_file))
+            for proxy_f in ["version.dll", "winmm.dll", "dinput8.dll", "wininet.dll", "fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log"]:
+                safe_force_remove(os.path.join(target_dir, proxy_f))
+            safe_force_remove(os.path.join(target_dir, ".dlss5_manifest.json"))
+            safe_force_remove(os.path.join(target_dir, ".mfg_patch_manifest.json"))
             safe_force_remove(os.path.join(target_dir, "renodx-dlss5.addon64"))
             safe_force_remove(os.path.join(target_dir, "renodx-dlss5-v11.9.addon64"))
             safe_force_remove(os.path.join(target_dir, "renodx-dlss5-Lecram-v11-Beta48.addon64"))

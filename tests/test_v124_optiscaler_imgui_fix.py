@@ -71,8 +71,8 @@ def test_1_sync_mode_c_writes_legal_menu_block():
 
         # XeFG interpolation must be clamped to the detected capability
         xefg = IniConfigManager.read_ini_sections(target_dir / "OptiScaler.ini")["XeFG"]
-        assert xefg["InterpolationCount"] == "1", "without a capability log XeFG must fall back to 2X"
-        assert xefg["IgnoreInitChecks"] == "false"
+        assert xefg["InterpolationCount"] == "2", "without a capability log the factory 3X request must be kept"
+        assert xefg["IgnoreInitChecks"] == "true", "dilated-MV games need the XeFG pre-ini bypass"
         assert xefg["DepthInverted"] == "true"
 
         # A 2K preset must write 1.5
@@ -136,8 +136,8 @@ def test_3_embedded_component_template_contract():
     assert "0.5 to 2.0" in content, "template must document the 0.5 - 2.0 menu scale range"
     assert "[XeFG]" in content and "InterpolationCount=auto" in content
     assert "1 = 2X | 2 = 3X | 3 = 4X" in content, "template must document XeFG MFG multipliers"
-    assert "requires libxess_fg.dll, libxell.dll and latest fakenvapi dll" in content, \
-        "template documents fakenvapi as an XeFG dependency"
+    assert "requires libxess_fg.dll" in content and "libxell.dll" in content, \
+        "template documents libxess_fg.dll and libxell.dll as XeFG dependencies"
     print("  -> embedded template contract verified!")
 
 

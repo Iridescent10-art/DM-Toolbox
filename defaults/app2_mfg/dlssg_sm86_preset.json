@@ -4,7 +4,7 @@
   "max_generated_frames": 2,
   "optimized": 2,
   "dlssg_preset": "Auto",
-  "super_resolution_mode": "Off",
+  "super_resolution_mode": "On",
   "proxy_dll": "version.dll",
   "logging_level": 1
 }

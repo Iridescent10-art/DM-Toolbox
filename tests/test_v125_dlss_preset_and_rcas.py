@@ -142,14 +142,15 @@ def test_2_assert_real_directory_purified():
                         f"Real directory {ini_name} ToggleKey must be 8 (VK_BACK) or 36 (Home), got {v_clean}!"
                     )
 
-    # Verify winmm.dll hosts a known patcher component (Mode A MFGUnlocker or Mode C OptiScaler)
+    # Verify winmm.dll hosts a known patcher component (Mode A MFGUnlocker or Mode C OptiScaler).
+    # OptiScaler is updated frequently, so match the binary signature instead of a size constant.
     winmm = yysls_dir / "winmm.dll"
     if winmm.exists():
+        from core.coexistence import is_dashdogy_binary, is_optiscaler_binary
         sz = winmm.stat().st_size
         print(f"Real directory winmm.dll size: {sz} bytes")
-        assert sz in (8929280, 25379632), (
-            f"winmm.dll in real directory must be MFGUnlocker.dll (8929280) or "
-            f"OptiScaler.dll (25379632), but got {sz} bytes!"
+        assert is_optiscaler_binary(str(winmm)) or is_dashdogy_binary(str(winmm)), (
+            f"winmm.dll in real directory is neither OptiScaler nor MFGUnlocker ({sz} bytes)!"
         )
 
     # v1.2.6: the legacy nvngx.ini alias must be gone from the real game folder

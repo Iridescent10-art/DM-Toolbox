@@ -32,7 +32,10 @@ DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
     "rcas_sharpness": 0.0,
     "dlss_preset": "K",          # 默认采用 DLSS 4 Transformer 模型 Preset K (杜绝 D 模型)
     "menu_key": "Insert",        # "Insert", "Backspace", "Home", "F11", "End"
-    "menu_scale": 2.0            # In-game ImGui menu scale: 1.0 / 1.5 / 2.0 (4K default)
+    "menu_scale": 2.0,           # In-game ImGui menu scale: 1.0 / 1.5 / 2.0 (4K default)
+    "unlock_mfg": True           # Deploy dashdogy MFGUnlocker.asi so XeFG can reach 3X/4X
+                                 # (libxess_fg alone caps non-Arc GPUs at 2X). Disable if the
+                                 # ASI conflicts with the DLSS 5 addon on startup.
 }
 
 DEFAULT_RESHADE_PRESET: Dict[str, Any] = {
@@ -126,6 +129,21 @@ def load_optiscaler_preset() -> Dict[str, Any]:
         except Exception:
             pass
 
+    # v1.3.8 一次性迁移：新出厂默认 = 开启 MFG-Unlocker 多帧解锁 + 3X XeFG。
+    # 旧版本保存的配置里没有 preset_schema_version，会残留“未解锁 / 2X”的旧默认，
+    # 这里统一升级一次；面板手动保存后会写入 version=2，之后不再覆盖用户选择。
+    if int(preset.get("preset_schema_version", 0) or 0) < 2:
+        preset["unlock_mfg"] = True
+        if not preset.get("user_customized_interpolation"):
+            preset["interpolation_count"] = 2
+        preset["preset_schema_version"] = 2
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
     # 兼容性修复与默认超分保护：
     # 若配置中 dx12_upscaler 为旧版本残留的默认值 "xess"，且未被用户显式主动修改，
     # 强制重置为官方规范默认值 "auto" (自动继承游戏内超分)，防止首次打开/安装时错误回退到 XeSS
@@ -182,6 +200,9 @@ def save_optiscaler_preset(preset: Dict[str, Any]) -> bool:
         cfg_file.parent.mkdir(parents=True, exist_ok=True)
         merged = dict(DEFAULT_OPTISCALER_PRESET)
         merged.update(preset)
+        # Mark the profile as migrated so load_optiscaler_preset() never overrides
+        # the user's explicit choices (e.g. unlocking turned off) again.
+        merged["preset_schema_version"] = 2
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(merged, f, indent=2, ensure_ascii=False)
         return True
@@ -318,7 +339,7 @@ DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "max_generated_frames": 2,         # 1=最多2X, 2=最多3X(出厂默认推荐), 3=最多4X, 5=最多6X
     "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=有损轻量加速(默认), 3=极速加速
     "dlssg_preset": "Auto",            # "Auto"(默认), "A", "B", "C"(FG Lite 轻量插帧)
-    "super_resolution_mode": "Off",    # "Off"(默认), "On"(RTX 20/30 INT8 超分加速)
+    "super_resolution_mode": "On",      # "Off"(默认), "On"(RTX 20/30 INT8 超分加速)
     "proxy_dll": "version.dll",        # "version.dll"(默认), "winmm.dll", "dbghelp.dll", "dinput8.dll", "dxgi.dll", "d3d12.dll"
     "logging_level": 1                 # 0=关闭, 1=错误, 2=配置, 3=全量
 }
@@ -365,7 +386,7 @@ def get_dlssg_sm86_preset_summary(config: Optional[Dict[str, Any]] = None) -> st
     opt_str = opt_map.get(opt, f"档位{opt}")
 
     preset = config.get("dlssg_preset", "Auto")
-    sr_mode = config.get("super_resolution_mode", "Off")
+    sr_mode = config.get("super_resolution_mode", "On")
     sr_str = " | INT8超分加速" if sr_mode == "On" else ""
 
     proxy = config.get("proxy_dll", "version.dll")

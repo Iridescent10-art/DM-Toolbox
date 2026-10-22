@@ -46,8 +46,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("DM-Toolbox")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("1.3.7.0")]
-[assembly: AssemblyFileVersion("1.3.7.0")]
+[assembly: AssemblyVersion("1.3.8.0")]
+[assembly: AssemblyFileVersion("1.3.8.0")]
 
 namespace DMBOX
 {
@@ -258,16 +258,16 @@ def step4_build_inno_installer():
     iss_content = f"""[Setup]
 ; 基本应用信息
 AppName=DM工具箱
-AppVersion=1.3.7
+AppVersion=1.3.8
 AppPublisher=DM Studio
 AppPublisherURL=https://github.com/Iridescent10-art/DM-Toolbox
 AppSupportURL=https://github.com/Iridescent10-art/DM-Toolbox
 AppUpdatesURL=https://github.com/Iridescent10-art/DM-Toolbox/releases
-VersionInfoVersion=1.3.7.0
+VersionInfoVersion=1.3.8.0
 VersionInfoCompany=DM Studio
 VersionInfoDescription=DM工具箱 安装向导
 VersionInfoProductName=DM工具箱
-VersionInfoProductVersion=1.3.7.0
+VersionInfoProductVersion=1.3.8.0
 VersionInfoCopyright=Copyright (C) 2026 DM Studio
 DefaultDirName={{autopf}}\\DMBOX
 DefaultGroupName=DM工具箱

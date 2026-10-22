@@ -232,8 +232,8 @@ class ModernTranslationGuideDialog(QDialog):
         # rest of the toolbox (no more C/B/A zig-zag).
         self.tabs.addTab(self._create_standalone_tab(is_dark), "📦 模式 A · dashdogy 独立代理 (Backspace)")
         self.tabs.addTab(self._create_reshade_tab(is_dark), "🎨 模式 B · RenoDX ReShade 插件 (Home)")
-        self.tabs.addTab(self._create_dlssg_sm86_tab(is_dark), "⚡ 模式 C · DLSSG-SM86 原生插帧 (20/30系)")
-        self.tabs.addTab(self._create_optiscaler_tab(is_dark), "🚀 模式 D · OptiScaler 跨卡转译 (Insert)")
+        self.tabs.addTab(self._create_optiscaler_tab(is_dark), "🚀 模式 C · OptiScaler 跨卡转译 (Insert)")
+        self.tabs.addTab(self._create_dlssg_sm86_tab(is_dark), "⚡ 模式 D · DLSSG-SM86 原生插帧 (20/30系)")
 
         self.tabs.setCurrentIndex(initial_tab)
         card_layout.addWidget(self.tabs, 1)
@@ -279,10 +279,10 @@ class ModernTranslationGuideDialog(QDialog):
         badge_blue = '<span style="background-color: #2F8F5B; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Insert】键</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #3E9E69; margin-top: 0;">🚀 模式 D · OptiScaler 跨卡转译（Insert）</h3>
+            <h3 style="color: #3E9E69; margin-top: 0;">🚀 模式 C · OptiScaler 跨卡转译（Insert）</h3>
             <p><b>适用显卡</b>：全架构通用 —— NVIDIA RTX 20/30/40/50 系列、GTX 系列、AMD Radeon、Intel Arc。</p>
             <p><b>核心使用方法</b>：修补完成后进入游戏，在游戏的<b>【画质 / 图像设置】</b>中直接开启原本被禁用的<b>【DLSS 帧生成 (Frame Generation)】</b>开关。OptiScaler 会在底层接管并转译为 <b>Intel XeFG</b>（默认，2X）或 <b>AMD FSR 3.1 FG</b> 运行，游戏帧率即刻翻倍。</p>
-            <p><b>游戏内控制台呼出快捷键</b>：进入游戏随时按下键盘 {badge_blue}，即可呼出或隐藏悬浮控制台。若觉得 4K 下菜单过小，请在【模式 D 预设面板 → 游戏内菜单界面大小】选择 <code>2.0x</code>。</p>
+            <p><b>游戏内控制台呼出快捷键</b>：进入游戏随时按下键盘 {badge_blue}，即可呼出或隐藏悬浮控制台。若觉得 4K 下菜单过小，请在【模式 C 预设面板 → 游戏内菜单界面大小】选择 <code>2.0x</code>。</p>
             <hr style="border: 0; border-top: 1px solid {td_border}; margin: 12px 0;">
             <h4 style="color: #8FE3B0; margin: 8px 0;">📋 游戏内悬浮菜单中英文对照表（逐项中文释义）</h4>
             <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; border-color: {td_border}; font-size: 12px;">
@@ -319,7 +319,7 @@ class ModernTranslationGuideDialog(QDialog):
                 <tr>
                     <td><b>Menu Scale</b></td>
                     <td>菜单界面缩放</td>
-                    <td>4K (3840×2160) 建议 <code>2.0</code>，2K 建议 <code>1.5</code>。可直接在工具箱【模式 D 预设面板 → 游戏内菜单界面大小】设置，自动写入 <code>[Menu] Scale</code>，无需手改 INI。</td>
+                    <td>4K (3840×2160) 建议 <code>2.0</code>，2K 建议 <code>1.5</code>。可直接在工具箱【模式 C 预设面板 → 游戏内菜单界面大小】设置，自动写入 <code>[Menu] Scale</code>，无需手改 INI。</td>
                 </tr>
                 <tr>
                     <td><b>Save Settings (底部)</b></td>
@@ -365,7 +365,7 @@ class ModernTranslationGuideDialog(QDialog):
         badge_opt = '<span style="background-color: #2F8F5B; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【dlssg_sm86.ini】</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #3E9E69; margin-top: 0;">⚡ 模式 C · DLSSG-SM86 原生插帧（RTX 20/30 系专享）</h3>
+            <h3 style="color: #3E9E69; margin-top: 0;">⚡ 模式 D · DLSSG-SM86 原生插帧（RTX 20/30 系专享）</h3>
             <p><b>适用显卡</b>：NVIDIA GeForce RTX 20 系列 (Turing / SM75) 与 RTX 30 系列 (Ampere / SM86)。</p>
             <p><b>核心黑科技</b>：基于开源硬核项目 <code>sdli1995/dlssg_for_sm86</code>，绕过官方架构硬件门槛，直接在 20/30 卡上原生运行 DLSS-G 官方运行库与专属加速内核，<b>彻底告别 FSR 3.1 跨卡转译的画面撕裂与性能损耗！</b></p>
             <p><b>最高 6X 多倍插帧</b>：原生支持 2X / 3X / 4X / 6X 动态多倍插帧（出厂推荐 4X 上限，极致丝滑）。</p>
@@ -805,8 +805,10 @@ class OptiScalerPresetDialog(QDialog):
                 raw_mode = "A"
             elif "reshade" in cb_str or "mavis" in cb_str:
                 raw_mode = "B"
-            elif "optiscaler" in cb_str or "fsr" in cb_str:
+            elif "optiscaler" in cb_str or "fsr" in cb_str or "xess" in cb_str:
                 raw_mode = "C"
+            elif "dlssg" in cb_str or "sm86" in cb_str:
+                raw_mode = "D"
 
         if not raw_mode and self.game:
             if self.game.patched_backend:
@@ -815,15 +817,15 @@ class OptiScalerPresetDialog(QDialog):
                     raw_mode = "A"
                 elif "reshade" in pb or "mavis" in pb:
                     raw_mode = "B"
-                elif "dlssg" in pb or "sm86" in pb:
+                elif "optiscaler" in pb or "fsr" in pb or "xess" in pb:
                     raw_mode = "C"
-                elif "optiscaler" in pb:
+                elif "dlssg" in pb or "sm86" in pb:
                     raw_mode = "D"
             elif self.game.target_dir:
                 td = Path(self.game.target_dir)
-                if (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
+                if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
                     raw_mode = "C"
-                elif (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
+                elif (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
                     raw_mode = "D"
                 elif (td / "renodx-mfgunlock.addon64").exists() or (td / "ReShade.ini").exists():
                     raw_mode = "B"
@@ -833,9 +835,9 @@ class OptiScalerPresetDialog(QDialog):
         mode_upper = str(raw_mode or "A").upper().strip()
         if "B" in mode_upper or "RESHADE" in mode_upper or "MAVIS" in mode_upper:
             target_idx = 1
-        elif "C" in mode_upper or "DLSSG" in mode_upper or "SM86" in mode_upper:
+        elif "C" in mode_upper or "OPTISCALER" in mode_upper or "XESS" in mode_upper or "FSR" in mode_upper:
             target_idx = 2
-        elif "D" in mode_upper or "OPTISCALER" in mode_upper or "XESS" in mode_upper or "FSR" in mode_upper:
+        elif "D" in mode_upper or "DLSSG" in mode_upper or "SM86" in mode_upper:
             target_idx = 3
         else:
             target_idx = 0
@@ -1013,8 +1015,8 @@ class OptiScalerPresetDialog(QDialog):
 
         text_a = "📦 模式 A: dashdogy 独立代理"
         text_b = "🎨 模式 B: RenoDX 插件优化"
-        text_c = "⚡ 模式 C: DLSSG-SM86 原生插帧"
-        text_d = "🚀 模式 D: OptiScaler 跨卡转译"
+        text_c = "🚀 模式 C: OptiScaler 跨卡转译"
+        text_d = "⚡ 模式 D: DLSSG-SM86 原生插帧"
 
         self.tab_btn_a = QPushButton(text_a)
         self.tab_btn_b = QPushButton(text_b)
@@ -1071,12 +1073,12 @@ class OptiScalerPresetDialog(QDialog):
         tab_mode_b = self._build_mode_b_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_b, is_dark))
 
-        # Add Tab 2: Mode C (DLSSG-SM86)
-        tab_mode_c = self._build_mode_d_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
+        # Add Tab 2: Mode C (OptiScaler)
+        tab_mode_c = self._build_mode_c_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_c, is_dark))
 
-        # Add Tab 3: Mode D (OptiScaler)
-        tab_mode_d = self._build_mode_c_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
+        # Add Tab 3: Mode D (DLSSG-SM86)
+        tab_mode_d = self._build_mode_d_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_d, is_dark))
 
         card_layout.addWidget(self.stacked_widget, 1)
@@ -1599,10 +1601,14 @@ class OptiScalerPresetDialog(QDialog):
         h_sharp.addWidget(self.chk_rcas)
         h_sharp.addStretch()
 
+        self.chk_c_unlock_mfg = QCheckBox("🚀 启用 MFG-Unlocker 多帧解锁 (dashdogy ASI · XeFG 3X/4X；关闭则仅 2X 更稳)")
+        self.chk_c_unlock_mfg.setStyleSheet(f"color: {text_color}; font-size: 12px; font-weight: 600; border: none;")
+
         self.lbl_sharp_val = QLabel("0.00")
         self.lbl_sharp_val.setStyleSheet(f"color: {'#8FE3B0' if is_dark else '#0284c7'}; font-weight: bold; font-size: 13px;")
         h_sharp.addWidget(self.lbl_sharp_val)
         up_layout.addLayout(h_sharp)
+        up_layout.addWidget(self.chk_c_unlock_mfg)
 
         # Slider Row
         h_slider = QHBoxLayout()
@@ -1802,7 +1808,7 @@ class OptiScalerPresetDialog(QDialog):
         cc_layout.setContentsMargins(14, 12, 14, 12)
         cc_layout.setSpacing(10)
 
-        lbl_sec = QLabel("⚡ 模式 C · DLSSG-SM86 原生插帧 (RTX 20/30 系专享) 核心设定")
+        lbl_sec = QLabel("⚡ 模式 D · DLSSG-SM86 原生插帧 (RTX 20/30 系专享) 核心设定")
         lbl_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#7ED9A2' if is_dark else '#2F8F5B'};")
         cc_layout.addWidget(lbl_sec)
 
@@ -1923,8 +1929,8 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_d_sr.setMinimumHeight(36)
         self.combo_d_sr.setMinimumWidth(280)
         self.combo_d_sr.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_sr.addItem("Off (原生超分直通 · 默认)", "Off")
-        self.combo_d_sr.addItem("On (启用 RTX 20/30 INT8 硬件加速 · 性能档 GPU 耗时降低 5%~24%)", "On")
+        self.combo_d_sr.addItem("On (启用 RTX 20/30 INT8 硬件加速 · 性能档提速 5%~24% · 默认推荐)", "On")
+        self.combo_d_sr.addItem("Off (原生超分直通)", "Off")
         self.combo_d_sr.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_d_sr.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_sr.addWidget(self.combo_d_sr, 1)
@@ -2150,6 +2156,8 @@ class OptiScalerPresetDialog(QDialog):
             self.combo_menu_scale.setCurrentIndex(self.combo_menu_scale.count() - 1)
 
         self.chk_rcas.setChecked(bool(self.preset_c.get("rcas_enabled", False)))
+        if hasattr(self, "chk_c_unlock_mfg"):
+            self.chk_c_unlock_mfg.setChecked(bool(self.preset_c.get("unlock_mfg", True)))
         val = int(round(float(self.preset_c.get("rcas_sharpness", 0.0)) * 100))
         self.slider_sharp.setValue(val)
         self.lbl_sharp_val.setText(f"{val/100.0:.2f}")
@@ -2183,7 +2191,7 @@ class OptiScalerPresetDialog(QDialog):
         if idx_d_eng >= 0:
             self.combo_d_engine.setCurrentIndex(idx_d_eng)
 
-        sr_str = str(self.preset_d.get("super_resolution_mode", "Off"))
+        sr_str = str(self.preset_d.get("super_resolution_mode", "On"))
         idx_d_sr = self.combo_d_sr.findData(sr_str)
         if idx_d_sr >= 0:
             self.combo_d_sr.setCurrentIndex(idx_d_sr)
@@ -2281,6 +2289,8 @@ class OptiScalerPresetDialog(QDialog):
         self.preset_c["menu_scale"] = float(self.combo_menu_scale.currentData())
         self.preset_c["rcas_enabled"] = self.chk_rcas.isChecked()
         self.preset_c["rcas_sharpness"] = round(self.slider_sharp.value() / 100.0, 2)
+        if hasattr(self, "chk_c_unlock_mfg"):
+            self.preset_c["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
         save_optiscaler_preset(self.preset_c)
 
         # 3. Update Mode D dictionary & save to persistent storage
@@ -3514,8 +3524,8 @@ class ModernMFGGUI(QMainWindow):
         self.combo_backend.addItem("🤖 智能推荐 (架构与环境自适应)", BackendType.SMART_AUTO)
         self.combo_backend.addItem("📦 模式 A: 独立代理 (version/winmm)", BackendType.STANDALONE)
         self.combo_backend.addItem("🎨 模式 B: ReShade 插件 (renodx-mfgunlock)", BackendType.RESHADE_ADDON)
-        self.combo_backend.addItem("⚡ 模式 C: DLSSG-SM86 原生插帧 (RTX 20/30系 SM86/SM75 专用 · 原生 DLSS-G 2X~6X + INT8 超分)", BackendType.DLSSG_SM86)
-        self.combo_backend.addItem("🚀 模式 D: OptiScaler / XeSS 2.0 / FSR 3.1 (全显卡 2X~4X 多倍插帧)", BackendType.OPTISCALER_FSR)
+        self.combo_backend.addItem("🚀 模式 C: OptiScaler / XeSS 2.0 / FSR 3.1 (全显卡 2X~4X 多倍插帧)", BackendType.OPTISCALER_FSR)
+        self.combo_backend.addItem("⚡ 模式 D: DLSSG-SM86 原生插帧 (RTX 20/30系 SM86/SM75 专用 · 原生 DLSS-G 2X~6X + INT8 超分)", BackendType.DLSSG_SM86)
         self.combo_backend.currentIndexChanged.connect(self._on_backend_dropdown_changed)
         c2.addWidget(self.combo_backend)
 
@@ -3901,8 +3911,11 @@ class ModernMFGGUI(QMainWindow):
         co_layout = card_optiscaler.layout()
         co_layout.addWidget(QLabel("• 核心原理: fakenvapi 伪装开启游戏内 DLSS 3 帧生成开关，按预设桥接至 Intel XeFG 或 AMD FSR 3.1 算力管线"))
         co_layout.addWidget(QLabel("• 多倍率支持: 原生支持 Intel XeSS 2.0 官方插帧 (2X/3X/4X) 与 FSR 3.1 (2X) 双重内核自由切换"))
-        co_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (优先级: dxgi.dll > version.dll > winmm.dll)"))
-        co_layout.addWidget(QLabel("• 免调参防闪退: 工具箱全自动托管参数，已默认禁用易引发 DX12 崩溃的 ImGui 菜单，进游戏开启【DLSS 帧生成】即直接生效"))
+        co_layout.addWidget(QLabel("• 多倍率上限说明: XeFG 原生只给 2X，工具箱通过 dashdogy MFGUnlocker.asi 顶开上限，可解锁 3X/4X；若启动阶段与 DLSS 5 冲突，可在预设面板关闭多帧解锁退回 2X"))
+        co_layout.addWidget(QLabel("• 20/30 系说明: XeFG 不挑显卡（NVIDIA / AMD 均可），但需要游戏内 DLSS-G 作为插帧输入；20/30 系要靠 fakenvapi 伪装出 DLSS-G 开关，与 DLSS 5 的 NVAPI 查询冲突，建议单独使用模式 C 或改用模式 D"))
+        co_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (独立运行时优先 dxgi.dll > version.dll > winmm.dll；与 DLSS 5 共存时自动让出 dxgi.dll 给 ReShade 底座，插帧代理迁移至 version/winmm)"))
+        co_layout.addWidget(QLabel("• 免调参防闪退: 工具箱全自动托管参数，共存态下自动关闭开屏横幅与 FPS 叠加、保留 XeFG 必需的渲染钩子与 DLSS 直通，进游戏开启【DLSS 帧生成】即直接生效"))
+        co_layout.addWidget(QLabel("• XeFG 预检查豁免: 已自动勾选 Ignore Init Checks（Dilated MV / 独占全屏 / HDR10 游戏必需），否则游戏内 XeFG 会灰显 OFF 并提示 Requires disabling dilated motion vectors"))
 
         btn_page2_preset = QPushButton("⚙️ 打开模式 C / OptiScaler 中文预设与倍率参数面板 →")
         btn_page2_preset.setProperty("class", "card-action-btn")
@@ -3918,6 +3931,7 @@ class ModernMFGGUI(QMainWindow):
         cd_layout.addWidget(QLabel("• 多倍率支持: 原生支持 2X / 3X / 4X / 6X 多倍率插帧，内置 0~3 级优化加速内核（出厂默认档位 2）"))
         cd_layout.addWidget(QLabel("• 独家黑科技: 预设 C (FG Lite) 降低 32-54% GPU 耗时，支持 DLSS 超分 INT8 硬件加速（性能/超级性能档位提速 5%~24%）"))
         cd_layout.addWidget(QLabel("• 注入方式: 默认 version.dll 零外部依赖注入；若游戏不加载可无缝换用 winmm / dbghelp / dinput8 / dxgi 代理"))
+        cd_layout.addWidget(QLabel("• 多倍率前提: 模式 D 只抬高运行库上限，实际倍率由游戏请求（菜单需能选 3X/4X 或“动态”）；游戏只请求 2X 时，请改用模式 A 的强制倍率或模式 C 的 XeFG"))
 
         btn_page2_d_preset = QPushButton("⚙️ 打开模式 D / DLSSG-SM86 原生预设与 INT8 面板 →")
         btn_page2_d_preset.setProperty("class", "card-action-btn")
@@ -4270,8 +4284,9 @@ class ModernMFGGUI(QMainWindow):
             summary_a = get_mode_a_preset_summary()
             summary_b = get_reshade_preset_summary()
             summary_c = get_preset_summary()
+            summary_d = get_dlssg_sm86_preset_summary()
             if hasattr(self, "lbl_preset_summary"):
-                self.lbl_preset_summary.setText(f"📦 模式A: {summary_a} | 🎨 模式B: {summary_b}\n⚡ 模式C: {summary_d} | 🚀 模式D: {summary_c}")
+                self.lbl_preset_summary.setText(f"📦 模式A: {summary_a} | 🎨 模式B: {summary_b}\n🚀 模式C: {summary_c} | ⚡ 模式D: {summary_d}")
         except Exception:
             pass
 
@@ -5200,7 +5215,7 @@ class ModernMFGGUI(QMainWindow):
             if "mavis" in b_lower or "reshade" in b_lower:
                 mode_name = "模式 B: RenoDX + ReShade"
             elif "optiscaler" in b_lower or "fsr" in b_lower:
-                mode_name = "模式 D: OptiScaler / FSR 3.1"
+                mode_name = "模式 C: OptiScaler / FSR 3.1"
             elif "standalone" in b_lower or "dashdogy" in b_lower:
                 mode_name = "模式 A: 独立代理 DLL"
             else:

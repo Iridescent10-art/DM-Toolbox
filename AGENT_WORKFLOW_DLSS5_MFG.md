@@ -80,6 +80,28 @@
        LoadReshade=true      ; 由 OptiScaler 在 D3D12 管线就绪后安全链式加载 ReShade64.dll
        ReshadePath=ReShade64.dll
        ```
+    > **实施记录（v1.3.8 最终落地拓扑，与本节草案相反，以此为准）**
+    >
+    > 实际验证表明：把 ReShade 改名 `ReShade64.dll` 交给 OptiScaler 链式加载时，ReShade 的
+    > DLSS 5 Addon 会在 OptiScaler 的 NGX Hook 之后初始化，两者对 `nvngx_dlss` 的 Inline Hook
+    > 形成竞态，表现为 DLSS 选项消失或进入场景即 `0xC0000005`。最终采用**反置拓扑**：
+    >
+    > - `dxgi.dll` = ReShade 6.8（DLSS 5 底座，进程启动最早加载）；
+    > - OptiScaler 迁移到游戏真实导入的次级槽位（`winmm.dll > version.dll > dinput8.dll`），
+    >   `[Plugins] LoadReshade=false`，禁止出现第二个 ReShade 实例；
+    > - `[Plugins] LoadAsiPlugins=true` + `OptiScaler/plugins/MFGUnlocker.asi`（dashdogy
+    >   Universal MFG Unlocker v1.6.1）：XeFG 原生的 3X/4X 被 libxess_fg 限制，只有该 ASI
+    >   能把上限顶开；模式 C 面板可关闭此项退回 2X 稳定档；
+    > - `[Upscalers] Dx12Upscaler=dlss` + `[DLSS] Enabled=true` + `RenderPresetOverride=false`：
+    >   DLSS 调用直通，DLSS 5 在链上接管超分与神经重构，OptiScaler 只负责
+    >   `[FrameGen] FGInput=dlssg → FGOutput=xefg`；
+    > - `[Menu] OverlayMenu=true`（官方模板：关闭该项会禁用全部 FG 功能），仅关闭开屏横幅与 FPS 叠加；
+    > - `PreserveSwapChain` / `SkipResizeBuffers` 写入 `[FrameGen]`（写进 `[XeFG]` 会被静默忽略）；
+    > - 只要存在 DLSS 5，就清理 `fakenvapi.*`（伪造 NVAPI 会让神经重构按假 GPU 选内核而崩溃）。
+    >
+    > 上述规则已收敛到 `apps/app2_mfg/core/coexistence.py`，由 app2（模式 C 部署）与
+    > app6（DLSS 5 注入）共同调用，并由 `tests/test_coexistence_dlss5_mfg.py` 逐条断言。
+
     3. **依赖库完整性自检**：部署模式 C 时，强制检查并复制 `libxess.dll`、`libxess_fg.dll`、`dlssg_to_fsr3_amd_is_better.dll` 到游戏执行目录。
 
 ---

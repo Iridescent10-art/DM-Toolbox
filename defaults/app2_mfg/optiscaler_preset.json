@@ -7,5 +7,7 @@
   "rcas_sharpness": 0.0,
   "dlss_preset": "K",
   "menu_key": "Insert",
-  "menu_scale": 2.0
+  "menu_scale": 2.0,
+  "unlock_mfg": true,
+  "preset_schema_version": 2
 }

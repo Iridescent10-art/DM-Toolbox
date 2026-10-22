@@ -176,10 +176,12 @@ def test_5_guide_tabs_are_abc():
     dlg = ModernTranslationGuideDialog(None, is_dark=False, initial_tab=0)
     titles = [dlg.tabs.tabText(i) for i in range(dlg.tabs.count())]
     print("tabs:", titles)
-    assert len(titles) == 3
+    assert len(titles) in (3, 4)
     assert "模式 A" in titles[0], titles[0]
     assert "模式 B" in titles[1], titles[1]
     assert "模式 C" in titles[2], titles[2]
+    if len(titles) > 3:
+        assert "模式 D" in titles[3], titles[3]
     assert dlg.tabs.currentIndex() == 0
 
     dlg2 = ModernTranslationGuideDialog(None, is_dark=False, initial_tab=2)

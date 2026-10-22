@@ -26,7 +26,7 @@ import launcher.main as lm
 
 def test_1_metadata_and_assets():
     print("\n--- Test 1: [App 5 元数据 / 可执行文件 / 原始图标] ---")
-    assert len(lm.APPS_METADATA) == 5, f"expected 5 apps, got {len(lm.APPS_METADATA)}"
+    assert len(lm.APPS_METADATA) == 6, f"expected 6 apps, got {len(lm.APPS_METADATA)}"
     meta = next((m for m in lm.APPS_METADATA if m["id"] == "app5_jxr"), None)
     assert meta, "app5_jxr metadata missing"
     assert meta["name"] == "JXR HDR 转换器"

@@ -1,3 +1,4 @@
+from core.state_cleaner import is_dlss5_present
 """
 IniConfigManager - Unified INI Configuration Manager & Real-Time Sync Engine.
 Handles bi-directional synchronization between DM-Toolbox GUI and game directory INI configs
@@ -359,23 +360,38 @@ class IniConfigManager:
     @classmethod
     def detect_xefg_max_interpolations(cls, target_dir: Union[str, Path]) -> Optional[int]:
         """
-        Return the max supported XeFG interpolations. With OptiScaler 10 and MFGUnlocker.asi,
-        up to 5 interpolations (6X frame rate) is natively supported.
+        Scan OptiScaler.log for libxess_fg's reported Max supported interpolations.
+        Reads both the beginning (initialization) and end of the log to support large log files.
         """
-        target = Path(target_dir)
-        cls.ensure_xemfg_plugin(target)
+        log_path = Path(target_dir) / "OptiScaler.log"
+        if not log_path.exists():
+            return 5
+        try:
+            size = log_path.stat().st_size
+            with open(log_path, "rb") as f:
+                head = f.read(min(size, 2 * 1024 * 1024)).decode("utf-8", errors="ignore")
+                tail = ""
+                if size > 2 * 1024 * 1024:
+                    f.seek(max(0, size - 2 * 1024 * 1024))
+                    tail = f.read().decode("utf-8", errors="ignore")
+            matches = re.findall(r"Max supported interpolations:\s*(\d+)", head + "\n" + tail)
+            if matches:
+                return max(1, min(5, int(matches[-1])))
+        except Exception:
+            pass
         return 5
 
     @classmethod
     def resolve_interpolation_count(cls, target_dir: Union[str, Path], fg_output: str, requested: Any) -> Tuple[int, Optional[int], bool]:
         """
         Return (effective, max_supported, clamped).
-        Allow full requested multiplier (1=2X, 2=3X, 3=4X, 4=5X, 5=6X) without artificial clamping.
+        - FSR 3.1 FG / Nukem9 bridge only supports 2X (1 interpolated frame).
+        - XeFG is capped by libxess_fg's Max supported interpolations (default 5 for 6X).
         """
         try:
             requested = int(requested)
         except (TypeError, ValueError):
-            requested = 1
+            requested = 2
         requested = max(1, min(5, requested))
 
         if str(fg_output).strip().lower() != "xefg":
@@ -383,7 +399,10 @@ class IniConfigManager:
 
         target = Path(target_dir)
         cls.ensure_xemfg_plugin(target)
-        return requested, 5, False
+
+        xefg_max = cls.detect_xefg_max_interpolations(target) or 5
+        effective = min(requested, xefg_max)
+        return effective, xefg_max, effective != requested
 
     @classmethod
     def purge_legacy_nvngx_ini(cls, target_dir: Union[str, Path]) -> bool:
@@ -442,9 +461,25 @@ class IniConfigManager:
             requested_interpolation = int(requested_interpolation)
         except (TypeError, ValueError):
             requested_interpolation = 1
-        effective_interpolation, xefg_max, interpolation_clamped = cls.resolve_interpolation_count(
-            target, fg_output, requested_interpolation
+
+        # dashdogy Universal MFG Unlocker (OptiScaler/plugins/MFGUnlocker.asi)
+        # patches libxess_fg's interpolation ceiling before OptiScaler queries it,
+        # so the "Max supported interpolations = 1" clamp no longer applies and
+        # 3X/4X XeFG becomes reachable on non-Arc GPUs. Only skip the clamp when
+        # the unlocker is actually deployed.
+        unlock_mfg = bool(preset.get("unlock_mfg", True))
+        unlocker_present = (
+            (target / "OptiScaler" / "plugins" / "MFGUnlocker.asi").exists()
+            or (target / "OptiScaler" / "plugins" / "MFGUnlocker-loadlate.asi").exists()
         )
+        if fg_output == "xefg" and unlock_mfg and unlocker_present:
+            effective_interpolation = max(1, min(3, requested_interpolation))  # XeFG ceiling is 4X
+            xefg_max = 3
+            interpolation_clamped = effective_interpolation != requested_interpolation
+        else:
+            effective_interpolation, xefg_max, interpolation_clamped = cls.resolve_interpolation_count(
+                target, fg_output, requested_interpolation
+            )
         menu_scale = cls.normalize_menu_scale(preset.get("menu_scale", DEFAULT_OPTISCALER_MENU_SCALE))
         dx12_upscaler = preset.get("dx12_upscaler", "auto")
         rcas_enabled = bool(preset.get("rcas_enabled", False))
@@ -500,44 +535,125 @@ class IniConfigManager:
 
         # 1. Update the ONE legal config file: OptiScaler.ini
         opti_ini = target / OPTISCALER_INI_NAME
-        dlss_sec["Enabled"] = "true"
-        opti_updates: Dict[str, Dict[str, str]] = {
-            "FrameGen": {
+        has_dlss5 = is_dlss5_present(target)
+
+        frame_gen_sec = {
+            "Enabled": "true",
+            "FGInput": fg_input,
+            "FGOutput": fg_output,
+        }
+
+        if has_dlss5:
+            # DLSS 5 coexistence contract (v1.3.8):
+            #
+            # DLSS 5 owns super resolution / neural reconstruction. OptiScaler must
+            # therefore stay a *pure frame-generation* layer, but it must NOT block
+            # the game's DLSS calls - the RenoDX DLSS 5 addon replaces the DLSS
+            # runtime from inside that very call chain. Writing [DLSS] Enabled=false
+            # (the previous "fix") made OptiScaler swallow NVSDK_NGX_D3D12_CreateFeature,
+            # so the addon never saw the game's DLSS call and the engine dereferenced
+            # the failed feature handle -> 0xC0000005 on scene load when both patches
+            # were injected.
+            #
+            # Dx12Upscaler=dlss keeps that chain: OptiScaler hooks NGX, forwards to
+            # the original nvngx (where the DLSS 5 addon sits) and only takes over
+            # the DLSS-G -> XeFG frame generation path. "none" is not a legal value
+            # in the bundled OptiScaler template and made the parser fall back to
+            # auto-detection (FSR/XeSS), which is what removed the in-game DLSS menu.
+            dlss_sec = {
                 "Enabled": "true",
-                "FGInput": fg_input,
-                "FGOutput": fg_output,
-                "FGType": fg_output,
-            },
-            "FrameGeneration": {
-                "FGType": fg_output,
-                "FGInput": fg_input,
-                "InterpolationCount": str(multiplier_num),
-            },
-            "XeFG": {
+                "RenderPresetOverride": "false",
+                "UseGenericAppIdWithDlss": "false",
+                "RenderPresetForAll": "0",
+                "RenderPresetDLAA": "0",
+                "RenderPresetUltraQuality": "0",
+                "RenderPresetQuality": "0",
+                "RenderPresetBalanced": "0",
+                "RenderPresetPerformance": "0",
+                "RenderPresetUltraPerformance": "0"
+            }
+            dlssd_sec = {
+                "RenderPresetOverride": "false",
+                "RenderPresetForAll": "0",
+            }
+            upscalers_sec = {
+                "Dx12Upscaler": "dlss"
+            }
+            hooks_sec = {
+                # Explicitly reset the key: older DM-Toolbox builds wrote true here
+                # for coexistence, which made OptiScaler skip the game-local NGX
+                # modules (where the DLSS 5 addon lives) and broke the DLSS chain.
+                "HookOriginalNvngxOnly": "false",
+                "EarlyHooking": "false",
+                "UseNtdllHooks": "false"
+            }
+            plugins_sec = {
+                # MFGUnlocker.asi (dashdogy Universal MFG Unlocker) is what lifts the
+                # XeFG 2X ceiling; it must be loadable for 3X/4X. Users who hit a
+                # startup hook conflict with the DLSS 5 addon can turn it off in the
+                # Mode C panel (unlock_mfg=False) and fall back to plain 2X XeFG.
+                "LoadAsiPlugins": "true" if unlock_mfg else "false",
+                "LoadReshade": "false"
+            }
+            # XeFG own swapchain must survive the ReShade/DLSS 5 present path.
+            # NOTE: the key lives in [FrameGen] in OptiScaler 0.9.x - writing it
+            # into [XeFG] (as earlier builds did) is silently ignored by the parser.
+            frame_gen_sec.update({
+                "PreserveSwapChain": "true",
+                "SkipResizeBuffers": "true",
+                "AllowedFrameAhead": "1",
+            })
+            xefg_sec = {
+                # yysls and most Streamline titles hand DLSS dilated (low-res) motion
+                # vectors. libxess_fg's pre-ini checks then abort with
+                # "Requires disabling dilated motion vectors" and the in-game toggle
+                # stays greyed out, so the bypass must stay on for XeFG to run at all.
                 "IgnoreInitChecks": "true",
                 "InterpolationCount": str(effective_interpolation),
                 "OverrideInterpolationCount": str(effective_interpolation),
                 "DepthInverted": "true",
-            },
+            }
+            fsrfg_sec = {
+                "UseMutexForSwapchain": "true"
+            }
+        else:
+            dlss_sec["Enabled"] = "true"
+            dlssd_sec = {
+                "RenderPresetOverride": "false" if is_dlss_default else "true",
+                "RenderPresetForAll": "0" if is_dlss_default else str(DLSS_PRESET_MAP.get(dlss_p, 13)),
+            }
+            upscalers_sec = {
+                "Dx12Upscaler": "dlss"
+            }
+            hooks_sec = {
+                "EarlyHooking": "false",
+                "UseNtdllHooks": "false"
+            }
+            plugins_sec = {
+                "LoadAsiPlugins": "true",
+                "LoadReshade": "auto"
+            }
+            xefg_sec = {
+                # Same bypass without DLSS 5: games that feed dilated MVs would
+                # otherwise keep XeFG at OFF no matter what the UI says.
+                "IgnoreInitChecks": "true",
+                "InterpolationCount": str(effective_interpolation),
+                "OverrideInterpolationCount": str(effective_interpolation),
+                "DepthInverted": "true",
+            }
+            fsrfg_sec = {}
+
+        opti_updates: Dict[str, Dict[str, str]] = {
+            "FrameGen": frame_gen_sec,
+            "XeFG": xefg_sec,
             "DLSSG": {
                 "InterpolationCount": str(effective_interpolation),
                 "OverrideInterpolationCount": str(effective_interpolation),
             },
-            "Plugins": {
-                "LoadAsiPlugins": "true",
-                "LoadReshade": "true",
-            },
-            "Upscalers": {
-                "Dx12Upscaler": "dlss"
-            },
+            "Plugins": plugins_sec,
+            "Upscalers": upscalers_sec,
             "DLSS": dlss_sec,
-            "DLSSD": {
-                "RenderPresetOverride": "false" if is_dlss_default else "true",
-                "RenderPresetForAll": "0" if is_dlss_default else str(DLSS_PRESET_MAP.get(dlss_p, 13)),
-            },
-            "RCAS": {
-                "Enabled": "true" if rcas_enabled else "false"
-            },
+            "DLSSD": dlssd_sec,
             "CAS": {
                 "Enabled": "true" if rcas_enabled else "false"
             },
@@ -551,20 +667,22 @@ class IniConfigManager:
                 "CreateD3D12DeviceForLuma": "true",
                 "SimulateWaitableObject": "true"
             },
-            "Hooks": {
-                "EarlyHooking": "false",
-                "UseNtdllHooks": "false"
-            },
+            "Hooks": hooks_sec,
             "Spoofing": {
                 "Dxgi": "false",
                 "StreamlineSpoofing": "false",
                 "DxgiFactoryWrapping": "false"
             },
             "Menu": {
+                # OptiScaler refuses to create its D3D12/FG hooks when the overlay
+                # menu is disabled ("without this option OptiScaler will disable all
+                # FG features" - bundled template, [Menu] OverlayMenu). Keeping it on
+                # is what makes XeFG usable next to DLSS 5; the splash banner and the
+                # FPS overlay stay off, and the shortcut only opens the panel on demand.
                 "OverlayMenu": "true",
                 "Scale": menu_scale,
                 "ShortcutKey": str(vk_code),
-                "DisableSplash": "false",
+                "DisableSplash": "true" if has_dlss5 else "false",
                 "ShowFps": "false",
                 "UseHQFont": "true",
                 "TTFFontPath": r"C:\Windows\Fonts\msyh.ttc",
@@ -575,6 +693,8 @@ class IniConfigManager:
                 "LogLevel": "1"
             }
         }
+        if fsrfg_sec:
+            opti_updates["FSRFG"] = fsrfg_sec
 
         if exe_name:
             opti_updates["ProcessFilter"] = {
@@ -582,6 +702,11 @@ class IniConfigManager:
             }
 
         ok_opti = cls.write_ini_sections(opti_ini, opti_updates)
+
+        # In coexistence mode, automatically synchronize DLSS 5 hook point to Upscaled mode (0)
+        # to prevent DLSS 5 Present hook from colliding with XeFG synthetic swapchain.
+        if has_dlss5:
+            cls.sync_dlss5_hook_point(target, hook_point="0")
 
         # Also sync mfg_unlocker.ini in target and OptiScaler/plugins for MFGUnlocker.asi
         mfg_updates = {
@@ -599,6 +724,10 @@ class IniConfigManager:
 
         # 2. Strip keys that do not exist in v0.9.4 (written by older DM-Toolbox builds).
         cls.remove_ini_keys(opti_ini, LEGACY_OPTISCALER_KEYS)
+        if has_dlss5:
+            # PreserveSwapChain belongs to [FrameGen]; older coexistence builds
+            # injected it into [XeFG] where OptiScaler never reads it.
+            cls.remove_ini_keys(opti_ini, [("XeFG", "PreserveSwapChain")])
         cls.remove_ini_sections(opti_ini, list(LEGACY_OPTISCALER_SECTIONS))
 
         # 3. Never keep a second config: OptiScaler keeps showing the red
@@ -613,6 +742,12 @@ class IniConfigManager:
                     f"自动下调为 {effective_interpolation + 1}X，避免游戏内出现 "
                     f"Restart the game to apply correct XeFG settings! 黄字警告。"
                 )
+                if (xefg_max or 1) <= 1:
+                    warnings.append(
+                        "当前显卡的 Intel XeFG 只支持 2X（libxess_fg 报告 Max supported interpolations = 1，"
+                        "常见于非 Arc 显卡）。如需 3X/4X 原生多倍插帧，请改用【模式 D: DLSSG-SM86】或"
+                        "【模式 A: dashdogy MFG-Unlocker】，XeFG 通道无法突破该硬件上限。"
+                    )
             else:
                 warnings.append(
                     f"{fg_output.upper()} 通道固定为 2X 双倍插帧，已将 {requested_interpolation + 1}X 自动锁定为 2X。"
@@ -743,6 +878,104 @@ class IniConfigManager:
 
         return preset if preset else None
 
+    @classmethod
+    def sync_dlss5_hook_point(cls, target_dir: Union[str, Path], hook_point: str = "0") -> bool:
+        """
+        Synchronizes DLSS 5 hook point between Present (2) and Upscaled (0) mode.
+        When coexisting with Mode C (XeSS FG / OptiScaler), setting hook_point="0" prevents
+        DLSS 5 from intercepting XeFG's synthetic swapchain presentation, resolving 0xc0000005 crashes.
+        """
+        target = Path(target_dir)
+        if not target.exists() or not target.is_dir():
+            return False
+
+        always_pres = "0" if str(hook_point) == "0" else "1"
+        str_hook = str(hook_point)
+
+        hook_updates = {
+            "NRHookPoint": str_hook,
+            "HookStage": str_hook,
+            "DirectNeuralRenderingHookStage": str_hook,
+            "DirectNeuralRenderingAlwaysPresent": always_pres,
+            "DirectNeuralRenderingPresentMode": always_pres,
+            "NRPresentAlways": always_pres,
+            "AlwaysPresent": always_pres,
+        }
+
+        # 1. Update ReShade.ini
+        reshade_ini = target / "ReShade.ini"
+        if reshade_ini.exists():
+            sections_to_update = {
+                "RenoDX.DLSS5": hook_updates,
+                "RenoDX DLSS5 preset": hook_updates,
+                "RenoDX": hook_updates,
+                "DLSSNR": hook_updates,
+                "RenoDX-My look": hook_updates
+            }
+            # Cleanse any legacy LoadFromDllMain pollution in [ADDON]
+            existing_sections = cls.read_ini_sections(reshade_ini)
+            addon_sec = existing_sections.get("ADDON", {})
+            current_main = addon_sec.get("LoadFromDllMain", "")
+            if current_main:
+                clean_items = [
+                    x.strip() for x in current_main.split(",")
+                    if x.strip() and x.strip() != "1" and "dlss" not in x.lower() and "shortfuse" not in x.lower()
+                ]
+                sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(clean_items)}
+
+            cls.write_ini_sections(reshade_ini, sections_to_update)
+
+        # 2. Update ReShadePreset.ini
+        reshade_preset = target / "ReShadePreset.ini"
+        if reshade_preset.exists():
+            cls._update_preset_file_kv(reshade_preset, hook_updates)
+
+        # 3. Update target directory RenoDX/DLSS5/Presets/*.ini
+        preset_dir = target / "RenoDX" / "DLSS5" / "Presets"
+        if preset_dir.exists() and preset_dir.is_dir():
+            for p_file in preset_dir.glob("*.ini"):
+                cls._update_preset_file_kv(p_file, hook_updates)
+
+        # 4. Also synchronize AppData RenoDX presets if present
+        appdata_reno_presets = Path(os.environ.get("LOCALAPPDATA", "")) / "RenoDX" / "DLSS5" / "Presets"
+        if appdata_reno_presets.exists() and appdata_reno_presets.is_dir():
+            for p_file in appdata_reno_presets.glob("*.ini"):
+                cls._update_preset_file_kv(p_file, hook_updates)
+
+        return True
+
+    @staticmethod
+    def _update_preset_file_kv(file_path: Path, kv: Dict[str, str]):
+        if not file_path.exists():
+            return
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+            lines = content.splitlines()
+            found_keys = set()
+            new_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if "=" in stripped and not stripped.startswith(";") and not stripped.startswith("#"):
+                    k, _ = stripped.split("=", 1)
+                    k_clean = k.strip()
+                    k_lower = k_clean.lower()
+                    matched = False
+                    for target_k, target_v in kv.items():
+                        if k_lower == target_k.lower():
+                            new_lines.append(f"{target_k}={target_v}")
+                            found_keys.add(target_k.lower())
+                            matched = True
+                            break
+                    if matched:
+                        continue
+                new_lines.append(line)
+            for target_k, target_v in kv.items():
+                if target_k.lower() not in found_keys:
+                    new_lines.append(f"{target_k}={target_v}")
+            file_path.write_text("\n".join(new_lines).strip() + "\n", encoding="utf-8")
+        except Exception:
+            pass
+
     # ---------------- Mode B (RenoDX ReShade Addon) Sync ----------------
     @classmethod
     def sync_mode_b_forward(cls, target_dir: Union[str, Path], config: Dict[str, Any]) -> bool:
@@ -805,32 +1038,37 @@ class IniConfigManager:
             "FrameGenMultiplier": str(force_mult),
         }
 
-        # Safe DLSS 5 hook avoidance config
+        # Safe DLSS 5 hook avoidance config (preserves Hook Point Present 2)
         dlss5_hooks = {
             "EnableHooks": "2",
             "RuntimeSelectionMode": "1",
             "HDRCompatibilityMode": "0",
             "NRRuntimePath": r".\nvngx_dlssnr.dll",
             "NRHookPoint": "2",
+            "NRStyle": "2",
+            "NRPass2Preset": "2",
+            "NRSkinStructure": "0.801136",
             "NRPresentNonBlocking": "1",
-            "NRVramBuffering": "Full"
+            "NRVramBuffering": "0"
         }
 
+        addon_name = "renodx-mfgunlock.addon64"
+        addon_list = [addon_name]
         addon_updates = {}
         if reshade_ini.exists():
             existing_sections = cls.read_ini_sections(reshade_ini)
             existing_addon = existing_sections.get("ADDON", {})
-            current_main = existing_addon.get("LoadFromDllMain", "")
-            items = [x.strip() for x in current_main.split(",") if x.strip() and x.strip() != "1" and "lecram" not in x.lower()]
-            if "renodx-mfgunlock.addon64" not in [x.lower() for x in items]:
-                items.append("renodx-mfgunlock.addon64")
-            addon_updates["LoadFromDllMain"] = ",".join(items)
+            if "LoadFromDllMain" in existing_addon:
+                raw_addons = [x.strip() for x in existing_addon["LoadFromDllMain"].split(",") if x.strip()]
+                clean_addons = [x for x in raw_addons if x != "1"]
+                if addon_name.lower() not in [x.lower() for x in clean_addons]:
+                    clean_addons.append(addon_name)
+                addon_list = clean_addons
             if "DisabledAddons" in existing_addon:
                 disabled_list = [x.strip() for x in existing_addon["DisabledAddons"].split(",") if x.strip()]
-                clean_disabled = [x for x in disabled_list if "mfgunlock" not in x.lower()]
+                clean_disabled = [x for x in disabled_list if "mfgunlock" not in x.lower() and "dlss" not in x.lower()]
                 addon_updates["DisabledAddons"] = ",".join(clean_disabled)
-        else:
-            addon_updates["LoadFromDllMain"] = "renodx-mfgunlock.addon64"
+        addon_updates["LoadFromDllMain"] = ",".join(addon_list)
 
         updates = {
             "GENERAL": {
@@ -982,6 +1220,7 @@ class IniConfigManager:
         # Write RTXMFG-Universal.json (dashdogy primary config)
         universal_json_path = target / "RTXMFG-Universal.json"
         try:
+            has_dlss5_a = is_dlss5_present(target)
             universal_data = {
                 "version": 40,
                 "mode": "follow",
@@ -992,13 +1231,16 @@ class IniConfigManager:
                 "overrideDlssPreset": False if is_default else True,
                 "dlssPreset": 0 if is_default else int(render_preset_val),
                 "dlssSrPreset": 0 if is_default else int(render_preset_val),
-                "dlssgPreset": 0
+                "dlssgPreset": 0,
+                "enableImGui": not has_dlss5_a,
+                "overlayMenu": not has_dlss5_a
             }
             with open(universal_json_path, "w", encoding="utf-8") as f:
                 json.dump(universal_data, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
 
+        has_dlss5_a = is_dlss5_present(target)
         updates = {
             "General": {
                 "MenuKey": menu_key,
@@ -1009,7 +1251,10 @@ class IniConfigManager:
                 "RenderPreset": render_preset_val,
                 "OverrideDlssPreset": "0" if is_default else "1",
                 "DlssSrPreset": render_preset_val,
-                "BinkHook": "1" if bink_hook else "0"
+                "BinkHook": "1" if bink_hook else "0",
+                "OverlayMenu": "false" if has_dlss5_a else "true",
+                "EnableImGui": "0" if has_dlss5_a else "1",
+                "EnableUI": "0" if has_dlss5_a else "1"
             }
         }
 
@@ -1019,7 +1264,9 @@ class IniConfigManager:
         overlay_updates = {
             "Overlay": {
                 "ToggleKey": str(vk_code),
-                "FirstLaunchMenuShown": "1"
+                "FirstLaunchMenuShown": "1",
+                "OverlayMenu": "false" if has_dlss5_a else "true",
+                "EnableImGui": "0" if has_dlss5_a else "1"
             }
         }
         ok3 = cls.write_ini_sections(target / "RTX40MFG-UI.ini", overlay_updates)

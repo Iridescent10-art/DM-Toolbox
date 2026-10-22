@@ -343,6 +343,26 @@ class DMFooterBar(QFrame):
 
     def add_action_widget(self, widget: QWidget):
         self.actions_layout.addWidget(widget)
+        self._sync_action_height()
+
+    def _sync_action_height(self):
+        """
+        Grow the footer so action buttons are never clipped by the 32px status
+        bar (DLSS 5 uses 34px buttons) and keep a few pixels of breathing room
+        above the window's bottom edge / size grip.
+        """
+        max_h = 0
+        for i in range(self.actions_layout.count()):
+            item = self.actions_layout.itemAt(i)
+            child = item.widget() if item else None
+            if child is not None:
+                max_h = max(max_h, child.minimumHeight(), child.sizeHint().height())
+        if max_h <= 0:
+            return
+        bar_h = max(32, max_h + 18)
+        if self.height() != bar_h:
+            self.setFixedHeight(bar_h)
+        self.root_layout.setContentsMargins(16, 7, 10, 11)
 
     def set_dark_mode(self, is_dark: bool):
         color = "#94A3B8" if is_dark else "#64748B"

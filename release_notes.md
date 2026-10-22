@@ -1,3 +1,71 @@
+# 🎉 DM-Toolbox v1.3.8 · 彻底修复「模式 C (OptiScaler / XeSS 多帧生成) + DLSS 5 神经重构」同时注入闪退
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.3.8 核心更新与优化
+
+1. **闪退根因一：两序注入竞态（先模式 C 后 DLSS 5 时代理被顶掉）**
+   - 旧逻辑在注入 DLSS 5 时无条件把 ReShade 覆盖到 `dxgi.dll`，而模式 C 独立部署时 OptiScaler 正占用该槽位，结果目录里只剩 `OptiScaler.ini` + `libxess_fg.dll` 的“半套配置”，代理被彻底顶掉；
+   - 新增统一共存路由 `apps/app2_mfg/core/coexistence.py`：先按游戏 PE 导入表把 OptiScaler 迁移到 `winmm.dll > version.dll > dinput8.dll`，再让 ReShade 占用 `dxgi.dll`；
+   - 无论先注入模式 C 还是先注入 DLSS 5，最终目录布局完全一致；代理若已被旧版本覆盖丢失，会自动从组件缓存补回。
+
+2. **闪退根因二：NVNGX 调用链被切断（本次闪退的直接原因）**
+   - 旧共存配置写入 `[DLSS] Enabled=false` + `[Upscalers] Dx12Upscaler=none`：前者让 OptiScaler 不再把 DLSS 调用转发给原始 nvngx，而 DLSS 5 的神经重构恰好挂在这条调用链上；后者并不是合法的 upscaler 取值；
+   - 游戏随后拿到空的 DLSS Feature 句柄，进入场景即 `0xC0000005` 访问冲突；
+   - 现修正为 `Dx12Upscaler=dlss` + `[DLSS] Enabled=true` + `RenderPresetOverride=false`：DLSS 直通、DLSS 5 接管超分与神经重构、OptiScaler 只接管 `DLSS-G → XeFG` 插帧，互不抢夺。
+
+3. **闪退根因三：XeFG 键位写错节区 + 误关 ImGui 菜单导致多帧生成失效**
+   - `PreserveSwapChain` 属于 `[FrameGen]`，旧版本写进 `[XeFG]` 被 OptiScaler 静默忽略；
+   - `[Menu] OverlayMenu=false` 会让 OptiScaler 关闭全部 FG 功能（官方模板明确说明），旧版本为“防 ImGui 崩溃”关闭它，等于直接关掉 XeFG；
+   - 现键位归位 `[FrameGen]`，并保留 `OverlayMenu=true`，只关闭开屏横幅与 FPS 叠加，不再牺牲插帧能力。
+
+4. **闪退根因四：fakenvapi 与 DLSS 5 争夺 NVAPI**
+   - fakenvapi 会伪造整套 NVAPI 设备，而 `nvngx_dlssnr.dll` 需要按真实 GPU 选择神经重构内核；
+   - 旧逻辑只在 RTX 40+ 清理，其余显卡仍会部署 → 运行库按假 GPU 选内核，首帧重构后崩溃；
+   - 现在只要检测到 DLSS 5 就一律清理 `fakenvapi.dll / fakenvapi.ini / fakenvapi.log`，并回落到游戏原生 DLSS-G 作为 XeFG 输入源。
+
+5. **稳定性加固与自检**
+   - 单一 ReShade 宿主：注入前清理 `ReShade64.dll`、`d3d12-ReShade64.dll`、`dxgi.dll.reshade_bak`，避免双份 D3D12 Hook 在设备销毁时崩溃；
+   - 半残状态自愈：检测到 `OptiScaler.ini` 存在但代理缺失时自动补回 OptiScaler 代理；
+   - 修正 `nvngx_dlssnr.dll` 架构指纹识别（263MB 的 RTX 20/30/40 模型不再被误判为 RTX 50）；
+   - 模式 C 面板文案与真实注入行为对齐（共存时自动让出 `dxgi.dll`）。
+
+6. **修复「游戏内 XeFG 灰显 OFF / Requires disabling dilated motion vectors」**
+   - 《燕云十六声》等 Streamline 游戏向 DLSS 传入的是 Dilated（低分辨率膨胀）运动矢量，`libxess_fg` 的预初始化检查会直接拒绝，表现为游戏内 XeFG 开关灰显、`Current XeFG state: OFF`；
+   - 现已自动写入 `[XeFG] IgnoreInitChecks=true` 豁免该预检查（同时覆盖“独占全屏 / 仅支持 HDR10”两类误判），注入后 XeFG 面板可正常切到 Frame Gen；
+   - 注意：豁免后仍需在游戏【画面设置 → DLSS 帧生成】中打开帧生成，`Frame Generation (Streamline FG Inputs)` 才会从 `ACTIVATE FG` 变为激活状态并开始插帧。
+
+7. **重新接通 dashdogy Universal MFG Unlocker：XeFG 3X/4X 多帧解锁**
+   - 上一版为避免与 DLSS 5 的 MinHook 冲突，共存态下移除了 `OptiScaler/plugins/MFGUnlocker.asi`，结果 XeFG 被 `libxess_fg` 硬限制在 2X（实机日志 `Max supported interpolations: 1`）；
+   - 现恢复 `MFGUnlocker.asi`（dashdogy v1.6.1，明确支持 “XeSS multi-frame generation needs OptiScaler, with XeFG as FG output”），并在共存态写入 `LoadAsiPlugins=true`；同时不再把 `[XeFG] InterpolationCount` 预先压回 2X，让解锁后的 OptiScaler 真正拿到 3X/4X 请求；
+   - 模式 C 面板新增「🚀 启用 MFG-Unlocker 多帧解锁」开关，**出厂默认开启、倍率默认 3X**；旧配置会做一次性迁移（`preset_schema_version=2`），保证升级后直接是「解锁 + 3X」；若某些游戏与 DLSS 5 在启动阶段出现 Hook 冲突，可取消勾选退回 2X 稳定档，再重新注入即可。
+
+8. **修复「运行一两分钟后闪退」——显存伪装导致的 GPU TDR**
+   - 实机日志证据：`NR-VRAM now process_local=14.6 GB budget=11.68 GB` + `Device removal reason is DXGI_ERROR_DEVICE_HUNG`，Windows 事件 `nvlddmkm 153`；
+   - 根因是 **App1 把 12GB 显卡伪装成 32GB 显存**：游戏按 32GB 预算分配纹理，实际超过 12GB 后驱动挂起（TDR），与 DLSS 5 / XeFG 本身无关；
+   - 现在 DLSS 5 注入与模式 C 注入完成后都会做显存伪装预检，发现「伪装显存 > 物理显存」时直接给出警告，并提示到 App1 把显存改回「保持原始」或一键还原官方配置。
+
+9. **模式 D（DLSSG-SM86）多帧诊断：为什么有时只有 2X**
+   - 模式 D 的 `[FrameGeneration] MaxGeneratedFrames` 只是**运行库上报的上限**，实际生成帧数由游戏的 `sl.dlss_g.dll` 通过 `DLSSG.MultiFrameCount` 请求；游戏菜单只给 2X 或插件是旧代（无 `MultiFrameCount`）时，运行库就只做 2X，任何 INI 都改不了这个请求；
+   - 注入模式 D 后，工具箱会自动读取游戏的 `sl.dlss_g.dll` 判断其 MFG 能力（是否有 `MultiFrameCount` / `numFramesToGenerate`），并回显上次 `dlssg_sm86\logs` 里的 `MultiFrameCountMax`，直接给出“上限已写入 / 仍受游戏请求限制”的结论；
+   - 需要强制 3X/4X 时请用 **模式 A（dashdogy 强制倍率）** 或 **模式 C 的 XeFG + MFG-Unlocker**；模式 D 定位是“原生、尊重游戏请求”，不会强推倍率（强推会导致交换链后备缓冲不足、DLSS-G 直接关闭）。
+
+10. **DLSS 5 界面排版修复 + 专属图标**
+   - 旧版窗口内容的最小宽度被几处**未换行的长文本**撑到约 1660px（副标题、架构单选、说明块、完整游戏路径），980px 窗口下右侧被直接裁掉；
+   - 现在副标题/卡片标题/说明块全部自动换行，架构单选改为短标签+悬浮提示，游戏下拉框不再按最长游戏名撑宽，长路径在每个反斜杠后可断行；横向滚动条改为“需要时出现”兜底，980px / 1120px 下横向溢出均为 0；
+   - 重新绘制并内置 **DLSS 5 专属图标**（512px PNG + 16~256px 多尺寸 ICO，神经网络“5”+ 多帧叠层），修复旧文件损坏导致标题栏/任务栏图标为空的问题；图标生成脚本 `apps/app6_dlss5/assets/create_dlss5_icon.py` 可重复执行；
+   - 底部操作栏不再“贴边”：底栏会按按钮实际高度自动增高（34px 按钮 → 52px 底栏），按钮下方保留 11px 留白，右下角缩放手柄也不会再压住按钮；
+   - 默认窗口尺寸调整为 1120×820（仍会按屏幕 92% 自动收敛）。
+
+11. **自动化验证**
+   - `tests/test_coexistence_dlss5_mfg.py` 扩充为 8 组硬性断言：两序注入一致性、代理迁移、单 ReShade 宿主、fakenvapi 净化、半残状态自愈、模型架构指纹、重复注入幂等、卸载无残留；
+   - 新增 `tests/test_v138_vram_and_xefg_cap.py`：显存伪装检测、XeFG 2X 硬件上限提示、MFGUnlocker 3X 解锁绕过、出厂默认「解锁 + 3X」；
+   - 新增 `tests/test_v138_mode_d_mfg_diagnosis.py`：Mode D 插件 MFG 能力识别与日志回显；
+   - 新增 `tests/test_v138_dlss5_ui_assets.py`：图标 PNG/ICO 有效性、长路径可断行、底栏为按钮自动留白；
+   - 全量测试 **91 项全部 PASS**。
+
+---
+
 # 🎉 DM-Toolbox v1.3.7 · 深度换装 RenoDX DLSS 5 v11.9 旗舰神经渲染引擎与旧版彻底净化
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**

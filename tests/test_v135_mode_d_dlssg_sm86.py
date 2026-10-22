@@ -82,7 +82,7 @@ class TestModeCDLSSGSM86AndModeDOptiScaler(unittest.TestCase):
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["max_generated_frames"], 2)
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["optimized"], 2)
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["dlssg_preset"], "Auto")
-        self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["super_resolution_mode"], "Off")
+        self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["super_resolution_mode"], "On")
         self.assertEqual(DEFAULT_DLSSG_SM86_PRESET["proxy_dll"], "version.dll")
 
         # Test summary
