@@ -159,6 +159,8 @@ class DLSS5MainWindow(DMBaseWindow):
         self.lbl_gpu_badge.setText(f"🖥️ {short_gpu}")
         self.lbl_gpu_badge.setToolTip(f"物理显卡: {gpu_name}")
         self.lbl_gpu_badge.setMaximumWidth(260)
+        self.lbl_gpu_badge.setFixedHeight(34)
+        self.lbl_gpu_badge.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         self.lbl_gpu_badge.setStyleSheet("""
             QLabel {
                 background: rgba(143, 227, 176, 0.15);
@@ -168,7 +170,7 @@ class DLSS5MainWindow(DMBaseWindow):
                 padding: 6px 14px;
             }
         """)
-        banner_layout.addWidget(self.lbl_gpu_badge)
+        banner_layout.addWidget(self.lbl_gpu_badge, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self.content_layout.addLayout(banner_layout)
 

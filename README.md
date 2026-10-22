@@ -8,12 +8,12 @@
   <img alt="DM-Toolbox" src="common/assets/preview_main.png">
 </picture>
 
-**一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**
+**一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://microsoft.com)
 [![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
 [![Qt](https://img.shields.io/badge/GUI-PySide6%20%2F%20Fluent%20Design-orange.svg)](https://www.qt.io)
-[![Release](https://img.shields.io/badge/Release-v1.2.7-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
+[![Release](https://img.shields.io/badge/Release-v1.3.8-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
 
 </div>
 
@@ -21,7 +21,7 @@
 
 ## 🌟 核心功能一览
 
-`DM-Toolbox` 整合了 5 款独立功能模块，采用全新统一的 **DM 通用设计语言底座 SDK (`dm_ui_core.py`)**：
+`DM-Toolbox` 整合了 6 款独立功能模块，采用全新统一的 **DM 通用设计语言底座 SDK (`dm_ui_core.py`)**：
 - **DWM 硬件级无锯齿圆角抗锯齿合成 (`DWMWCP_ROUND=2`)**：彻底消除 QSS 软裁剪带来的四角白边与毛边锯齿；
 - **全窗口统一右下角双斜线 `//` 矢量缩放手柄 (`DMSizeGrip`)**：主启动器与所有子软件窗口风格 100% 像素级对齐；
 - **跨窗口日间 / 夜间模式实时无感同步 (`DMThemeManager`)**。
@@ -84,6 +84,24 @@
 - 内置 Google `libultrahdr 1.5.1` + `libjpeg-turbo 3.2.0`，支持 `libultrahdr` / `ACES` / `BT.2446` 三种 Tone Mapping、JPEG 质量 60–100、峰值亮度自动/预设/自定义、EXIF/XMP 元数据透传。
 - 独立单文件 `JxrConverter.exe`（约 66MB，免 .NET 运行时安装），由启动器以外部 EXE 方式打开；**沿用作者原始图标，未做任何修改**。
 - **深 / 浅主题切换**：标题栏太阳/月亮按钮即时切换，选择保存到 `settings.json`；强调色由蓝色改为浅绿色，界面与工具箱的 DM 中性主题一致。
+
+### 6. 🧠 DLSS 5 神经重构注入器 (`app6_dlss5`)
+
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="common/assets/preview_dlss5_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="common/assets/preview_dlss5_light.png">
+  <img alt="DLSS 5 神经重构注入器" src="common/assets/preview_dlss5.png">
+</picture>
+
+</div>
+
+- **RenoDX DLSS 5 v11.9 旗舰插件**：一键部署 ReShade 6.8 Add-on 底座 (`dxgi.dll`) + `renodx-dlss5-v11.9.addon64` + `nvngx_dlssnr.dll`，为 DLSS 超分接管神经网络渲染与画质重构。
+- **架构自适应运行库**：按物理显卡自动选择模型——RTX 20/30/40 用 263.37 MB 版本、RTX 50 (Blackwell) 用 254.08 MB 版本，避免内核与硬件不匹配。
+- **与多帧生成全自动共存**：模式 A/B/C/D 同时注入时自动做 DLL 槽位隔离（ReShade 固定 `dxgi.dll`、OptiScaler 迁移到 `winmm`/`version`），并清理 fakenvapi 与重复 ReShade 实例，从根上修掉「模式 C + DLSS 5 同时注入闪退」。
+- **游戏内中文面板**：按 `Home` 呼出 RenoDX 中文调参面板（Preset / 风格 / 强度 / 皮肤结构 / 显存缓冲），`F6` 实时开关神经重构。
+- **无损还原**：一键卸载并深度净化 ReShade / DLSS 5 / runtime / 代理 DLL，100% 恢复游戏原生目录。
 
 ---
 
