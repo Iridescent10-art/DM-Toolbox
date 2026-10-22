@@ -243,7 +243,7 @@ def step3_validate_runtime():
         res = subprocess.run([str(test_rt_py), "-c", test_code], capture_output=True, text=True, env=clean_env)
         if "VERIFIED_OK" not in res.stdout:
             raise RuntimeError(f"独立运行时验证失败:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
-        print(" -> 运行时与五大应用及启动器模块验证通过，无任何外部依赖问题！")
+        print(" -> 运行时与六大应用及启动器模块验证通过，无任何外部依赖问题！")
     finally:
         if temp_validate.exists():
             shutil.rmtree(temp_validate, ignore_errors=True)
