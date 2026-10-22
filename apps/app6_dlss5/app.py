@@ -98,6 +98,44 @@ class DLSS5MainWindow(DMBaseWindow):
         self._refresh_plugin_assets()
         self._update_all_states()
 
+        # Real-time game sync timer (syncs with App 2 mfg_game_cache.json every 1.2s)
+        self.game_sync_timer = QTimer(self)
+        self.game_sync_timer.setInterval(1200)
+        self.game_sync_timer.timeout.connect(self._sync_selected_game_from_cache)
+        self.game_sync_timer.start()
+
+    def changeEvent(self, event):
+        if event.type() == event.Type.ActivationChange and self.isActiveWindow():
+            self._sync_selected_game_from_cache()
+        super().changeEvent(event)
+
+    def _sync_selected_game_from_cache(self):
+        """Silently syncs currently selected game from GameCacheManager if changed externally (e.g. by App 2)."""
+        try:
+            cache = GameCacheManager.load_cache()
+            last_exe = cache.get("last_selected_exe")
+            if not last_exe:
+                return
+
+            if self.selected_game and hasattr(self.selected_game, "exe_path") and self.selected_game.exe_path.lower() == last_exe.lower():
+                return
+
+            for i in range(self.combo_games.count()):
+                item = self.combo_games.itemData(i)
+                if item and hasattr(item, "exe_path") and item.exe_path.lower() == last_exe.lower():
+                    if self.combo_games.currentIndex() != i:
+                        self.combo_games.blockSignals(True)
+                        self.combo_games.setCurrentIndex(i)
+                        self.selected_game = item
+                        self._update_selected_game_display()
+                        self._update_status_card()
+                        self.combo_games.blockSignals(False)
+                    return
+
+            self._load_cached_games()
+        except Exception:
+            pass
+
     def apply_theme(self):
         super().apply_theme()
         if hasattr(self, "card_game"):
@@ -551,7 +589,7 @@ class DLSS5MainWindow(DMBaseWindow):
 
     def _on_game_selected_changed(self, idx: int):
         data = self.combo_games.itemData(idx)
-        if isinstance(data, GameInfo):
+        if data is not None and (isinstance(data, GameInfo) or hasattr(data, "exe_path")):
             self.selected_game = data
             GameCacheManager.save_last_selected(data.exe_path)
             self._update_selected_game_display()

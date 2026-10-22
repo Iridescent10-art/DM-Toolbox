@@ -12,6 +12,10 @@ __pycache__/
 scratch*/
 .system_generated/
 
+# DLSS 5 large assets (excluded from git, packaged in installer)
+apps/app6_dlss5/assets/runtimes/
+apps/app6_dlss5/assets/tools/
+
 # IDE configurations
 .vscode/
 .idea/

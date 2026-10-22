@@ -19,6 +19,7 @@ except (ModuleNotFoundError, ImportError):
 DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
     "multiplier": 3,              # 2=2X, 3=3X, 4=4X, 5=5X, 6=6X (默认 3X 三倍插帧)
     "dlss_preset": "K",           # 默认采用 DLSS 4 Transformer 模型 Preset K
+    "dlssg_preset": "C",          # 默认采用 Model C (FG Lite 极速多帧 · 推荐跟随 nvapp)
     "menu_key": "Backspace",      # "Backspace", "F11", "Insert", "Home", "End"
     "bink_hook": False
 }
@@ -110,9 +111,10 @@ def get_mode_a_preset_summary(config: Optional[Dict[str, Any]] = None) -> str:
 
     mult = int(config.get("multiplier", 3))
     preset = config.get("dlss_preset", "Default")
+    dlssg_p = config.get("dlssg_preset", "C")
     key = config.get("menu_key", "Backspace")
     bink = " + Bink2链式" if config.get("bink_hook") else ""
-    return f"dashdogy [{mult}X 倍率] | DLSS {preset} 档 | 快捷键: {key}{bink}"
+    return f"dashdogy [{mult}X 倍率] | DLSS {preset} 档 | FG {dlssg_p} 模型 | 快捷键: {key}{bink}"
 
 # ----------------- Mode C / OptiScaler Preset -----------------
 

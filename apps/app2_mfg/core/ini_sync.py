@@ -1193,6 +1193,7 @@ class IniConfigManager:
         multiplier = int(config.get("multiplier", 3))
         menu_key = str(config.get("menu_key", "Backspace")).strip()
         preset = config.get("dlss_preset", "K")
+        dlssg_preset = str(config.get("dlssg_preset", "C")).strip()
         bink_hook = config.get("bink_hook", False)
 
         preset_str = str(preset).strip()
@@ -1217,12 +1218,35 @@ class IniConfigManager:
             "A" if preset_str in ["A", "Preset A", "1"] else preset_str
         )
 
+        # DLSS-G Frame Generation Preset mapping for Dashdogy / RTXMFG-Universal.json:
+        # 0: Follow Game / Driver (Auto)
+        # 1: Preset A
+        # 2: Preset B
+        # 3: Preset C (Model C / FG Lite)
+        raw_dlssg = dlssg_preset.upper()
+        if raw_dlssg in ["C", "3", "PRESET C", "MODEL C"]:
+            dlssg_preset_val = 3
+            clean_dlssg_name = "C"
+        elif raw_dlssg in ["B", "2", "PRESET B", "MODEL B"]:
+            dlssg_preset_val = 2
+            clean_dlssg_name = "B"
+        elif raw_dlssg in ["A", "1", "PRESET A", "MODEL A"]:
+            dlssg_preset_val = 1
+            clean_dlssg_name = "A"
+        elif raw_dlssg in ["AUTO", "0", "DEFAULT", "FOLLOW"]:
+            dlssg_preset_val = 0
+            clean_dlssg_name = "Auto"
+        else:
+            dlssg_preset_val = 3
+            clean_dlssg_name = "C"
+
         # Write RTXMFG-Universal.json (dashdogy primary config)
         universal_json_path = target / "RTXMFG-Universal.json"
         try:
             has_dlss5_a = is_dlss5_present(target)
             universal_data = {
                 "version": 40,
+                "followGame": True,
                 "mode": "follow",
                 "multiplier": multiplier,
                 "forcedMaximumMultiplier": multiplier,
@@ -1231,7 +1255,7 @@ class IniConfigManager:
                 "overrideDlssPreset": False if is_default else True,
                 "dlssPreset": 0 if is_default else int(render_preset_val),
                 "dlssSrPreset": 0 if is_default else int(render_preset_val),
-                "dlssgPreset": 0,
+                "dlssgPreset": dlssg_preset_val,
                 "enableImGui": not has_dlss5_a,
                 "overlayMenu": not has_dlss5_a
             }
@@ -1248,6 +1272,7 @@ class IniConfigManager:
                 "Multiplier": str(multiplier),
                 "Preset": clean_preset_name,
                 "DLSSPreset": clean_preset_name,
+                "DLSSGPreset": clean_dlssg_name,
                 "RenderPreset": render_preset_val,
                 "OverrideDlssPreset": "0" if is_default else "1",
                 "DlssSrPreset": render_preset_val,
@@ -1354,7 +1379,36 @@ class IniConfigManager:
         if "BinkHook" in sec:
             config["bink_hook"] = (sec["BinkHook"] in ["1", "true", "True"])
 
-        return config if (config or ini3.exists()) else None
+        # Reverse sync DLSS-G preset from RTXMFG-Universal.json and INI
+        univ_json = target / "RTXMFG-Universal.json"
+        if univ_json.exists():
+            try:
+                with open(univ_json, "r", encoding="utf-8") as f:
+                    u_data = json.load(f)
+                    if "multiplier" in u_data and "multiplier" not in config:
+                        config["multiplier"] = int(u_data["multiplier"])
+                    if "menuKey" in u_data and "menu_key" not in config:
+                        config["menu_key"] = u_data["menuKey"]
+                    if "dlssgPreset" in u_data:
+                        g_map = {3: "C", 2: "B", 1: "A", 0: "Auto"}
+                        config["dlssg_preset"] = g_map.get(int(u_data["dlssgPreset"]), "C")
+            except Exception:
+                pass
+
+        if "dlssg_preset" not in config:
+            raw_gp = sec.get("DLSSGPreset")
+            if raw_gp:
+                gp_clean = raw_gp.strip().upper()
+                if gp_clean in ["C", "3"]:
+                    config["dlssg_preset"] = "C"
+                elif gp_clean in ["B", "2"]:
+                    config["dlssg_preset"] = "B"
+                elif gp_clean in ["A", "1"]:
+                    config["dlssg_preset"] = "A"
+                elif gp_clean in ["AUTO", "0"]:
+                    config["dlssg_preset"] = "Auto"
+
+        return config if (config or ini3.exists() or univ_json.exists()) else None
 
 
 

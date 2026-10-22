@@ -2,5 +2,6 @@
   "multiplier": 3,
   "dlss_preset": "K",
   "menu_key": "Backspace",
-  "bink_hook": false
+  "bink_hook": false,
+  "dlssg_preset": "C"
 }

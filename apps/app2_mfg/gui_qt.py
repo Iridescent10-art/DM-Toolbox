@@ -1321,6 +1321,27 @@ class OptiScalerPresetDialog(QDialog):
         h_preset.addWidget(self.combo_a_preset, 1)
         mc_layout.addLayout(h_preset)
 
+        # Row 2.5: DLSS-G Frame Generation Preset
+        h_gpreset = QHBoxLayout()
+        h_gpreset.setContentsMargins(0, 0, 0, 0)
+        lbl_gpreset = QLabel("DLSS-G 帧生成预设模型:")
+        lbl_gpreset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_gpreset.setFixedWidth(150)
+        h_gpreset.addWidget(lbl_gpreset)
+
+        self.combo_a_dlssg_preset = QComboBox()
+        self.combo_a_dlssg_preset.setMinimumHeight(36)
+        self.combo_a_dlssg_preset.setMinimumWidth(280)
+        self.combo_a_dlssg_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_a_dlssg_preset.addItem("Model C (FG Lite 极速多帧 · 推荐跟随 nvapp) [默认推荐]", "C")
+        self.combo_a_dlssg_preset.addItem("Auto (跟随游戏或驱动默认设置)", "Auto")
+        self.combo_a_dlssg_preset.addItem("Model B (完整 UI 重构 · 原生标准默认)", "B")
+        self.combo_a_dlssg_preset.addItem("Model A (早期模型 · 关闭 UI 重构)", "A")
+        self.combo_a_dlssg_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_a_dlssg_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_gpreset.addWidget(self.combo_a_dlssg_preset, 1)
+        mc_layout.addLayout(h_gpreset)
+
         # Row 3: Hotkey
         h_key = QHBoxLayout()
         h_key.setContentsMargins(0, 0, 0, 0)
@@ -2072,6 +2093,14 @@ class OptiScalerPresetDialog(QDialog):
             idx_k = self.combo_a_preset.findData("K")
             self.combo_a_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
 
+        a_dlssg = str(self.preset_a.get("dlssg_preset", "C")).strip()
+        idx_ag = self.combo_a_dlssg_preset.findData(a_dlssg)
+        if idx_ag >= 0:
+            self.combo_a_dlssg_preset.setCurrentIndex(idx_ag)
+        else:
+            idx_c = self.combo_a_dlssg_preset.findData("C")
+            self.combo_a_dlssg_preset.setCurrentIndex(idx_c if idx_c >= 0 else 0)
+
         a_key = str(self.preset_a.get("menu_key", "Backspace"))
         idx_ak = self.combo_a_key.findData(a_key)
         if idx_ak >= 0:
@@ -2262,6 +2291,7 @@ class OptiScalerPresetDialog(QDialog):
         # 0. Update Mode A dictionary & save to persistent storage
         self.preset_a["multiplier"] = self.combo_a_mult.currentData()
         self.preset_a["dlss_preset"] = self.combo_a_preset.currentData()
+        self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
         self.preset_a["menu_key"] = self.combo_a_key.currentData()
         self.preset_a["bink_hook"] = self.chk_a_bink.isChecked()
         save_mode_a_preset(self.preset_a)
@@ -4202,7 +4232,30 @@ class ModernMFGGUI(QMainWindow):
         if event.type() == event.Type.WindowStateChange:
             if hasattr(self, "btn_max"):
                 self.btn_max.set_maximized_state(self.isMaximized())
+        elif event.type() == event.Type.ActivationChange and self.isActiveWindow():
+            self._sync_selected_game_from_cache()
         super().changeEvent(event)
+
+    def _sync_selected_game_from_cache(self):
+        try:
+            from core.game_cache import GameCacheManager
+            cache = GameCacheManager.load_cache()
+            last_exe = cache.get("last_selected_exe")
+            if not last_exe:
+                return
+            if self.selected_game and hasattr(self.selected_game, "exe_path") and self.selected_game.exe_path.lower() == last_exe.lower():
+                return
+            for i in range(self.combo_games.count()):
+                item = self.combo_games.itemData(i)
+                if item and hasattr(item, "exe_path") and item.exe_path.lower() == last_exe.lower():
+                    if self.combo_games.currentIndex() != i:
+                        self.combo_games.blockSignals(True)
+                        self.combo_games.setCurrentIndex(i)
+                        self._on_game_dropdown_changed(i)
+                        self.combo_games.blockSignals(False)
+                    return
+        except Exception:
+            pass
 
     def _toggle_bink(self):
         self.use_bink = not self.use_bink

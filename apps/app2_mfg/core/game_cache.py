@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
 try:
-    from core.models import GameInfo, QualificationStatus
-except ModuleNotFoundError:
     from apps.app2_mfg.core.models import GameInfo, QualificationStatus
+except ModuleNotFoundError:
+    from core.models import GameInfo, QualificationStatus
 
 
 def get_cache_file() -> Path:

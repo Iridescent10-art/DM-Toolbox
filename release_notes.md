@@ -1,3 +1,30 @@
+# 🎉 DM-Toolbox v1.3.9 · 模式 A 支持自定义 DLSS-G 模型 (默认锁定 Model C) & 修复游戏内无法保存预设
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.3.9 核心更新与优化
+
+1. **解决游戏内覆盖层报错「无法保存预设选择」**
+   - 经逆向反汇编 Dashdogy v1.6.1 验证器发现：当 `mode == "follow"` 时，验证算法严格要求配置中存在 `followGame == True`，缺失时验证函数校验失败并返回 0，导致覆盖层保存被中断、弹出「无法保存预设选择」报错并回退到预设 B；
+   - 现已修复配置序列化逻辑，生成 `RTXMFG-Universal.json` 时始终完整写入 `"followGame": true`，彻底消除覆盖层报错，游戏内调参保存畅通无阻。
+
+2. **解决多帧生成无法设定模型 & 未跟随 NVIDIA App 设定为 Model C 的问题**
+   - 深入逆向分析实机日志与汇编：Dashdogy 在读取驱动层预设缓存时若遇到 `dlssgPreset == 0`（跟随游戏），因未能成功解析驱动缓存分支会主动触发降级逻辑，闭锁至 Model B 并提示版本不匹配；
+   - 模式 A (通用独立多帧) 面板全新引入「🎯 DLSS-G 帧生成模型」快捷配置项（支持 Model C、自动/跟随驱动、Model B、Model A），出厂默认锁定为 **Model C**；
+   - 注入时自动将 `dlssgPreset: 3` 与 `followGame: true` 写入 `RTXMFG-Universal.json`，并将 `DLSSGPreset=C` 写入 `mfg_unlocker.ini`，彻底消除游戏内版本警告，直通 NVIDIA 官方 Model C 帧生成内核；
+   - 完善反向同步解析与状态回滚清单，支持双向读取与干净卸载。
+
+3. **修复 DLSS 5 目标游戏下拉框切换后主程序与目标目录不联动刷新 & 跨软件实时同步问题**
+   - 根因分析：在 `app6_dlss5/app.py` 中，切换下拉框事件接收的 `itemData` 曾因命名空间双重导入差异导致 `isinstance(data, GameInfo)` 校验失败，使得切换游戏后 `selected_game` 未更新，路径显示被锁死在上一款游戏（表现为下拉框切到新游戏后下方主程序与目标目录不刷新）；
+   - 现已重构事件监听器，使用属性解耦校验，并在窗口激活与后台增加静默同步机制，与二号软件 (app2_mfg) 实现双向无感同步，下拉切换即刻刷新；
+   - 编写专项自动化测试 `tests/test_dlss5_game_dropdown_sync.py`，验证路径刷新与双向缓存同步。
+
+4. **自动化测试与质量保障**
+   - 新增 `tests/test_mode_a_dlssg_preset.py` 与 `tests/test_dlss5_game_dropdown_sync.py`；
+   - 全套回归测试 100% 验证通过。
+
+---
+
 # 🎉 DM-Toolbox v1.3.8 · 彻底修复「模式 C (OptiScaler / XeSS 多帧生成) + DLSS 5 神经重构」同时注入闪退
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**

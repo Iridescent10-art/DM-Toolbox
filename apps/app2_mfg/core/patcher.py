@@ -301,7 +301,7 @@ class PatchEngine:
             from core.ini_sync import IniConfigManager
             preset_a = load_mode_a_preset()
             IniConfigManager.sync_mode_a_forward(target_dir, preset_a)
-            for ini_file in ["RTX40MFG-UI.ini", "RTXMFG-UI.ini", "mfg_unlocker.ini"]:
+            for ini_file in ["RTX40MFG-UI.ini", "RTXMFG-UI.ini", "mfg_unlocker.ini", "RTXMFG-Universal.json"]:
                 if os.path.exists(os.path.join(target_dir, ini_file)) and ini_file not in manifest.created_files:
                     manifest.created_files.append(ini_file)
         except Exception:
