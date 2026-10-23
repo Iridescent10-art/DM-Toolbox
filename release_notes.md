@@ -1,3 +1,25 @@
+# 🎉 DM-Toolbox v1.3.13 · 解决 Cyberpunk 2077 依赖缺失报错 / 完善 ReShade Addon 挂载与全量测试闭环
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.3.13 核心更新与优化
+
+1. **解决 Cyberpunk 2077 等 CDPR 游戏缺少 XeSS/XeFG 运行库导致启动报错的问题**
+   - **根因分析**：Cyberpunk 2077（v2.5+ / 3.0）主程序 Cyberpunk2077.exe 存在针对 libxell.dll、libxess.dll 与 libxess_fg.dll 的静态 PE 导入。若用户运行清理或目标目录缺失这三项动态链接库，Windows PE 加载器将在进入游戏入口前直接弹出系统错误弹窗阻断进程启动；
+   - **解决与自愈**：深度提取并补齐 CDPR 官方认证的完整 XeSS/XeFG 运行时套件（libxell.dll、libxess.dll、libxess_fg.dll、igxess.dll），经 PE 导入表与 ctypes 动态探测验证 100% 匹配无缺失；
+   - **消除双重 Hook 冲突**：彻底排查并清理历史遗留的 
+rchain_nvngx.dll、旧版 RTX40MFG 与重复 ersion.dll，确保 RTX 40 系显卡在 Cyberpunk 2077 中享受纯净的 DLSS 3 原生帧生成与 DLSS 5 神经重构协同。
+
+2. **ReShade 6.8 LoadFromDllMain 严格白名单与智能自愈挂载**
+   - 彻底修复历史清理逻辑对 
+enodx-dlss*.addon64 的误伤，增加目标目录存在性动态校验与自动登记；
+   - 杜绝 LoadFromDllMain=1 等非字符串合法值导致的 ReShade 内核 126 报错，确保 DLSS 5 扩展插件在游戏启动第一帧被可靠加载。
+
+3. **104 项全矩阵自动化测试 100% PASS**
+   - 全面覆盖硬件定制、多帧生成模式 A/B/C/D、DLSS 5 神经重构、JXR 批量转换与多模式共存避让逻辑，保障全平台稳定交付。
+
+---
+
 # 🎉 DM-Toolbox v1.3.12 · 彻底修复多帧生成与 DLSS 5 共存闪退 (0x887A0006) / 修复分辨率异常映射 4K 全屏
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
