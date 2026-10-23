@@ -900,6 +900,9 @@ class IniConfigManager:
             "DirectNeuralRenderingPresentMode": always_pres,
             "NRPresentAlways": always_pres,
             "AlwaysPresent": always_pres,
+            "NRFollowInputRes": "1",
+            "NRResolutionScale": "0.500000" if str_hook == "0" else "1.000000",
+            "ResolutionScale": "0.500000" if str_hook == "0" else "1.000000",
         }
 
         # 1. Update ReShade.ini

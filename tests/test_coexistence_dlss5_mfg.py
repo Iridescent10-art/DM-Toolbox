@@ -663,6 +663,58 @@ def test_assertion_8_repeated_injection_is_idempotent():
         print("   [PASS] 三次重复注入后布局不变，卸载后无残留")
 
 
+def test_assertion_9_mode_a_dlss5_coexistence_and_synergy():
+    """
+    Assertion 9: Mode A (Universal MFG / Dashdogy 3x) 与 DLSS 5 共存及挂钩点协同
+    ========================================================================
+    验证:
+    1. 启用模式 A 多帧生成 (3x 插帧) + DLSS 5 时，DLSS 5 挂钩点协同为 NRHookPoint="0" (Upscaled 模式)；
+    2. NRPresentAlways="0"，彻底杜绝 DLSS 5 拦截 nv.sl.dlss_g.cmdQ.pacer 调度队列导致 0x887A0006 GPU 挂起；
+    3. NRFollowInputRes="1"，且工作分辨率 NRResolutionScale="0.500000"，消除 4K 全分辨率异常占用。
+    """
+    print("\n----------------------------------------------------------------------")
+    print("-> 执行 Assertion 9: 模式 A (Universal MFG 3x) + DLSS 5 协同与防挂起校验...")
+    from core.ini_sync import IniConfigManager
+    import configparser
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        game_dir, game_info = _create_mock_game_environment(Path(tmpdir))
+
+        # 1. 先注入 DLSS 5
+        ok_dlss, _ = DLSS5Injector.inject(str(game_dir), arch_choice="rtx20_30_40")
+        assert ok_dlss
+
+        # 2. 注入模式 A (3x 插帧)
+        patcher = PatchEngine(ComponentUpdater())
+        ok_patch, _ = patcher.patch_game(game_info, requested_backend=BackendType.STANDALONE)
+        assert ok_patch
+
+        # 3. 校验 ReShade.ini 协同参数
+        reshade_ini = game_dir / "ReShade.ini"
+        assert reshade_ini.exists()
+        cp = configparser.ConfigParser(interpolation=None, strict=False)
+        cp.read(reshade_ini, encoding="utf-8")
+        assert cp.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "0", "模式 A 共存态下 NRHookPoint 必须协同为 '0' (Upscaled模式)"
+        assert cp.get("RenoDX.DLSS5", "HookStage", fallback="") == "0"
+        assert cp.get("RenoDX.DLSS5", "NRPresentAlways", fallback="") == "0", "NRPresentAlways 必须为 '0' 避免拦截 FG 队列"
+        assert cp.get("RenoDX.DLSS5", "NRFollowInputRes", fallback="") == "1", "NRFollowInputRes 必须为 '1' (匹配游戏)"
+        assert cp.get("RenoDX.DLSS5", "NRResolutionScale", fallback="") == "0.500000"
+
+        # 4. 校验 RenoDX/DLSS5/Presets/My look.ini 独立预设
+        my_look_file = game_dir / "RenoDX" / "DLSS5" / "Presets" / "My look.ini"
+        assert my_look_file.exists()
+        txt_mylook = my_look_file.read_text(encoding="utf-8")
+        assert "NRHookPoint=0" in txt_mylook
+        assert "NRPresentAlways=0" in txt_mylook
+        assert "NRFollowInputRes=1" in txt_mylook
+
+        # 5. 执行卸载还原
+        ok_res, _ = DLSS5Injector.restore(str(game_dir))
+        assert ok_res
+        assert not (game_dir / "dxgi.dll").exists()
+        print("   [PASS] 模式 A 与 DLSS 5 共存态参数协同、防 GPU 挂起与卸载校验 100% PASS")
+
+
 if __name__ == "__main__":
     print("======================================================================")
     print("      多帧生成 (app2_mfg) 与 DLSS 5 (app6_dlss5) 共存分发自动化闭环验证      ")
@@ -675,6 +727,7 @@ if __name__ == "__main__":
     test_assertion_6_mode_c_dlss5_coexistence_and_synergy()
     test_assertion_7_legacy_state_repair_and_purges()
     test_assertion_8_repeated_injection_is_idempotent()
+    test_assertion_9_mode_a_dlss5_coexistence_and_synergy()
     print("\n======================================================================")
-    print(">>> 全部 8 项硬性断言 100% 严格 PASS！共存分发改造闭环达成！")
+    print(">>> 全部 9 项硬性断言 100% 严格 PASS！共存分发改造闭环达成！")
     print("======================================================================")
