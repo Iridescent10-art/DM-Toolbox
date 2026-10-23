@@ -13,7 +13,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://microsoft.com)
 [![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
 [![Qt](https://img.shields.io/badge/GUI-PySide6%20%2F%20Fluent%20Design-orange.svg)](https://www.qt.io)
-[![Release](https://img.shields.io/badge/Release-v1.3.13-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
+[![Release](https://img.shields.io/badge/Release-v1.3.24-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
 
 </div>
 
@@ -44,12 +44,27 @@
 </div>
 
 ### 2. ⚡ DLSS 多帧生成补丁 (`app2_mfg`)
-- **帧率倍增黑科技**：为全架构显卡（RTX 20/30/40 系、GTX、AMD Radeon、Intel Arc）解除 DLSS-G / FSR3 / XeSS 插帧限制。
-- **内置 4 大主流插帧核心模式**：
-  - **模式 A (dashdogy 独立代理)**：高稳定性帧生成解除核心，支持 2X/3X/4X 多倍率插帧、Bink 链式劫持与原生代理；
-  - **模式 B (RenoDX 插件优化)**：RenoDX 深度光流调度插件，支持 2X~6X 极速插帧、Blackwell 架构内核、薄几何体 ISR/VWB 与 BAM 边缘抗撕裂；
-  - **模式 C (DLSSG-SM86 原生插帧)**：基于 `sdli1995/dlssg_for_sm86` 深度定制，专为 RTX 20 系 (Turing / SM75) 与 RTX 30 系 (Ampere / SM86) 显卡打造的原生硬件级 DLSS-G 运行库支持。内置 Ampere/Turing 专用光流与插帧内核，原生解锁最高 6X 动态多倍插帧；支持 FG Lite (Preset C，降低 32%~54% GPU 耗时) 与 4 级一致性加速档位；专享 RTX 20/30 DLSS INT8 超分辨率硬件加速，无需跨卡转译损耗，丝滑释放原生画质与超高帧率！
-  - **模式 D (OptiScaler 跨卡转译)**：跨架构转译框架，为全显卡（包含非 RTX 卡、GTX 系列、AMD Radeon 与 Intel Arc）提供通用跨架构转译，原生解锁 Intel XeFG 2X~4X 官方插帧与 XeSS 2.0 AI 超分。
+
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="common/assets/preview_mfg_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="common/assets/preview_mfg_light.png">
+  <img alt="DLSS 多帧生成补丁" src="common/assets/preview_mfg.png">
+</picture>
+
+</div>
+
+- **帧率倍增黑科技**：为全架构显卡（RTX 20/30/40/50 系、GTX、AMD Radeon、Intel Arc）解除 DLSS-G / FSR3 / XeSS 插帧限制。
+- **全新精简双核心插帧架构 (全面升级 Universal 全卡原生多帧，彻底移除易冲突的旧版 Addon 与旧版本补丁)**：
+  - **模式 A (dashdogy 原生多帧解锁器 · Universal 全卡通用)**：集成官方最新 Release **`v1.6.1`**，原生支持 NVIDIA RTX 20 / 30 / 40 / 50 全系列显卡！无底层 ReShade 钩子锁死风险，采用标准 Proxy 代理槽位（动态自适应 `winmm.dll` / `version.dll` 注入），支持 2X / 3X / 4X / 6X 以及 Dynamic 多倍率插帧，游戏内按 **`Backspace`**（退格键）即刻呼出控制面板实时调校。
+  - **模式 B (OptiScaler 跨架构转译 · 全显卡通用插帧)**：集成官方最新 **`nightly-20261023`** (OptiScaler v10.0.0-pre1) 完整运行库，跨架构将游戏内原生 DLSS 3 桥接至 Intel XeFG 2.0 (2X/3X/4X 官方插帧) 与 AMD FSR 3.1 算力管线。支持全显卡架构（N卡 / A卡 / Intel卡 / GTX 系列），游戏内默认按 **`Insert`** 键呼出专属控制面板。
+  - **智能优选 (架构与环境自适应)**：
+    - 检测为 NVIDIA RTX 显卡（20/30/40/50 系列）：**100% 自动优选模式 A (Universal 多帧解锁器)**；
+    - 检测为非 RTX 卡或 AMD/Intel 显卡：**100% 自动优选模式 B (OptiScaler 跨卡转译)**。
+  - **与 DLSS 5 (RenoDX) 双注入深度协同与冲突规避**：
+    - `dxgi.dll` 严格独占归属 DLSS 5 (ReShade 6.8)，模式 A 与模式 B 动态自适应迁移至 `winmm.dll` / `version.dll`，完全避免动态库覆盖与 Agility SDK Loader Lock 闪退。
+    - 协同调度：DLSS 5 负责上游神经重构，OptiScaler / dashdogy 负责下游帧生成，ImGui 覆盖层自动避让，实现完美的双注入共存。
 - **DLSS 4/4.5 Transformer 超分模型矩阵**：
   - 扩充完整 AI 模型预设矩阵：包含 **Preset M**（DLSS 4.5 第二代 Transformer 旗舰画质）、**Preset L**（DLSS 4.5 超性能）、**Preset K**（DLSS 4 经典锐利推荐）、**Preset J**（DLSS 4 细节强化）以及 CNN 终极版（Preset E/C/F）；
   - 默认选中项与一键恢复推荐统一设为 **`Default`**（保持游戏原生默认档位），支持 INI 正向反向双向无缝映射同步。
@@ -99,7 +114,9 @@
 
 - **RenoDX DLSS 5 v11.9 旗舰插件**：一键部署 ReShade 6.8 Add-on 底座 (`dxgi.dll`) + `renodx-dlss5-v11.9.addon64` + `nvngx_dlssnr.dll`，为 DLSS 超分接管神经网络渲染与画质重构。
 - **架构自适应运行库**：按物理显卡自动选择模型——RTX 20/30/40 用 263.37 MB 版本、RTX 50 (Blackwell) 用 254.08 MB 版本，避免内核与硬件不匹配。
-- **与多帧生成全自动共存**：模式 A/B/C/D 同时注入时自动做 DLL 槽位隔离（ReShade 固定 `dxgi.dll`、OptiScaler 迁移到 `winmm`/`version`），并清理 fakenvapi 与重复 ReShade 实例，从根上修掉「模式 C + DLSS 5 同时注入闪退」。
+- **极致显存与性能调优**：默认出厂预设采用最小显存缓冲占用（Minimal 显存模式），根治显存占用虚高；出厂默认挂钩点深度优化为“之后 (Upscaled)”，彻底解决 4K 分辨率下的 GPU 挂起与死锁。
+- **细腻真实的人像质感**：默认皮肤结构强度与神经重构参数深度优化（默认值设定为 100%），呈现细腻通透的真实人像质感。
+- **与多帧生成全自动协同共存**：模式 A / 模式 B 同时注入时自动做 DLL 槽位隔离（ReShade 独占 `dxgi.dll`、模式 A/B 智能迁移至 `winmm`/`version`），并清理 fakenvapi 与重复 ReShade 实例，彻底解决双注入闪退问题。
 - **游戏内中文面板**：按 `Home` 呼出 RenoDX 中文调参面板（Preset / 风格 / 强度 / 皮肤结构 / 显存缓冲），`F6` 实时开关神经重构。
 - **无损还原**：一键卸载并深度净化 ReShade / DLSS 5 / runtime / 代理 DLL，100% 恢复游戏原生目录。
 

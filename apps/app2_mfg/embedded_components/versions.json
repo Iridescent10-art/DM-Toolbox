@@ -9,13 +9,14 @@
       }
     }
   },
-  "mavismmg": {
-    "latest_tag": "1.4.4",
+  "optiscaler": {
+    "latest_tag": "nightly-20261023",
     "cached_versions": {
-      "1.4.4": {
-        "file": "renodx-mfgunlock.addon64",
+      "nightly-20261023": {
+        "file": "OptiScaler.dll",
         "path": "",
-        "sha256": "5a193d86c6f60a7f0f275799d66eef7f14bd0946cdbefd48a3237506c747d5cd"
+        "dir": "",
+        "sha256": "8f1c51c6532de6e113d43dd11b9d4ca867da7945362be326021687d6a7819b9b"
       }
     }
   },
@@ -26,28 +27,6 @@
         "file": "ReShade64.dll",
         "path": "",
         "sha256": "0cee63f9c9f13f3ac909c5b4903f4dbb4b719a7ab3b4f13b0deaf83c814b94f7"
-      }
-    }
-  },
-  "optiscaler": {
-    "latest_tag": "nightly-20261020",
-    "cached_versions": {
-      "nightly-20261020": {
-        "file": "OptiScaler.dll",
-        "path": "",
-        "dir": "",
-        "sha256": "f9f5d03cd392f5e171d72745ae657677f14060c97dcb436a275cdf9b358435d1"
-      }
-    }
-  },
-  "dlssg_sm86": {
-    "latest_tag": "0.4.0",
-    "cached_versions": {
-      "0.4.0": {
-        "file": "version.dll",
-        "path": "",
-        "dir": "",
-        "sha256": "7b3f90435be4f94348bf8d128c84871c7f904c704f7690601a263277c327a7b2"
       }
     }
   }

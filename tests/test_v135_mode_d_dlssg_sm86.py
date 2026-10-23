@@ -174,23 +174,23 @@ class TestModeCDLSSGSM86AndModeDOptiScaler(unittest.TestCase):
         updater = MagicMock(spec=ComponentUpdater)
         engine = PatchEngine(updater)
 
-        # Test RTX 3080 auto-selection -> Mode C (DLSSG_SM86)
+        # Test RTX 3080 auto-selection -> Mode A (Universal STANDALONE)
         with patch("apps.app2_mfg.core.patcher.get_system_gpu_name", return_value="NVIDIA GeForce RTX 3080"):
             with patch("apps.app2_mfg.core.patcher.is_rtx_40_or_newer", return_value=False):
-                with patch.object(engine, "_apply_dlssg_sm86_patch", return_value=(True, "OK")):
+                with patch.object(engine, "_apply_standalone_patch", return_value=(True, "OK")):
                     ok, msg = engine.patch_game(self.game_info, requested_backend=BackendType.SMART_AUTO)
                     self.assertTrue(ok)
-                    self.assertEqual(self.game_info.patched_backend, BackendType.DLSSG_SM86.value)
+                    self.assertEqual(self.game_info.patched_backend, BackendType.STANDALONE.value)
 
-        # Test RTX 2060 Super auto-selection -> Mode C (DLSSG_SM86)
+        # Test RTX 2060 Super auto-selection -> Mode A (Universal STANDALONE)
         with patch("apps.app2_mfg.core.patcher.get_system_gpu_name", return_value="NVIDIA GeForce RTX 2060 Super"):
             with patch("apps.app2_mfg.core.patcher.is_rtx_40_or_newer", return_value=False):
-                with patch.object(engine, "_apply_dlssg_sm86_patch", return_value=(True, "OK")):
+                with patch.object(engine, "_apply_standalone_patch", return_value=(True, "OK")):
                     ok, msg = engine.patch_game(self.game_info, requested_backend=BackendType.SMART_AUTO)
                     self.assertTrue(ok)
-                    self.assertEqual(self.game_info.patched_backend, BackendType.DLSSG_SM86.value)
+                    self.assertEqual(self.game_info.patched_backend, BackendType.STANDALONE.value)
 
-        # Test AMD Radeon RX 7800 XT auto-selection -> Mode D (OptiScaler)
+        # Test AMD Radeon RX 7800 XT auto-selection -> Mode B (OptiScaler)
         with patch("apps.app2_mfg.core.patcher.get_system_gpu_name", return_value="AMD Radeon RX 7800 XT"):
             with patch("apps.app2_mfg.core.patcher.is_rtx_40_or_newer", return_value=False):
                 with patch.object(engine, "_apply_optiscaler_patch", return_value=(True, "OK")):

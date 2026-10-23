@@ -76,22 +76,15 @@ class PatchEngine:
                 requested_backend = BackendType.SMART_AUTO
 
         active_backend = requested_backend
-        if active_backend == BackendType.SMART_AUTO:
+        if active_backend in (None, BackendType.SMART_AUTO):
             gpu_name = get_system_gpu_name()
-            if not is_rtx_40_or_newer(gpu_name):
-                # RTX 20/30 (SM75/SM86) -> Auto select Mode D (Native DLSS-G)!
-                # GTX / AMD / Intel GPU -> Auto select Mode C (OptiScaler FSR 3.1 bridge)
-                gpu_upper = gpu_name.upper()
-                if "RTX 30" in gpu_upper or "RTX 20" in gpu_upper or "SM86" in gpu_upper or "SM75" in gpu_upper or "A100" in gpu_upper:
-                    active_backend = BackendType.DLSSG_SM86
-                else:
-                    active_backend = BackendType.OPTISCALER_FSR
+            gpu_upper = gpu_name.upper()
+            if any(k in gpu_upper for k in ["RTX", "GEFORCE RTX", "SM86", "SM89", "SM75", "A100", "TITAN RTX"]):
+                # All NVIDIA RTX (20/30/40/50) series -> Mode A (dashdogy Universal)
+                active_backend = BackendType.STANDALONE
             else:
-                # RTX 40 / 50 series -> Native DLSS-G MFG Unlocker
-                if game.has_reshade:
-                    active_backend = BackendType.RESHADE_ADDON
-                else:
-                    active_backend = BackendType.STANDALONE
+                # AMD / Intel / GTX series -> Mode B (OptiScaler 跨架构转译)
+                active_backend = BackendType.OPTISCALER_FSR
 
         backend_str = active_backend.value if hasattr(active_backend, "value") else str(active_backend)
 
@@ -107,10 +100,10 @@ class PatchEngine:
         try:
             if active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
                 target_mode_char = "A"
-            elif active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
-                target_mode_char = "B"
             elif active_backend == BackendType.OPTISCALER_FSR or backend_str == BackendType.OPTISCALER_FSR.value:
                 target_mode_char = "C"
+            elif active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
+                target_mode_char = "B"
             elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
                 target_mode_char = "D"
             else:
@@ -180,57 +173,38 @@ class PatchEngine:
                         callout = (
                             f"⚡ 检测到 DLSS 5 共存态：已启用全自动双通道无缝共存！\n"
                             f"✨ 核心插帧代理已安全挂载至【{target_proxy}】（避让 DLSS 5 ReShade 渲染底座 dxgi.dll）\n"
-                            f"✨ 模式 C 已作为后台静默帧生成平稳运行（无悬浮窗干扰）\n"
+                            f"✨ 模式 B (OptiScaler) 已作为后台静默帧生成平稳运行（无悬浮窗干扰）\n"
                             f"✨ 在游戏画质设置中直接开启【DLSS 帧生成】即刻生效！\n"
-                            f"✨ 已自动注入模式 C 预设: {summary_str}{warn_text}"
+                            f"✨ 已自动注入模式 B 预设: {summary_str}{warn_text}"
                         )
                     else:
                         callout = (
                             f"在游戏设置中开启【DLSS 帧生成】即按预设生效！\n"
                             f"✨ 进游戏按【{key_name}】呼出 OptiScaler 调校菜单\n"
                             f"✨ 核心插帧代理已挂载至【{target_proxy}】\n"
-                            f"✨ 已自动注入模式 C 预设: {summary_str}{warn_text}"
+                            f"✨ 已自动注入模式 B 预设: {summary_str}{warn_text}"
                         )
                 except Exception:
                     callout = "在游戏画质设置中开启【DLSS 帧生成】(进游戏按【Insert】呼出 OptiScaler 菜单)"
-            elif active_backend == BackendType.STANDALONE or backend_str == BackendType.STANDALONE.value:
+                display_mode = "模式 B (OptiScaler 跨架构转译)"
+            else:
                 try:
                     from core.optiscaler_config import load_mode_a_preset, get_mode_a_preset_summary
                     from core.ini_sync import IniConfigManager
                     preset_a = load_mode_a_preset()
                     summary_a = get_mode_a_preset_summary(preset_a)
                     IniConfigManager.sync_mode_a_forward(game.target_dir, preset_a)
-                    callout = f"按 【Backspace】 打开菜单\n✨ 已自动写入模式 A 预设: {summary_a}"
-                except Exception:
-                    callout = "按 【Backspace】 打开菜单"
-            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
-                try:
-                    from core.optiscaler_config import load_dlssg_sm86_preset, get_dlssg_sm86_preset_summary
-                    from core.ini_sync import IniConfigManager
-                    preset_d = load_dlssg_sm86_preset()
-                    summary_d = get_dlssg_sm86_preset_summary(preset_d)
-                    IniConfigManager.sync_mode_d_forward(game.target_dir, preset_d, game.exe_name)
                     callout = (
-                        f"在游戏画质设置中直接开启【DLSS 帧生成】即刻生效！\n"
-                        f"⚡ 已自动注入模式 D 原生预设: {summary_d}\n"
-                        f"✨ 专为 RTX 20/30 系优化，原生 DLSS 3/4.5 多倍插帧 + INT8 超分加速"
+                        f"在游戏画质设置中开启【DLSS 帧生成】即刻生效！\n"
+                        f"✨ 进游戏按【Backspace】呼出 dashdogy 参数菜单\n"
+                        f"✨ 核心插帧代理已挂载至【{target_proxy}】\n"
+                        f"✨ 已自动写入模式 A 预设: {summary_a}"
                     )
-                    try:
-                        from core.utils import describe_mode_d_mfg_status
-                        callout += describe_mode_d_mfg_status(game.target_dir)
-                    except Exception:
-                        pass
                 except Exception:
-                    callout = "在游戏画质设置中直接开启【DLSS 帧生成】"
-            else:
-                callout = "按 【Home】 在 ReShade 面板中打开菜单"
+                    callout = "在游戏画质设置中开启【DLSS 帧生成】(进游戏按【Backspace】呼出菜单)"
+                display_mode = "模式 A (dashdogy 原生多帧解锁器)"
 
-            reshade_notice = ""
-            if active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
-                game.has_reshade = True
-                reshade_notice = "\n✨ 已全自动物理注入 ReShade 6.8 框架 (dxgi.dll) 与 RenoDX 插帧插件！\n(已替代 RHI 手动安装，进游戏按【Home】键即可直接调校)"
-
-            return True, f"游戏 '{game.name}' 修补成功！\n使用模式: {backend_str}\n{callout}{reshade_notice}"
+            return True, f"游戏 '{game.name}' 修补成功！\n使用模式: {display_mode}\n{callout}"
 
         except Exception as e:
             # Atomic rollback on exception
@@ -351,7 +325,7 @@ class PatchEngine:
         If game imports VERSION.dll, version.dll is prioritized.
         """
         imported: List[str] = []
-        if not exe_path or not os.path.exists(exe_path):
+        if not exe_path or not os.path.exists(exe_path) or os.path.getsize(exe_path) < 1024:
             return imported
         try:
             import pefile
@@ -471,12 +445,8 @@ class PatchEngine:
                 pass
 
         td = Path(target_dir)
-        if (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
-            return BackendType.DLSSG_SM86.value
-        if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
+        if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists() or (td / "libxess_fg.dll").exists():
             return BackendType.OPTISCALER_FSR.value
-        if (td / "renodx-mfgunlock.addon64").exists():
-            return BackendType.RESHADE_ADDON.value
         if (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists() or (td / "bink2w64Hooked.dll").exists():
             return BackendType.STANDALONE.value
         for p in ["version.dll", "winmm.dll", "dinput8.dll"]:
@@ -549,11 +519,10 @@ class PatchEngine:
                 try:
                     if os.path.exists(dxgi_path) and not self._is_optiscaler_dll(dxgi_path):
                         bak = os.path.join(target_dir, "dxgi.dll.bak")
-                        safe_force_remove(bak)
                         try:
+                            safe_force_remove(bak)
                             os.rename(dxgi_path, bak)
                         except Exception:
-                            pass
                             pass
                     shutil.copy2(reshade_dll, dxgi_path)
                     healed = True
@@ -571,8 +540,8 @@ class PatchEngine:
             pass
 
         if healed:
-            return True, "已自动补全并修复 ReShade64 底座与配置"
-        return False, "无需修复或修复未执行"
+            return True, "自动全量修复 ReShade64 底座与配置完成"
+        return False, "底座与配置正常无需修复" 
 
     def _apply_reshade_addon_patch(self, game: GameInfo, manifest: PatchManifest) -> Tuple[bool, str]:
         """

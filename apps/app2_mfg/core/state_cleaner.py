@@ -218,6 +218,19 @@ def is_mode_c_present(target_dir: Union[str, Path]) -> bool:
 
 
 
+    # Purge legacy backend from manifest if present
+    manifest_p = td / ".mfg_patch_manifest.json"
+    if manifest_p.exists():
+        try:
+            import json
+            with open(manifest_p, "r", encoding="utf-8") as mf:
+                mdata = json.load(mf)
+            if mdata.get("active_backend") in ("mavismmg", "dlssg_sm86"):
+                safe_remove_file(manifest_p)
+                actions_taken.append("清理并重置旧版遗留后端配置 (.mfg_patch_manifest.json)")
+        except Exception:
+            pass
+
 def is_dlssg_sm86_present(target_dir: Union[str, Path]) -> bool:
 
     """Check if DLSSG-SM86 is installed in target directory."""
@@ -538,11 +551,8 @@ def CleanGameDirectoryState(
     # (C) renodx-mfgunlock.addon64: ONLY exists in Mode B!
 
     renodx_addon = td / "renodx-mfgunlock.addon64"
-
     if renodx_addon.exists() and mode != "B":
-
         safe_remove_file(renodx_addon)
-
         actions_taken.append("清理非模式 B 的 renodx-mfgunlock.addon64")
 
 
@@ -591,7 +601,7 @@ def CleanGameDirectoryState(
 
                     actions_taken.append("清理 dxgi.dll (非 ReShade 代理)，为模式 B 让出槽位")
 
-            elif mode == "C":
+            elif mode in ("B", "C"):
 
                 if target_proxy_norm and target_proxy_norm != "dxgi.dll":
 
@@ -745,7 +755,7 @@ def CleanGameDirectoryState(
 
     ]
 
-    if mode != "C":
+    if mode not in ("B", "C"):
         imported_pe_dlls = get_game_statically_imported_dlls(td)
         has_ffx_loader = (td / "amd_fidelityfx_loader_dx12.dll").exists()
         for cfg in mode_c_configs:
@@ -785,23 +795,14 @@ def CleanGameDirectoryState(
     dlssg_sm86_ini = td / "dlssg_sm86.ini"
 
     if mode != "D":
-
         if dlssg_sm86_ini.exists():
-
             safe_remove_file(dlssg_sm86_ini)
-
             actions_taken.append("清理非模式 D 配置文件: dlssg_sm86.ini")
-
         if dlssg_sm86_dir.exists() and dlssg_sm86_dir.is_dir():
-
             try:
-
                 shutil.rmtree(dlssg_sm86_dir, ignore_errors=True)
-
                 actions_taken.append("清理非模式 D dlssg_sm86 目录")
-
             except Exception:
-
                 pass
 
     # (F) DLSS 5 Addon & Runtime Protection / Removal:

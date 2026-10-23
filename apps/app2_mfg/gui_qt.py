@@ -230,10 +230,8 @@ class ModernTranslationGuideDialog(QDialog):
 
         # Tabs are ordered A -> B -> C so the guide always reads in the same order as the
         # rest of the toolbox (no more C/B/A zig-zag).
-        self.tabs.addTab(self._create_standalone_tab(is_dark), "📦 模式 A · dashdogy 独立代理 (Backspace)")
-        self.tabs.addTab(self._create_reshade_tab(is_dark), "🎨 模式 B · RenoDX ReShade 插件 (Home)")
-        self.tabs.addTab(self._create_optiscaler_tab(is_dark), "🚀 模式 C · OptiScaler 跨卡转译 (Insert)")
-        self.tabs.addTab(self._create_dlssg_sm86_tab(is_dark), "⚡ 模式 D · DLSSG-SM86 原生插帧 (20/30系)")
+        self.tabs.addTab(self._create_standalone_tab(is_dark), "🚀 模式 A · dashdogy 原生多帧解锁器 (Backspace)")
+        self.tabs.addTab(self._create_optiscaler_tab(is_dark), "⚡ 模式 B · OptiScaler 跨架构转译 (Insert)")
 
         self.tabs.setCurrentIndex(initial_tab)
         card_layout.addWidget(self.tabs, 1)
@@ -279,10 +277,10 @@ class ModernTranslationGuideDialog(QDialog):
         badge_blue = '<span style="background-color: #2F8F5B; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Insert】键</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #3E9E69; margin-top: 0;">🚀 模式 C · OptiScaler 跨卡转译（Insert）</h3>
+            <h3 style="color: #3E9E69; margin-top: 0;">⚡ 模式 B · OptiScaler 跨卡转译（Insert）</h3>
             <p><b>适用显卡</b>：全架构通用 —— NVIDIA RTX 20/30/40/50 系列、GTX 系列、AMD Radeon、Intel Arc。</p>
             <p><b>核心使用方法</b>：修补完成后进入游戏，在游戏的<b>【画质 / 图像设置】</b>中直接开启原本被禁用的<b>【DLSS 帧生成 (Frame Generation)】</b>开关。OptiScaler 会在底层接管并转译为 <b>Intel XeFG</b>（默认，2X）或 <b>AMD FSR 3.1 FG</b> 运行，游戏帧率即刻翻倍。</p>
-            <p><b>游戏内控制台呼出快捷键</b>：进入游戏随时按下键盘 {badge_blue}，即可呼出或隐藏悬浮控制台。若觉得 4K 下菜单过小，请在【模式 C 预设面板 → 游戏内菜单界面大小】选择 <code>2.0x</code>。</p>
+            <p><b>游戏内控制台呼出快捷键</b>：进入游戏随时按下键盘 {badge_blue}，即可呼出或隐藏悬浮控制台。若觉得 4K 下菜单过小，请在【模式 B 预设面板 → 游戏内菜单界面大小】选择 <code>2.0x</code>。</p>
             <hr style="border: 0; border-top: 1px solid {td_border}; margin: 12px 0;">
             <h4 style="color: #8FE3B0; margin: 8px 0;">📋 游戏内悬浮菜单中英文对照表（逐项中文释义）</h4>
             <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; border-color: {td_border}; font-size: 12px;">
@@ -319,7 +317,7 @@ class ModernTranslationGuideDialog(QDialog):
                 <tr>
                     <td><b>Menu Scale</b></td>
                     <td>菜单界面缩放</td>
-                    <td>4K (3840×2160) 建议 <code>2.0</code>，2K 建议 <code>1.5</code>。可直接在工具箱【模式 C 预设面板 → 游戏内菜单界面大小】设置，自动写入 <code>[Menu] Scale</code>，无需手改 INI。</td>
+                    <td>4K (3840×2160) 建议 <code>2.0</code>，2K 建议 <code>1.5</code>。可直接在工具箱【模式 B 预设面板 → 游戏内菜单界面大小】设置，自动写入 <code>[Menu] Scale</code>，无需手改 INI。</td>
                 </tr>
                 <tr>
                     <td><b>Save Settings (底部)</b></td>
@@ -833,12 +831,8 @@ class OptiScalerPresetDialog(QDialog):
                     raw_mode = "A"
 
         mode_upper = str(raw_mode or "A").upper().strip()
-        if "B" in mode_upper or "RESHADE" in mode_upper or "MAVIS" in mode_upper:
+        if "C" in mode_upper or "OPTISCALER" in mode_upper or "XESS" in mode_upper or "FSR" in mode_upper or "D" in mode_upper or "DLSSG" in mode_upper:
             target_idx = 1
-        elif "C" in mode_upper or "OPTISCALER" in mode_upper or "XESS" in mode_upper or "FSR" in mode_upper:
-            target_idx = 2
-        elif "D" in mode_upper or "DLSSG" in mode_upper or "SM86" in mode_upper:
-            target_idx = 3
         else:
             target_idx = 0
 
@@ -1013,26 +1007,20 @@ class OptiScalerPresetDialog(QDialog):
         self.tab_button_group = self.btn_group
         self.btn_group.setExclusive(True)
 
-        text_a = "📦 模式 A: dashdogy 独立代理"
-        text_b = "🎨 模式 B: RenoDX 插件优化"
-        text_c = "🚀 模式 C: OptiScaler 跨卡转译"
-        text_d = "⚡ 模式 D: DLSSG-SM86 原生插帧"
+        text_a = "🚀 模式 A: dashdogy 原生多帧解锁器 (Universal · RTX 20/30/40/50 全系)"
+        text_b = "⚡ 模式 B: OptiScaler 跨卡转译 (Intel XeSS 2.0 / FSR 3.1 · 全显卡)"
 
         self.tab_btn_a = QPushButton(text_a)
-        self.tab_btn_b = QPushButton(text_b)
-        self.tab_btn_c = QPushButton(text_c)
-        self.tab_btn_d = QPushButton(text_d)
+        self.tab_btn_c = QPushButton(text_b)
 
         tooltips = [
-            "模式 A: dashdogy 独立代理 (MFG-Unlocker 多倍插帧)",
-            "模式 B: RenoDX 插件优化 (高品质光流/HDR)",
-            "模式 C: OptiScaler 跨卡转译 (Intel XeSS 2.0 / FSR 3.1 / DLSS)",
-            "模式 D: DLSSG-SM86 (RTX 20/30系 原生 DLSS-G 多倍插帧 + INT8 超分)"
+            "模式 A: dashdogy 原生多帧解锁器 (Universal MFG-Unlocker · RTX 20/30/40/50 全系通用 · Backspace 菜单)",
+            "模式 B: OptiScaler 跨架构转译 (Intel XeSS 2.0 / FSR 3.1 / 全显卡多倍插帧 · Insert 菜单)"
         ]
-        if 0 <= self.initial_tab_index < 4:
+        if 0 <= self.initial_tab_index < 2:
             tooltips[self.initial_tab_index] += " · 当前正在使用该模式"
 
-        self.tab_buttons = [self.tab_btn_a, self.tab_btn_b, self.tab_btn_c, self.tab_btn_d]
+        self.tab_buttons = [self.tab_btn_a, self.tab_btn_c]
 
         tab_font = QFont("Microsoft YaHei UI")
         tab_font.setPixelSize(13)
@@ -1069,17 +1057,9 @@ class OptiScalerPresetDialog(QDialog):
         tab_mode_a = self._build_mode_a_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_a, is_dark))
 
-        # Add Tab 1: Mode B
-        tab_mode_b = self._build_mode_b_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
-        self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_b, is_dark))
-
-        # Add Tab 2: Mode C (OptiScaler)
+        # Add Tab 1: Mode C (OptiScaler)
         tab_mode_c = self._build_mode_c_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_c, is_dark))
-
-        # Add Tab 3: Mode D (DLSSG-SM86)
-        tab_mode_d = self._build_mode_d_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
-        self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_d, is_dark))
 
         card_layout.addWidget(self.stacked_widget, 1)
 
@@ -2108,29 +2088,30 @@ class OptiScalerPresetDialog(QDialog):
 
         self.chk_a_bink.setChecked(bool(self.preset_a.get("bink_hook", True)))
 
-        # 1. Mode B
-        b_mult = int(self.preset_b.get("force_multiplier", 3))
-        idx_bm = self.combo_b_mult.findData(b_mult)
-        if idx_bm >= 0:
-            self.combo_b_mult.setCurrentIndex(idx_bm)
+        # 1. Mode B (Guarded if UI exists)
+        if hasattr(self, "combo_b_mult"):
+            b_mult = int(self.preset_b.get("force_multiplier", 3))
+            idx_bm = self.combo_b_mult.findData(b_mult)
+            if idx_bm >= 0:
+                self.combo_b_mult.setCurrentIndex(idx_bm)
 
-        b_preset = str(self.preset_b.get("dlss_preset", "K"))
-        if str(b_preset).strip() in ("0", "", "none", "None"):
-            b_preset = "K"
-        idx_bp = self.combo_b_preset.findData(b_preset)
-        if idx_bp >= 0:
-            self.combo_b_preset.setCurrentIndex(idx_bp)
-        else:
-            idx_k = self.combo_b_preset.findData("K")
-            self.combo_b_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
+            b_preset = str(self.preset_b.get("dlss_preset", "K"))
+            if str(b_preset).strip() in ("0", "", "none", "None"):
+                b_preset = "K"
+            idx_bp = self.combo_b_preset.findData(b_preset)
+            if idx_bp >= 0:
+                self.combo_b_preset.setCurrentIndex(idx_bp)
+            else:
+                idx_k = self.combo_b_preset.findData("K")
+                self.combo_b_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
 
-        self.chk_b_blackwell.setChecked(bool(self.preset_b.get("blackwell_kernels", 1)))
-        self.chk_b_isr.setChecked(bool(self.preset_b.get("thin_geometry_isr", 1)))
-        self.chk_b_vwb.setChecked(bool(self.preset_b.get("thin_geometry_vwb", 1)))
-        self.chk_b_bam.setChecked(bool(self.preset_b.get("thin_geometry_bam", 1)))
-        self.chk_b_hdr.setChecked(bool(self.preset_b.get("hdr_ui_recomposition", 1)))
-        self.chk_b_dynamic.setChecked(bool(self.preset_b.get("dynamic_mfg", 0)))
-        self.chk_b_temporal.setChecked(bool(self.preset_b.get("temporal_fix", 1)))
+            self.chk_b_blackwell.setChecked(bool(self.preset_b.get("blackwell_kernels", 1)))
+            self.chk_b_isr.setChecked(bool(self.preset_b.get("thin_geometry_isr", 1)))
+            self.chk_b_vwb.setChecked(bool(self.preset_b.get("thin_geometry_vwb", 1)))
+            self.chk_b_bam.setChecked(bool(self.preset_b.get("thin_geometry_bam", 1)))
+            self.chk_b_hdr.setChecked(bool(self.preset_b.get("hdr_ui_recomposition", 1)))
+            self.chk_b_dynamic.setChecked(bool(self.preset_b.get("dynamic_mfg", 0)))
+            self.chk_b_temporal.setChecked(bool(self.preset_b.get("temporal_fix", 1)))
 
         # 2. Mode C
         fg_out = self.preset_c.get("fg_output", "xefg")
@@ -2200,40 +2181,41 @@ class OptiScalerPresetDialog(QDialog):
             if disk_d:
                 self.preset_d.update(disk_d)
 
-        max_f = int(self.preset_d.get("max_generated_frames", 2))
-        idx_d_mult = self.combo_d_mult.findData(max_f)
-        if idx_d_mult >= 0:
-            self.combo_d_mult.setCurrentIndex(idx_d_mult)
+        if hasattr(self, "combo_d_mult"):
+            max_f = int(self.preset_d.get("max_generated_frames", 2))
+            idx_d_mult = self.combo_d_mult.findData(max_f)
+            if idx_d_mult >= 0:
+                self.combo_d_mult.setCurrentIndex(idx_d_mult)
 
-        opt = int(self.preset_d.get("optimized", 2))
-        idx_d_opt = self.combo_d_opt.findData(opt)
-        if idx_d_opt >= 0:
-            self.combo_d_opt.setCurrentIndex(idx_d_opt)
+            opt = int(self.preset_d.get("optimized", 2))
+            idx_d_opt = self.combo_d_opt.findData(opt)
+            if idx_d_opt >= 0:
+                self.combo_d_opt.setCurrentIndex(idx_d_opt)
 
-        preset_str = str(self.preset_d.get("dlssg_preset", "Auto"))
-        idx_d_preset = self.combo_d_preset.findData(preset_str)
-        if idx_d_preset >= 0:
-            self.combo_d_preset.setCurrentIndex(idx_d_preset)
+            preset_str = str(self.preset_d.get("dlssg_preset", "Auto"))
+            idx_d_preset = self.combo_d_preset.findData(preset_str)
+            if idx_d_preset >= 0:
+                self.combo_d_preset.setCurrentIndex(idx_d_preset)
 
-        eng_str = str(self.preset_d.get("engine", "DLSS"))
-        idx_d_eng = self.combo_d_engine.findData(eng_str)
-        if idx_d_eng >= 0:
-            self.combo_d_engine.setCurrentIndex(idx_d_eng)
+            eng_str = str(self.preset_d.get("engine", "DLSS"))
+            idx_d_eng = self.combo_d_engine.findData(eng_str)
+            if idx_d_eng >= 0:
+                self.combo_d_engine.setCurrentIndex(idx_d_eng)
 
-        sr_str = str(self.preset_d.get("super_resolution_mode", "On"))
-        idx_d_sr = self.combo_d_sr.findData(sr_str)
-        if idx_d_sr >= 0:
-            self.combo_d_sr.setCurrentIndex(idx_d_sr)
+            sr_str = str(self.preset_d.get("super_resolution_mode", "On"))
+            idx_d_sr = self.combo_d_sr.findData(sr_str)
+            if idx_d_sr >= 0:
+                self.combo_d_sr.setCurrentIndex(idx_d_sr)
 
-        proxy_str = str(self.preset_d.get("proxy_dll", "version.dll")).lower()
-        idx_d_proxy = self.combo_d_proxy.findData(proxy_str)
-        if idx_d_proxy >= 0:
-            self.combo_d_proxy.setCurrentIndex(idx_d_proxy)
+            proxy_str = str(self.preset_d.get("proxy_dll", "version.dll")).lower()
+            idx_d_proxy = self.combo_d_proxy.findData(proxy_str)
+            if idx_d_proxy >= 0:
+                self.combo_d_proxy.setCurrentIndex(idx_d_proxy)
 
-        log_lvl = int(self.preset_d.get("logging_level", 1))
-        idx_d_log = self.combo_d_log.findData(log_lvl)
-        if idx_d_log >= 0:
-            self.combo_d_log.setCurrentIndex(idx_d_log)
+            log_lvl = int(self.preset_d.get("logging_level", 1))
+            idx_d_log = self.combo_d_log.findData(log_lvl)
+            if idx_d_log >= 0:
+                self.combo_d_log.setCurrentIndex(idx_d_log)
 
     def _on_fg_out_changed(self):
         cur_out = self.combo_fg_out.currentData()
@@ -2289,41 +2271,44 @@ class OptiScalerPresetDialog(QDialog):
 
     def _save_and_accept(self):
         # 0. Update Mode A dictionary & save to persistent storage
-        self.preset_a["multiplier"] = self.combo_a_mult.currentData()
-        self.preset_a["dlss_preset"] = self.combo_a_preset.currentData()
-        self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
-        self.preset_a["menu_key"] = self.combo_a_key.currentData()
-        self.preset_a["bink_hook"] = self.chk_a_bink.isChecked()
-        save_mode_a_preset(self.preset_a)
+        if hasattr(self, "combo_a_mult"):
+            self.preset_a["multiplier"] = self.combo_a_mult.currentData()
+            self.preset_a["dlss_preset"] = self.combo_a_preset.currentData()
+            self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
+            self.preset_a["menu_key"] = self.combo_a_key.currentData()
+            self.preset_a["bink_hook"] = self.chk_a_bink.isChecked()
+            save_mode_a_preset(self.preset_a)
 
-        # 1. Update Mode B dictionary & save to persistent storage
-        self.preset_b["force_multiplier"] = self.combo_b_mult.currentData()
-        self.preset_b["dlss_preset"] = self.combo_b_preset.currentData()
-        self.preset_b["blackwell_kernels"] = 1 if self.chk_b_blackwell.isChecked() else 0
-        self.preset_b["thin_geometry_isr"] = 1 if self.chk_b_isr.isChecked() else 0
-        self.preset_b["thin_geometry_vwb"] = 1 if self.chk_b_vwb.isChecked() else 0
-        self.preset_b["thin_geometry_bam"] = 1 if self.chk_b_bam.isChecked() else 0
-        self.preset_b["hdr_ui_recomposition"] = 1 if self.chk_b_hdr.isChecked() else 0
-        self.preset_b["dynamic_mfg"] = 1 if self.chk_b_dynamic.isChecked() else 0
-        self.preset_b["temporal_fix"] = 1 if self.chk_b_temporal.isChecked() else 0
-        save_reshade_preset(self.preset_b)
+        # 1. Update Mode B dictionary if UI exists
+        if hasattr(self, "combo_b_mult"):
+            self.preset_b["force_multiplier"] = self.combo_b_mult.currentData()
+            self.preset_b["dlss_preset"] = self.combo_b_preset.currentData()
+            self.preset_b["blackwell_kernels"] = 1 if self.chk_b_blackwell.isChecked() else 0
+            self.preset_b["thin_geometry_isr"] = 1 if self.chk_b_isr.isChecked() else 0
+            self.preset_b["thin_geometry_vwb"] = 1 if self.chk_b_vwb.isChecked() else 0
+            self.preset_b["thin_geometry_bam"] = 1 if self.chk_b_bam.isChecked() else 0
+            self.preset_b["hdr_ui_recomposition"] = 1 if self.chk_b_hdr.isChecked() else 0
+            self.preset_b["dynamic_mfg"] = 1 if self.chk_b_dynamic.isChecked() else 0
+            self.preset_b["temporal_fix"] = 1 if self.chk_b_temporal.isChecked() else 0
+            save_reshade_preset(self.preset_b)
 
         # 2. Update Mode C dictionary & save to persistent storage
-        self.preset_c["fg_output"] = self.combo_fg_out.currentData()
-        self.preset_c["interpolation_count"] = self.combo_mult.currentData()
-        self.preset_c["fg_input"] = self.combo_fg_in.currentData()
-        self.preset_c["dx12_upscaler"] = self.combo_upscaler.currentData()
-        self.preset_c["user_customized_upscaler"] = (self.combo_upscaler.currentData() != "auto")
-        self.preset_c["dlss_preset"] = self.combo_c_preset.currentData()
-        self.preset_c["menu_key"] = self.combo_c_key.currentData()
-        self.preset_c["menu_scale"] = float(self.combo_menu_scale.currentData())
-        self.preset_c["rcas_enabled"] = self.chk_rcas.isChecked()
-        self.preset_c["rcas_sharpness"] = round(self.slider_sharp.value() / 100.0, 2)
-        if hasattr(self, "chk_c_unlock_mfg"):
-            self.preset_c["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
-        save_optiscaler_preset(self.preset_c)
+        if hasattr(self, "combo_fg_out"):
+            self.preset_c["fg_output"] = self.combo_fg_out.currentData()
+            self.preset_c["interpolation_count"] = self.combo_mult.currentData()
+            self.preset_c["fg_input"] = self.combo_fg_in.currentData()
+            self.preset_c["dx12_upscaler"] = self.combo_upscaler.currentData()
+            self.preset_c["user_customized_upscaler"] = (self.combo_upscaler.currentData() != "auto")
+            self.preset_c["dlss_preset"] = self.combo_c_preset.currentData()
+            self.preset_c["menu_key"] = self.combo_c_key.currentData()
+            self.preset_c["menu_scale"] = float(self.combo_menu_scale.currentData())
+            self.preset_c["rcas_enabled"] = self.chk_rcas.isChecked()
+            self.preset_c["rcas_sharpness"] = round(self.slider_sharp.value() / 100.0, 2)
+            if hasattr(self, "chk_c_unlock_mfg"):
+                self.preset_c["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
+            save_optiscaler_preset(self.preset_c)
 
-        # 3. Update Mode D dictionary & save to persistent storage
+        # 3. Update Mode D dictionary if UI exists
         if hasattr(self, "combo_d_mult"):
             self.preset_d["max_generated_frames"] = self.combo_d_mult.currentData()
             self.preset_d["optimized"] = self.combo_d_opt.currentData()
@@ -2337,10 +2322,7 @@ class OptiScalerPresetDialog(QDialog):
         # 4. Forward synchronization to target game directory
         if self.game and self.game.target_dir:
             IniConfigManager.sync_mode_a_forward(self.game.target_dir, self.preset_a)
-            IniConfigManager.sync_mode_b_forward(self.game.target_dir, self.preset_b)
             IniConfigManager.sync_mode_c_forward(self.game.target_dir, self.preset_c, exe_name=self.game.exe_name)
-            if hasattr(self, "preset_d"):
-                IniConfigManager.sync_mode_d_forward(self.game.target_dir, self.preset_d, exe_name=self.game.exe_name)
 
         self.accept()
 
@@ -3545,21 +3527,19 @@ class ModernMFGGUI(QMainWindow):
         grid.addWidget(card1, 0, 0)
 
         # Card 2: 插帧引擎模式
-        card2 = self._create_card("⚙️", "#F5F5F5", "#7e22ce", "插帧引擎后端定制", "dashdogy (独立) / mavismmg (ReShade) / OptiScaler (FSR 3.1 跨卡)")
+        card2 = self._create_card("⚙️", "#F5F5F5", "#7e22ce", "插帧引擎后端定制", "dashdogy 原生多帧解锁器 (模式 A) / OptiScaler 跨架构转译 (模式 B)")
         c2 = card2.layout()
         self.combo_backend = QComboBox()
         self.combo_backend.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.combo_backend.setMinimumContentsLength(8)
         self.combo_backend.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-        self.combo_backend.addItem("🤖 智能推荐 (架构与环境自适应)", BackendType.SMART_AUTO)
-        self.combo_backend.addItem("📦 模式 A: 独立代理 (version/winmm)", BackendType.STANDALONE)
-        self.combo_backend.addItem("🎨 模式 B: ReShade 插件 (renodx-mfgunlock)", BackendType.RESHADE_ADDON)
-        self.combo_backend.addItem("🚀 模式 C: OptiScaler / XeSS 2.0 / FSR 3.1 (全显卡 2X~4X 多倍插帧)", BackendType.OPTISCALER_FSR)
-        self.combo_backend.addItem("⚡ 模式 D: DLSSG-SM86 原生插帧 (RTX 20/30系 SM86/SM75 专用 · 原生 DLSS-G 2X~6X + INT8 超分)", BackendType.DLSSG_SM86)
+        self.combo_backend.addItem("🤖 智能优选 (架构与环境自适应)", BackendType.SMART_AUTO)
+        self.combo_backend.addItem("🚀 模式 A: dashdogy 原生多帧解锁器 (Universal · RTX 20/30/40/50 全系)", BackendType.STANDALONE)
+        self.combo_backend.addItem("⚡ 模式 B: OptiScaler 跨卡帧生成 (XeSS 2.0 / FSR 3.1 · 全显卡跨架构)", BackendType.OPTISCALER_FSR)
         self.combo_backend.currentIndexChanged.connect(self._on_backend_dropdown_changed)
         c2.addWidget(self.combo_backend)
 
-        self.lbl_backend_desc = QLabel("推荐机制: 目标目录存在 ReShade 则优先 Addon，否则使用独立代理")
+        self.lbl_backend_desc = QLabel("推荐机制: RTX 20/30/40/50 默认选用模式 A 原生解锁；非 NVIDIA 显卡或跨架构转译需求选用模式 B")
         self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #64748b; line-height: 1.3;")
         self.lbl_backend_desc.setWordWrap(True)
         c2.addWidget(self.lbl_backend_desc)
@@ -3919,57 +3899,41 @@ class ModernMFGGUI(QMainWindow):
         layout.setContentsMargins(28, 20, 28, 20)
         layout.setSpacing(16)
 
-        title = QLabel("插帧双引擎深度定制与高级参数")
+        title = QLabel("插帧双引擎深度定制与高级参数 (模式 A · dashdogy & 模式 B · OptiScaler)")
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
-        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 代理参数", "适用于 RTX 40 & RTX 30 系列，支持 Preset C 及 XeSS 插帧")
+        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 原生多帧解锁器", "Universal 全架构通用版，原生支持 RTX 20/30/40/50 全系列显卡")
         cs_layout = card_standalone.layout()
-        cs_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (优先级: version.dll > winmm.dll > dinput8.dll)"))
-        cs_layout.addWidget(QLabel("• 交互菜单: 游戏内默认按 【Backspace】 呼出 ImGui 菜单"))
+        cs_layout.addWidget(QLabel("• 适用硬件: 全面支持 RTX 20、30、40、50 系列显卡，无架构黑名单锁死"))
+        cs_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (智能选取: winmm.dll > version.dll > dinput8.dll)"))
+        cs_layout.addWidget(QLabel("• 交互菜单: 游戏内按 【Backspace】（退格键）呼出 ImGui 菜单，支持免重启切换 DLSS 预设"))
+        cs_layout.addWidget(QLabel("• 多倍率支持: 支持 2X / 3X / 4X / 6X 以及 Dynamic MFG 动态插帧"))
         cs_layout.addWidget(QLabel("• Bink 链式劫持: 将原有 bink2w64.dll 重命名为 bink2w64Hooked.dll，防反篡改屏蔽"))
+
+        btn_page2_a_preset = QPushButton("⚙️ 打开模式 A / dashdogy 中文预设与倍率参数面板 →")
+        btn_page2_a_preset.setProperty("class", "card-action-btn")
+        btn_page2_a_preset.setStyleSheet("color: #26784C; font-weight: bold; font-size: 13px; margin-top: 6px;")
+        btn_page2_a_preset.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_page2_a_preset.clicked.connect(lambda: self.on_open_preset_config_dialog(initial_mode="A"))
+        cs_layout.addWidget(btn_page2_a_preset)
         layout.addWidget(card_standalone)
 
-        card_addon = self._create_card("B", "#F5F5F5", "#7e22ce", "模式 B: mavismmg/MFGAdaUnlock-RenoDx 插件参数", "依赖 ReShade with Addon Support，集成 Blackwell 内核与抗伪影技术")
-        ca_layout = card_addon.layout()
-        ca_layout.addWidget(QLabel("• 注入方式: ReShade.ini [ADDON] LoadFromDllMain 极早加载"))
-        ca_layout.addWidget(QLabel("• 交互菜单: 游戏内按 【Home】 键在 ReShade 面板中调校"))
-        ca_layout.addWidget(QLabel("• 专属黑科技: 薄几何体插值优化 (ISR & VWB)、边缘抗伪影 (BAM)、HDR UI 防撕裂"))
-        layout.addWidget(card_addon)
-
-        card_optiscaler = self._create_card("C", "#ffedd5", "#c2410c", "模式 C: OptiScaler / XeSS 2.0 / FSR 3.1 跨架构转译 (全显卡 2X~4X 多倍插帧)", "专为非 40 系显卡及 40 系尝鲜设计，将原生 DLSS 3 转译为 XeFG / FSR 3.1 帧生成")
+        card_optiscaler = self._create_card("C", "#ffedd5", "#c2410c", "模式 B: OptiScaler / XeSS 2.0 / FSR 3.1 跨架构转译 (全显卡插帧)", "跨显卡转译方案，将原生 DLSS 3 转译为 Intel XeFG 或 AMD FSR 3.1 帧生成")
         co_layout = card_optiscaler.layout()
-        co_layout.addWidget(QLabel("• 核心原理: fakenvapi 伪装开启游戏内 DLSS 3 帧生成开关，按预设桥接至 Intel XeFG 或 AMD FSR 3.1 算力管线"))
+        co_layout.addWidget(QLabel("• 核心原理: 将游戏内 DLSS 3 帧生成开关桥接至 Intel XeFG 或 AMD FSR 3.1 算力管线"))
         co_layout.addWidget(QLabel("• 多倍率支持: 原生支持 Intel XeSS 2.0 官方插帧 (2X/3X/4X) 与 FSR 3.1 (2X) 双重内核自由切换"))
-        co_layout.addWidget(QLabel("• 多倍率上限说明: XeFG 原生只给 2X，工具箱通过 dashdogy MFGUnlocker.asi 顶开上限，可解锁 3X/4X；若启动阶段与 DLSS 5 冲突，可在预设面板关闭多帧解锁退回 2X"))
-        co_layout.addWidget(QLabel("• 20/30 系说明: XeFG 不挑显卡（NVIDIA / AMD 均可），但需要游戏内 DLSS-G 作为插帧输入；20/30 系要靠 fakenvapi 伪装出 DLSS-G 开关，与 DLSS 5 的 NVAPI 查询冲突，建议单独使用模式 C 或改用模式 D"))
-        co_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (独立运行时优先 dxgi.dll > version.dll > winmm.dll；与 DLSS 5 共存时自动让出 dxgi.dll 给 ReShade 底座，插帧代理迁移至 version/winmm)"))
-        co_layout.addWidget(QLabel("• 免调参防闪退: 工具箱全自动托管参数，共存态下自动关闭开屏横幅与 FPS 叠加、保留 XeFG 必需的渲染钩子与 DLSS 直通，进游戏开启【DLSS 帧生成】即直接生效"))
-        co_layout.addWidget(QLabel("• XeFG 预检查豁免: 已自动勾选 Ignore Init Checks（Dilated MV / 独占全屏 / HDR10 游戏必需），否则游戏内 XeFG 会灰显 OFF 并提示 Requires disabling dilated motion vectors"))
+        co_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (独立运行优先 dxgi.dll；共存态自动迁移至 winmm/version 避让 DLSS 5)"))
+        co_layout.addWidget(QLabel("• 交互菜单: 游戏内默认按 【Insert】 键呼出 OptiScaler 菜单"))
+        co_layout.addWidget(QLabel("• 免调参防闪退: 工具箱全自动托管参数，共存态下自动关闭双重 ImGui 与 Present 冲突"))
 
-        btn_page2_preset = QPushButton("⚙️ 打开模式 C / OptiScaler 中文预设与倍率参数面板 →")
+        btn_page2_preset = QPushButton("⚙️ 打开模式 B / OptiScaler 中文预设与倍率参数面板 →")
         btn_page2_preset.setProperty("class", "card-action-btn")
         btn_page2_preset.setStyleSheet("color: #c2410c; font-weight: bold; font-size: 13px; margin-top: 6px;")
         btn_page2_preset.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_page2_preset.clicked.connect(self.on_open_preset_config_dialog)
+        btn_page2_preset.clicked.connect(lambda: self.on_open_preset_config_dialog(initial_mode="C"))
         co_layout.addWidget(btn_page2_preset)
         layout.addWidget(card_optiscaler)
-
-        card_dlssg_sm86 = self._create_card("D", "#ecfdf5", "#059669", "模式 D: DLSSG-SM86 原生插帧参数 (RTX 20/30系 SM86/SM75 专用)", "无需转译 FSR3！在 RTX 20/30 系列上原生运行 NVIDIA DLSS-G 神经网络，支持最高 6X 插帧与 INT8 超分加速")
-        cd_layout = card_dlssg_sm86.layout()
-        cd_layout.addWidget(QLabel("• 原生核心: 绕过 NVIDIA 架构锁，在 Ampere (RTX 30) 与 Turing (RTX 20) 上直接运行官方 DLSS-G 310.9.16 运行库"))
-        cd_layout.addWidget(QLabel("• 多倍率支持: 原生支持 2X / 3X / 4X / 6X 多倍率插帧，内置 0~3 级优化加速内核（出厂默认档位 2）"))
-        cd_layout.addWidget(QLabel("• 独家黑科技: 预设 C (FG Lite) 降低 32-54% GPU 耗时，支持 DLSS 超分 INT8 硬件加速（性能/超级性能档位提速 5%~24%）"))
-        cd_layout.addWidget(QLabel("• 注入方式: 默认 version.dll 零外部依赖注入；若游戏不加载可无缝换用 winmm / dbghelp / dinput8 / dxgi 代理"))
-        cd_layout.addWidget(QLabel("• 多倍率前提: 模式 D 只抬高运行库上限，实际倍率由游戏请求（菜单需能选 3X/4X 或“动态”）；游戏只请求 2X 时，请改用模式 A 的强制倍率或模式 C 的 XeFG"))
-
-        btn_page2_d_preset = QPushButton("⚙️ 打开模式 D / DLSSG-SM86 原生预设与 INT8 面板 →")
-        btn_page2_d_preset.setProperty("class", "card-action-btn")
-        btn_page2_d_preset.setStyleSheet("color: #059669; font-weight: bold; font-size: 13px; margin-top: 6px;")
-        btn_page2_d_preset.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_page2_d_preset.clicked.connect(lambda: self.on_open_preset_config_dialog(initial_mode="D"))
-        cd_layout.addWidget(btn_page2_d_preset)
-        layout.addWidget(card_dlssg_sm86)
 
         layout.addStretch()
         return self._wrap_scroll(page)
@@ -4263,71 +4227,36 @@ class ModernMFGGUI(QMainWindow):
 
     def _on_backend_dropdown_changed(self, index: int = 0):
         data = self.combo_backend.currentData()
-        backend_str = data.value if hasattr(data, "value") else str(data)
-        has_reshade = bool(self.selected_game and self.selected_game.has_reshade)
+        backend_str = data.value if hasattr(data, 'value') else str(data)
 
         if backend_str in [BackendType.STANDALONE.value, "dashdogy"]:
-            self.lbl_backend_desc.setText("模式 A (dashdogy): 零外部依赖，使用 version.dll / winmm.dll 代理注入，按 Backspace 呼出菜单")
-            self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B;")
+            self.lbl_backend_desc.setText("模式 A (dashdogy): Universal 全系多帧解锁器，原生支持 RTX 20/30/40/50 全系显卡，按 Backspace 呼出菜单")
+            self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
             if hasattr(self, "lbl_rhi_desc_hint"):
-                self.lbl_rhi_desc_hint.setText("当前为模式 A (无需底座) · 可在此打开 RHI 安装画质滤镜或管理模组")
-        elif backend_str in [BackendType.RESHADE_ADDON.value, "mavismmg"]:
-            if self.selected_game and self.selected_game.target_dir:
-                v_ok, v_msg, v_stat = self.patcher.verify_mode_b_integrity(self.selected_game.target_dir)
-                if v_ok:
-                    self.lbl_backend_desc.setText("模式 B (mavismmg): 🟢 已就绪 (ReShade 框架 + 插件双就绪 · 按 Home 键呼出)")
-                    self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #16a34a; font-weight: bold;")
-                elif v_stat.get("has_addon") and not v_stat.get("has_dxgi"):
-                    self.lbl_backend_desc.setText("模式 B (mavismmg): ⚠️ 缺失 dxgi.dll 底座，点击【应用】将自动为您补齐注入！")
-                    self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #d97706; font-weight: bold;")
-                else:
-                    self.lbl_backend_desc.setText("模式 B (mavismmg): 内置完整 ReShade 6.8 框架 + RenoDX 插件，点击应用一键自动注入 (无需手动安装)")
-                    self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #7e22ce; font-weight: 600;")
-            else:
-                self.lbl_backend_desc.setText("模式 B (mavismmg): 内置完整 ReShade 6.8 框架 + RenoDX 插件，点击应用一键自动注入 (按 Home 调校)")
-                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #7e22ce; font-weight: 600;")
-
-            if hasattr(self, "lbl_rhi_desc_hint"):
-                self.lbl_rhi_desc_hint.setText("⚡ 模式 B 已内置全套框架与插件 · 可在此打开 RHI 安装其他 HDR 画面滤镜")
+                self.lbl_rhi_desc_hint.setText("当前为模式 A (原生通用解锁) · 可在此打开 RHI 安装画质滤镜或管理模组")
         elif backend_str in [BackendType.OPTISCALER_FSR.value, "optiscaler"]:
-            self.lbl_backend_desc.setText("模式 C (OptiScaler / FSR 3.1): 专为 RTX 20/30 系及全显卡设计，将 DLSS 3 转译为 FSR 3.1 帧生成，参数由工具箱全自动托管")
+            self.lbl_backend_desc.setText("模式 B (OptiScaler): 跨架构跨显卡转译内核，支持全显卡架构（N卡/A卡/Intel卡），按 Insert 呼出菜单")
             self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #ea580c; font-weight: 600;")
             if hasattr(self, "lbl_rhi_desc_hint"):
-                self.lbl_rhi_desc_hint.setText("当前为模式 C 跨卡转译 · 可使用 RHI 管理 HDR 与高级着色器生态")
-        elif backend_str in [BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
-            self.lbl_backend_desc.setText("模式 D (DLSSG-SM86): 专为 RTX 20/30 系显卡打造的原生 DLSS-G 多帧生成！出厂搭载 310.9.16 运行库与 SM86/SM75 加速内核，原生支持最高 6X 插帧与 INT8 超分加速。")
-            self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #059669; font-weight: 600;")
-            if hasattr(self, "lbl_rhi_desc_hint"):
-                self.lbl_rhi_desc_hint.setText("⚡ 模式 D 原生插帧 · 零外部依赖 · 进游戏画质设置开启【DLSS 帧生成】即刻生效")
+                self.lbl_rhi_desc_hint.setText("当前为模式 B 跨卡转译 · 可使用 RHI 管理 HDR 与高级着色器生态")
         else:
             gpu_name = get_system_gpu_name()
-            if not is_rtx_40_or_newer(gpu_name):
-                gpu_upper = gpu_name.upper()
-                if "RTX 30" in gpu_upper or "RTX 20" in gpu_upper or "SM86" in gpu_upper or "SM75" in gpu_upper or "A100" in gpu_upper:
-                    self.lbl_backend_desc.setText(f"智能推荐 (真实显卡: {gpu_name}): 检测为 RTX 20/30 系，已自动优选模式 D (DLSSG-SM86 原生多帧生成 + INT8 超分)")
-                    self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #059669; font-weight: 600;")
-                else:
-                    self.lbl_backend_desc.setText(f"智能推荐 (真实显卡: {gpu_name}): 检测为非 RTX 卡或 GTX/AMD/Intel 显卡，将自动应用模式 C (OptiScaler/FSR 3.1)")
-                    self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #ea580c;")
-                if hasattr(self, "lbl_rhi_desc_hint"):
-                    self.lbl_rhi_desc_hint.setText("智能模式推荐 C · 可点击右侧打开 RHI 模组生态助手")
+            gpu_upper = gpu_name.upper()
+            if any(k in gpu_upper for k in ["RTX", "GEFORCE RTX"]):
+                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 显卡，已自动优选模式 A (Universal 多帧解锁器)")
+                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
             else:
-                self.lbl_backend_desc.setText(f"智能推荐 (真实显卡: {gpu_name}): 发现 40/50 系显卡，将自动应用高画质模式 B (ReShade 6.8 + RenoDX 一键完整注入)")
-                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #16a34a;")
-                if hasattr(self, "lbl_rhi_desc_hint"):
-                    self.lbl_rhi_desc_hint.setText("✅ 智能模式匹配高画质模式 B · 内置完整 ReShade 框架与 RenoDX 插件")
+                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为非 RTX 卡或 AMD/Intel 显卡，已自动优选模式 B (OptiScaler 跨卡转译)")
+                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #ea580c; font-weight: 600;")
+            if hasattr(self, "lbl_rhi_desc_hint"):
+                self.lbl_rhi_desc_hint.setText("智能模式已就绪 · 可点击右侧打开 RHI 模组生态助手")
 
     def on_show_guide_click(self):
         backend = self.combo_backend.currentData()
         backend_str = backend.value if hasattr(backend, "value") else str(backend)
-        initial_tab = 0  # default: Mode A
-        if backend_str in [BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
-            initial_tab = 3
-        elif backend_str in [BackendType.OPTISCALER_FSR.value, "optiscaler"]:
-            initial_tab = 2
-        elif backend_str in [BackendType.RESHADE_ADDON.value, "mavismmg"]:
+        if backend_str in [BackendType.OPTISCALER_FSR.value, "optiscaler", BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
             initial_tab = 1
-        elif backend_str in [BackendType.STANDALONE.value, "dashdogy"]:
+        else:
             initial_tab = 0
         dlg = ModernTranslationGuideDialog(self, is_dark=self.is_dark_mode, initial_tab=initial_tab)
         dlg.exec()
@@ -4335,11 +4264,9 @@ class ModernMFGGUI(QMainWindow):
     def _update_preset_summary(self):
         try:
             summary_a = get_mode_a_preset_summary()
-            summary_b = get_reshade_preset_summary()
             summary_c = get_preset_summary()
-            summary_d = get_dlssg_sm86_preset_summary()
             if hasattr(self, "lbl_preset_summary"):
-                self.lbl_preset_summary.setText(f"📦 模式A: {summary_a} | 🎨 模式B: {summary_b}\n🚀 模式C: {summary_c} | ⚡ 模式D: {summary_d}")
+                self.lbl_preset_summary.setText(f"🚀 模式A (dashdogy): {summary_a}\n⚡ 模式B (OptiScaler): {summary_c}")
         except Exception:
             pass
 
@@ -4753,7 +4680,7 @@ class ModernMFGGUI(QMainWindow):
             ModernDialog.info(
                 self,
                 "多帧生成配置已保存并同步",
-                f"预设参数已成功更新！\n\n【模式 A (dashdogy 独立代理)】\n{get_mode_a_preset_summary()}\n\n【模式 B (RenoDX ReShade)】\n{get_reshade_preset_summary()}\n\n【模式 C (OptiScaler/XeSS)】\n{get_preset_summary()}\n\n【模式 D (DLSSG-SM86 原生插帧)】\n{get_dlssg_sm86_preset_summary()}{game_sync_note}\n\n【运行时生效说明】\n• 游戏未运行时：进游戏开启【DLSS 帧生成】即直接生效。\n• 游戏运行中修改：部分底层图形 DLL 仅在启动时读取一次 ini，若游戏内未自动刷新，可在游戏内按 Insert/Home 重载或重启游戏即可生效！",
+                f"预设参数已成功更新！\n\n【模式 A (dashdogy 原生多帧解锁器)】\n{get_mode_a_preset_summary()}\n\n【模式 B (OptiScaler 跨架构转译)】\n{get_preset_summary()}{game_sync_note}\n\n【运行时生效说明】\n• 游戏未运行时：进游戏开启【DLSS 帧生成】即直接生效。\n• 游戏运行中修改：部分底层图形 DLL 仅在启动时读取一次 ini，若游戏内未自动刷新，可在游戏内按 Backspace/Insert 重载或重启游戏即可生效！",
                 self.is_dark_mode
             )
 
@@ -4786,10 +4713,10 @@ class ModernMFGGUI(QMainWindow):
         self.lbl_cache_detailed.setText(
             f"📁 缓存存储路径: {cache_dir_display}\n"
             f"💾 缓存占用空间: {size_mb:.2f} MB （安全存放于系统 AppData，不在软件根目录）\n\n"
-            f"• dashdogy/MFG-Unlocker (Standalone): {dash_tag}\n"
-            f"• mavismmg/MFGAdaUnlock-RenoDx (Addon): {mavis_tag}\n"
-            f"• sdli1995/dlssg_for_sm86 (Native DLSS-G): {dlssg_tag}\n"
-            f"• optiscaler/OptiScaler (FSR 3.1 Bridge): {opti_tag}\n"
+            f"• 模式 A · dashdogy/MFG-Unlocker (Standalone): {dash_tag}\n"
+            f"• 模式 B · optiscaler/OptiScaler (XeSS 2.0 / FSR 3.1): {opti_tag}\n"
+            f"• ReShade 底座运行库: {mavis_tag}\n"
+            f"• 历史 DLSSG-SM86: {dlssg_tag}\n"
             f"• RankFTW/RHI 模组工具: {rhi_tag} ({rhi_str})"
         )
 
@@ -5012,7 +4939,7 @@ class ModernMFGGUI(QMainWindow):
                     prefix = "✅ " if g.qualification == QualificationStatus.QUALIFIED else (
                         "⚠️ " if g.qualification == QualificationStatus.MISSING_DLSSG else "❌ "
                     )
-                    patch_tag = f" [已修补-{g.patched_backend}]" if g.is_patched else ""
+                    patch_tag = (" [已修补-模式A]" if ("dashdogy" in str(g.patched_backend).lower() or "standalone" in str(g.patched_backend).lower()) else (" [已修补-模式B]" if "optiscaler" in str(g.patched_backend).lower() else "")) if g.is_patched else ""
                     self.combo_games.addItem(f"{prefix}{g.name} ({g.source}){patch_tag}", g)
                     if last_exe and g.exe_path.lower() == last_exe.lower():
                         target_idx = idx
@@ -5122,7 +5049,7 @@ class ModernMFGGUI(QMainWindow):
             prefix = "✅ " if g.qualification == QualificationStatus.QUALIFIED else (
                 "⚠️ " if g.qualification == QualificationStatus.MISSING_DLSSG else "❌ "
             )
-            patch_tag = f" [已修补-{g.patched_backend}]" if g.is_patched else ""
+            patch_tag = (" [已修补-模式A]" if ("dashdogy" in str(g.patched_backend).lower() or "standalone" in str(g.patched_backend).lower()) else (" [已修补-模式B]" if "optiscaler" in str(g.patched_backend).lower() else "")) if g.is_patched else ""
             self.combo_games.addItem(f"{prefix}{g.name} ({g.source}){patch_tag}", g)
             if curr_exe and g.exe_path.lower() == curr_exe.lower():
                 target_idx = idx
@@ -5326,25 +5253,38 @@ class ModernMFGGUI(QMainWindow):
             self.lbl_lock_stat.setText("运行状态: ✅ 未运行 (可安全执行修补与还原)")
             self.lbl_lock_stat.setStyleSheet("font-size: 11px; color: #16a34a;")
 
-        # Check Mode B integrity & auto-heal if needed
+        # Clean legacy Mode B (RenoDX addon) & Mode D (dlssg_sm86) if found in game directory
         if game.target_dir and os.path.exists(game.target_dir):
-            addon_f = os.path.join(game.target_dir, "renodx-mfgunlock.addon64")
-            if os.path.exists(addon_f):
-                self.patcher.auto_heal_mode_b(game.target_dir)
-                game.has_reshade = True
+            legacy_addon = os.path.join(game.target_dir, "renodx-mfgunlock.addon64")
+            if os.path.exists(legacy_addon):
+                try:
+                    os.remove(legacy_addon)
+                except Exception:
+                    pass
+            legacy_d_ini = os.path.join(game.target_dir, "dlssg_sm86.ini")
+            if os.path.exists(legacy_d_ini):
+                try:
+                    os.remove(legacy_d_ini)
+                except Exception:
+                    pass
+            legacy_d_dir = os.path.join(game.target_dir, "dlssg_sm86")
+            if os.path.exists(legacy_d_dir) and os.path.isdir(legacy_d_dir):
+                import shutil
+                shutil.rmtree(legacy_d_dir, ignore_errors=True)
 
         if game.is_patched:
-            if "mavismmg" in str(game.patched_backend).lower() or "reshade" in str(game.patched_backend).lower():
-                v_ok, v_msg, v_stat = self.patcher.verify_mode_b_integrity(game.target_dir)
-                if v_ok:
-                    self.lbl_status.setText(f"● 状态: 就绪 | 补丁状态: 【已修补】后端: {game.patched_backend} 🟢 (框架+插件双就绪)")
-                    self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 B 插帧 (ReShade 框架与 RenoDX 插件完整就绪)")
-                else:
-                    self.lbl_status.setText(f"● 状态: 就绪 | 补丁状态: 【已修补】后端: {game.patched_backend} (正在自动校准框架)")
-                    self.top_alert.setText(f"● 游戏 '{game.name}' 已激活多帧生成修补 ({game.patched_backend})")
+            b_str = str(game.patched_backend).lower()
+            if "optiscaler" in b_str:
+                self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 B (OptiScaler 跨卡转译)")
+                self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 B 跨卡帧生成 (OptiScaler 全显卡架构)")
+            elif "dashdogy" in b_str or "standalone" in b_str:
+                self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 A (dashdogy 原生通用解锁)")
+                self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 A 原生多帧解锁 (Universal RTX 全系)")
             else:
-                self.lbl_status.setText(f"● 状态: 就绪 | 补丁状态: 【已修补】后端: {game.patched_backend}")
-                self.top_alert.setText(f"● 游戏 '{game.name}' 已激活多帧生成修补 ({game.patched_backend})")
+                game.is_patched = False
+                game.patched_backend = None
+                self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 未修补 (已自动清除旧版遗留模式)")
+                self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，推荐应用模式 A (Universal 多帧解锁)")
         else:
             self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 未修补")
             self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，可随时应用修补")
@@ -5474,11 +5414,9 @@ class ModernMFGGUI(QMainWindow):
         def update_thread():
             results = []
             backends = [
-                (BackendType.STANDALONE, "Standalone (MFGUnlocker)", 0, 20),
-                (BackendType.RESHADE_ADDON, "ReShade Addon (mavismmg)", 20, 40),
-                (BackendType.DLSSG_SM86, "DLSSG-SM86 (Native DLSS-G)", 40, 60),
-                (BackendType.OPTISCALER_FSR, "OptiScaler / FSR 3.1", 60, 80),
-                (BackendType.RHI, "ReShade HDR (RHI)", 80, 100)
+                (BackendType.STANDALONE, "模式 A (dashdogy 原生通用解锁)", 0, 40),
+                (BackendType.OPTISCALER_FSR, "模式 B (OptiScaler 跨架构转译)", 40, 80),
+                (BackendType.RHI, "ReShade HDR (RHI 模组生态)", 80, 100)
             ]
             opti_channel = self.combo_opti_channel.currentData() if hasattr(self, "combo_opti_channel") else "nightly"
             for b, name, base_pct, end_pct in backends:
