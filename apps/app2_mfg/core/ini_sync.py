@@ -917,22 +917,18 @@ class IniConfigManager:
                 "DLSS5": hook_updates,
                 "DLSS5-NR": hook_updates
             }
-            # Cleanse and ensure valid LoadFromDllMain in [ADDON]
+            # Cleanse LoadFromDllMain in [ADDON]: DLSS addons must NEVER load from DllMain (violates Windows loader lock)
             existing_sections = cls.read_ini_sections(reshade_ini)
             addon_sec = existing_sections.get("ADDON", {})
             current_main = addon_sec.get("LoadFromDllMain", "")
-            valid_addons = []
+            clean_addons = []
             for item in current_main.split(","):
                 cand = item.strip()
-                if not cand or cand == "1":
+                if not cand or cand == "1" or "dlss" in cand.lower() or "shortfuse" in cand.lower():
                     continue
-                if (target / cand).exists():
-                    valid_addons.append(cand)
-            # Ensure present dlss5 addon is in LoadFromDllMain
-            for addon_file in target.glob("renodx-dlss*.addon64"):
-                if addon_file.name not in valid_addons:
-                    valid_addons.append(addon_file.name)
-            sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(valid_addons)}
+                if (target / cand).exists() and cand.lower() not in [x.lower() for x in clean_addons]:
+                    clean_addons.append(cand)
+            sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(clean_addons)}
 
             cls.write_ini_sections(reshade_ini, sections_to_update)
 
@@ -1071,7 +1067,7 @@ class IniConfigManager:
             existing_addon = existing_sections.get("ADDON", {})
             if "LoadFromDllMain" in existing_addon:
                 raw_addons = [x.strip() for x in existing_addon["LoadFromDllMain"].split(",") if x.strip()]
-                clean_addons = [x for x in raw_addons if x != "1"]
+                clean_addons = [x for x in raw_addons if x != "1" and "dlss" not in x.lower() and "shortfuse" not in x.lower()]
                 if addon_name.lower() not in [x.lower() for x in clean_addons]:
                     clean_addons.append(addon_name)
                 addon_list = clean_addons

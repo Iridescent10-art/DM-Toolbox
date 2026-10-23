@@ -761,16 +761,21 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "2") -
             "DLSS5": hook_updates,
             "DLSS5-NR": hook_updates
         }
-        # Cleanse and ensure valid LoadFromDllMain in [ADDON]
+        # Cleanse LoadFromDllMain in [ADDON]: DLSS addons must NEVER load from DllMain (violates Windows loader lock)
         try:
-            existing_sec = read_ini_file_sections(reshade_ini) if "read_ini_file_sections" in globals() else {}
-            # Ensure present dlss5 addon is in LoadFromDllMain
-            valid_addons = []
-            for addon_file in td.glob("renodx-dlss*.addon64"):
-                if addon_file.name not in valid_addons:
-                    valid_addons.append(addon_file.name)
-            if valid_addons:
-                sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(valid_addons)}
+            content = reshade_ini.read_text(encoding="utf-8", errors="ignore")
+            clean_addons = []
+            for line in content.splitlines():
+                stripped = line.strip()
+                if "=" in stripped and not stripped.startswith(";") and not stripped.startswith("#"):
+                    k, v = stripped.split("=", 1)
+                    if k.strip().lower() == "loadfromdllmain":
+                        for part in v.split(","):
+                            clean_part = part.strip()
+                            if clean_part and clean_part != "1" and "dlss" not in clean_part.lower() and "shortfuse" not in clean_part.lower():
+                                if clean_part.lower() not in [x.lower() for x in clean_addons]:
+                                    clean_addons.append(clean_part)
+            sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(clean_addons)}
         except Exception:
             pass
         update_ini_file_sections(reshade_ini, sections_to_update)
