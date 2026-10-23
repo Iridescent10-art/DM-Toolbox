@@ -903,9 +903,14 @@ class IniConfigManager:
             "NRFollowInputRes": "1",
             "NRResolutionScale": "0.500000",
             "ResolutionScale": "0.500000",
+            "NeuralUplift": "1",
             "NRVramBuffering": "2",
             "VramBuffering": "2",
             "DirectNeuralRenderingVramBuffering": "2",
+            "NRVramBudgetGuard": "0",
+            "NRVramBudgetMargin": "0",
+            "VramBudgetGuard": "0",
+            "BudgetGuard": "0",
         }
 
         # 1. Update ReShade.ini

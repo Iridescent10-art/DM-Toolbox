@@ -405,8 +405,13 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "ModelLab": "1",
         "NRLayersEnabled": "1",
         "UiCorrection": "1",
+        "NeuralUplift": "1",
         "NRVramBuffering": "2",
         "VramBuffering": "2",
+        "NRVramBudgetGuard": "0",
+        "NRVramBudgetMargin": "0",
+        "VramBudgetGuard": "0",
+        "BudgetGuard": "0",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "AlwaysPresent": "0",
@@ -457,7 +462,13 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPasses": "1",
         "NRModelLabEnabled": "1",
         "NRLayersEnabled": "1",
+        "NeuralUplift": "1",
         "NRVramBuffering": "2",
+        "VramBuffering": "2",
+        "NRVramBudgetGuard": "0",
+        "NRVramBudgetMargin": "0",
+        "VramBudgetGuard": "0",
+        "BudgetGuard": "0",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
@@ -482,7 +493,13 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
+        "NeuralUplift": "1",
         "NRVramBuffering": "2",
+        "VramBuffering": "2",
+        "NRVramBudgetGuard": "0",
+        "NRVramBudgetMargin": "0",
+        "VramBudgetGuard": "0",
+        "BudgetGuard": "0",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
         "NRGpuTimers": "0",
@@ -524,7 +541,13 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
+        "NeuralUplift": "1",
         "NRVramBuffering": "2",
+        "VramBuffering": "2",
+        "NRVramBudgetGuard": "0",
+        "NRVramBudgetMargin": "0",
+        "VramBudgetGuard": "0",
+        "BudgetGuard": "0",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
         "NRGpuTimers": "0",
@@ -562,7 +585,13 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPasses": "1",
         "NRModelLabEnabled": "1",
         "NRLayersEnabled": "1",
+        "NeuralUplift": "1",
         "NRVramBuffering": "2",
+        "VramBuffering": "2",
+        "NRVramBudgetGuard": "0",
+        "NRVramBudgetMargin": "0",
+        "VramBudgetGuard": "0",
+        "BudgetGuard": "0",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
@@ -747,9 +776,14 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -
         "DirectNeuralRenderingPresentMode": always_pres,
         "NRPresentAlways": always_pres,
         "AlwaysPresent": always_pres,
+        "NeuralUplift": "1",
         "NRVramBuffering": "2",
         "VramBuffering": "2",
         "DirectNeuralRenderingVramBuffering": "2",
+        "NRVramBudgetGuard": "0",
+        "NRVramBudgetMargin": "0",
+        "VramBudgetGuard": "0",
+        "BudgetGuard": "0",
     }
 
     # 1. Update ReShade.ini
@@ -1080,9 +1114,14 @@ class DLSS5Injector:
                     "NRPasses=1\n"
                     "NRModelLabEnabled=1\n"
                     "NRLayersEnabled=1\n"
+                    "NeuralUplift=1\n"
                     "NRVramBuffering=2\n"
                     "VramBuffering=2\n"
                     "DirectNeuralRenderingVramBuffering=2\n"
+                    "NRVramBudgetGuard=0\n"
+                    "NRVramBudgetMargin=0\n"
+                    "VramBudgetGuard=0\n"
+                    "BudgetGuard=0\n"
                     "NRPresetGuides=0\n"
                     "NRPresentAlways=0\n"
                     "AlwaysPresent=0\n"
