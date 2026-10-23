@@ -913,18 +913,26 @@ class IniConfigManager:
                 "RenoDX DLSS5 preset": hook_updates,
                 "RenoDX": hook_updates,
                 "DLSSNR": hook_updates,
-                "RenoDX-My look": hook_updates
+                "RenoDX-My look": hook_updates,
+                "DLSS5": hook_updates,
+                "DLSS5-NR": hook_updates
             }
-            # Cleanse any legacy LoadFromDllMain pollution in [ADDON]
+            # Cleanse and ensure valid LoadFromDllMain in [ADDON]
             existing_sections = cls.read_ini_sections(reshade_ini)
             addon_sec = existing_sections.get("ADDON", {})
             current_main = addon_sec.get("LoadFromDllMain", "")
-            if current_main:
-                clean_items = [
-                    x.strip() for x in current_main.split(",")
-                    if x.strip() and x.strip() != "1" and "dlss" not in x.lower() and "shortfuse" not in x.lower()
-                ]
-                sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(clean_items)}
+            valid_addons = []
+            for item in current_main.split(","):
+                cand = item.strip()
+                if not cand or cand == "1":
+                    continue
+                if (target / cand).exists():
+                    valid_addons.append(cand)
+            # Ensure present dlss5 addon is in LoadFromDllMain
+            for addon_file in target.glob("renodx-dlss*.addon64"):
+                if addon_file.name not in valid_addons:
+                    valid_addons.append(addon_file.name)
+            sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(valid_addons)}
 
             cls.write_ini_sections(reshade_ini, sections_to_update)
 

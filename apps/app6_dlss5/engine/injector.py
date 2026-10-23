@@ -747,8 +747,22 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -
             "RenoDX DLSS5 preset": hook_updates,
             "RenoDX": hook_updates,
             "DLSSNR": hook_updates,
-            "RenoDX-My look": hook_updates
+            "RenoDX-My look": hook_updates,
+            "DLSS5": hook_updates,
+            "DLSS5-NR": hook_updates
         }
+        # Cleanse and ensure valid LoadFromDllMain in [ADDON]
+        try:
+            existing_sec = read_ini_file_sections(reshade_ini) if "read_ini_file_sections" in globals() else {}
+            # Ensure present dlss5 addon is in LoadFromDllMain
+            valid_addons = []
+            for addon_file in td.glob("renodx-dlss*.addon64"):
+                if addon_file.name not in valid_addons:
+                    valid_addons.append(addon_file.name)
+            if valid_addons:
+                sections_to_update["ADDON"] = {"LoadFromDllMain": ",".join(valid_addons)}
+        except Exception:
+            pass
         update_ini_file_sections(reshade_ini, sections_to_update)
 
     # 2. Update ReShadePreset.ini
