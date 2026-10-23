@@ -558,10 +558,21 @@ def describe_mode_d_mfg_status(target_dir: Union[str, Path]) -> str:
 
 
 
+KNOWN_SYSTEM_PROXIES = {
+    "dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll", "wininet.dll",
+    "d3d11.dll", "d3d12.dll", "kernel32.dll", "user32.dll", "gdi32.dll",
+    "advapi32.dll", "shell32.dll", "ole32.dll", "oleaut32.dll", "ws2_32.dll",
+    "setupapi.dll", "shlwapi.dll", "ntdll.dll", "powrprof.dll", "hid.dll",
+    "dbghelp.dll", "dsound.dll", "winhttp.dll", "xinput9_1_0.dll", "xinput1_3.dll", "xinput1_4.dll"
+}
+
+
 def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
     """
     Inspects all game executables in target_dir to find statically imported DLL names in lowercase.
-    Prevents accidentally deleting game runtime dependencies (such as libxell.dll, libxess.dll, libxess_fg.dll).
+    Filters out Windows system DLLs (proxies and system libraries like winmm.dll, dxgi.dll, version.dll)
+    so they are not mistakenly classified as native game files.
+    Protects real native game dependencies (such as libxell.dll, libxess.dll, libxess_fg.dll, igxess.dll).
     """
     td = Path(target_dir) if target_dir else None
     imported = set()
@@ -584,7 +595,9 @@ def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
                 pe = pefile.PE(data=data, fast_load=True)
                 pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
                 for entry in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
-                    imported.add(entry.dll.decode("utf-8", errors="ignore").lower())
+                    dll_name = entry.dll.decode("utf-8", errors="ignore").lower()
+                    if dll_name not in KNOWN_SYSTEM_PROXIES:
+                        imported.add(dll_name)
             except Exception:
                 pass
     except Exception:
@@ -611,6 +624,12 @@ def auto_heal_game_dependencies(target_dir: Union[str, Path]) -> List[str]:
     for cand in xess_candidates:
         if (cand.lower() in imported or (cand == "igxess.dll" and "libxess.dll" in imported)) and not (td / cand).exists():
             needed.append(cand)
+
+    # Check for AMD FidelityFX loader dependency:
+    # Games like Witcher 3 and Cyberpunk 2077 have amd_fidelityfx_loader_dx12.dll which calls ffxQuery.
+    # Without amd_fidelityfx_upscaler_dx12.dll, REDengine dereferences a NULL pointer at 0x1cd4544 and crashes.
+    if (td / "amd_fidelityfx_loader_dx12.dll").exists() and not (td / "amd_fidelityfx_upscaler_dx12.dll").exists():
+        needed.append("amd_fidelityfx_upscaler_dx12.dll")
 
     if not needed:
         return []

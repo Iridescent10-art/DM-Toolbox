@@ -212,7 +212,11 @@ class RollbackEngine:
             "fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log",
             "OptiScaler.ini", "OptiScaler.log", "nvngx.ini", "dlssg_to_fsr3.log", "dlssg_sm86.ini"
         ]
+        td_path = Path(target_dir)
+        has_ffx_loader = (td_path / "amd_fidelityfx_loader_dx12.dll").exists()
         for f_name in mode_c_files:
+            if has_ffx_loader and f_name == "amd_fidelityfx_upscaler_dx12.dll":
+                continue
             if f_name.lower() in imported_pe_dlls:
                 continue
             fp = os.path.join(target_dir, f_name)
@@ -247,6 +251,7 @@ class RollbackEngine:
             if os.path.exists(pp) and proxy.lower() not in restored_originals:
                 if is_dashdogy_dll_file(pp) or is_optiscaler_dll_file(pp) or is_reshade_dll_file(pp):
                     safe_force_remove(pp)
+                    restored_originals.discard(proxy.lower())
 
         # (I) Clean crash dumps and runtime logs
         td_path = Path(target_dir)

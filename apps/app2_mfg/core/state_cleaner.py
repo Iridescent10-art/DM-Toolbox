@@ -747,7 +747,11 @@ def CleanGameDirectoryState(
 
     if mode != "C":
         imported_pe_dlls = get_game_statically_imported_dlls(td)
+        has_ffx_loader = (td / "amd_fidelityfx_loader_dx12.dll").exists()
         for cfg in mode_c_configs:
+            if has_ffx_loader and cfg == "amd_fidelityfx_upscaler_dx12.dll":
+                actions_taken.append("豁免保留游戏原生态 FidelityFX Upscaler 依赖库: amd_fidelityfx_upscaler_dx12.dll")
+                continue
             if cfg.lower() in imported_pe_dlls:
                 actions_taken.append(f"豁免保留游戏原生PE静态依赖库: {cfg}")
                 continue

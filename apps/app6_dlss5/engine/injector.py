@@ -1349,7 +1349,10 @@ class DLSS5Injector:
             "libxess_dx11.dll",
             "libxess_fg.dll"
         ]
+        has_ffx_loader = (td / "amd_fidelityfx_loader_dx12.dll").exists()
         for fname in files_to_purge:
+            if has_ffx_loader and fname == "amd_fidelityfx_upscaler_dx12.dll":
+                continue
             if fname.lower() in imported_pe_dlls or any(fname.lower() in r.lower() for r in restored_items):
                 continue
             fp = td / fname
@@ -1359,8 +1362,6 @@ class DLSS5Injector:
 
         # Proxies (only delete if they are confirmed proxies and not native game files)
         for proxy_name in ["version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"]:
-            if proxy_name.lower() in imported_pe_dlls:
-                continue
             pp = td / proxy_name
             if pp.exists() and (is_dashdogy_dll_file(str(pp)) or is_optiscaler_dll_file(str(pp)) or is_reshade_dll_file(str(pp))):
                 safe_force_remove(str(pp))
