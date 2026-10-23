@@ -39,6 +39,13 @@ class PatchEngine:
         Execute one-click patching with transaction safety.
         Returns (success, message).
         """
+        # 0. Auto-heal any accidentally missing game native dependencies
+        try:
+            from core.utils import auto_heal_game_dependencies
+            auto_heal_game_dependencies(game.target_dir)
+        except Exception:
+            pass
+
         # 1. Process lock check and cleanup
         kill_locking_processes(game.target_dir, game.exe_name)
         cleanup_pending_files(game.target_dir)

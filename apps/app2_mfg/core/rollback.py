@@ -189,7 +189,14 @@ class RollbackEngine:
                 except Exception:
                     pass
 
-        # (D) Remove specific OptiScaler & third-party bridge files
+        # (D) Remove specific OptiScaler & third-party bridge files (protecting game static PE dependencies)
+        imported_pe_dlls = set()
+        try:
+            from core.utils import get_game_statically_imported_dlls, auto_heal_game_dependencies
+            imported_pe_dlls = get_game_statically_imported_dlls(target_dir)
+        except Exception:
+            pass
+
         mode_c_files = [
             "OptiScaler.dll", "dlssg_to_fsr3_amd_is_better.dll",
             "amd_fidelityfx_dx12.dll", "amd_fidelityfx_framegeneration_dx12.dll",
@@ -199,9 +206,15 @@ class RollbackEngine:
             "OptiScaler.ini", "OptiScaler.log", "nvngx.ini", "dlssg_to_fsr3.log", "dlssg_sm86.ini"
         ]
         for f_name in mode_c_files:
+            if f_name.lower() in imported_pe_dlls:
+                continue
             fp = os.path.join(target_dir, f_name)
             if os.path.exists(fp):
                 safe_force_remove(fp)
+        try:
+            auto_heal_game_dependencies(target_dir)
+        except Exception:
+            pass
 
         # (E) Remove Mode A configs and logs
         mode_a_files = [

@@ -861,6 +861,13 @@ class DLSS5Injector:
         if not td or not td.exists() or not td.is_dir():
             return False, f"目标游戏目录不存在或不可用: {target_dir}"
 
+        # Auto-heal any missing game native dependencies (such as libxell.dll, libxess.dll, libxess_fg.dll)
+        try:
+            from apps.app2_mfg.core.utils import auto_heal_game_dependencies
+            auto_heal_game_dependencies(td)
+        except Exception:
+            pass
+
         # Refuse to touch a live process: overwriting dxgi.dll / nvngx_dlssnr.dll
         # while the engine has them mapped corrupts the image and crashes on the
         # next DLSS call. The patch engine already guards this; DLSS 5 did not.
@@ -1329,11 +1336,26 @@ class DLSS5Injector:
             "libxess_dx11.dll",
             "libxess_fg.dll"
         ]
+        imported_pe_dlls = set()
+        try:
+            from apps.app2_mfg.core.utils import get_game_statically_imported_dlls, auto_heal_game_dependencies
+            imported_pe_dlls = get_game_statically_imported_dlls(td)
+        except Exception:
+            pass
+
         for fname in files_to_purge:
+            if fname.lower() in imported_pe_dlls:
+                continue
             fp = td / fname
             if fp.exists():
                 safe_force_remove(str(fp))
                 removed_items.append(fname)
+
+        try:
+            from apps.app2_mfg.core.utils import auto_heal_game_dependencies
+            auto_heal_game_dependencies(td)
+        except Exception:
+            pass
 
         # Also purge any wildcard crash logs or logs
         for pat in ["dlss5-nr-crash-*.txt", "ReShade*.ini*", "RTXMFG-*.log", "RTXMFG-*.csv"]:

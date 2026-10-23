@@ -556,3 +556,90 @@ def describe_mode_d_mfg_status(target_dir: Union[str, Path]) -> str:
         head += "\n  上次运行日志：" + log_excerpt.replace("\n", "\n  ")
     return head
 
+
+
+def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
+    """
+    Inspects all game executables in target_dir to find statically imported DLL names in lowercase.
+    Prevents accidentally deleting game runtime dependencies (such as libxell.dll, libxess.dll, libxess_fg.dll).
+    """
+    td = Path(target_dir) if target_dir else None
+    imported = set()
+    if not td or not td.exists():
+        return imported
+    try:
+        import pefile
+        for exe in td.glob("*.exe"):
+            name = exe.name.lower()
+            if any(x in name for x in ["crash", "report", "unins", "patch", "setup"]):
+                continue
+            try:
+                if exe.stat().st_size < 4096:
+                    continue
+                with open(exe, "rb") as f:
+                    header = f.read(1024 * 1024)
+                if not header.startswith(b"MZ"):
+                    continue
+                pe = pefile.PE(data=header, fast_load=True)
+                pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
+                for entry in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
+                    imported.add(entry.dll.decode("utf-8", errors="ignore").lower())
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return imported
+
+
+def auto_heal_game_dependencies(target_dir: Union[str, Path]) -> List[str]:
+    """
+    Checks if any DLL statically imported by the game executable (such as libxell.dll, libxess.dll, libxess_fg.dll, igxess.dll)
+    is missing from target_dir, and automatically restores it from embedded_components.
+    Returns list of restored filenames.
+    """
+    td = Path(target_dir) if target_dir else None
+    if not td or not td.exists():
+        return []
+
+    imported = get_game_statically_imported_dlls(td)
+    healed = []
+
+    # Check for known critical Intel XeSS/XeFG dependencies
+    xess_candidates = ["libxell.dll", "libxess.dll", "libxess_fg.dll", "igxess.dll"]
+    needed = []
+    for cand in xess_candidates:
+        if (cand.lower() in imported or (cand == "igxess.dll" and "libxess.dll" in imported)) and not (td / cand).exists():
+            needed.append(cand)
+
+    if not needed:
+        return []
+
+    # Embedded OptiScaler components location
+    current_file = Path(__file__).resolve()
+    # current_file is apps/app2_mfg/core/utils.py -> root is 4 parents up
+    root_dir = current_file.parent.parent.parent.parent
+    embedded_opti = root_dir / "apps" / "app2_mfg" / "embedded_components" / "optiscaler" / "nightly-20261020" / "OptiScaler"
+    if not embedded_opti.exists():
+        embedded_opti = root_dir / "dist" / "DMBOX" / "apps" / "app2_mfg" / "embedded_components" / "optiscaler" / "nightly-20261020" / "OptiScaler"
+
+    # Fallback to cache directory
+    cache_opti = Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "cache" / "app2_mfg" / "optiscaler" / "nightly-20261020" / "OptiScaler"
+
+    # Fallback to Witcher 3 DX12 if installed
+    w3_opti = Path(r"D:\game\steam\steamapps\common\The Witcher 3ind_dx12")
+
+    for cand in needed:
+        dest = td / cand
+        src = None
+        for cand_src_dir in [embedded_opti, cache_opti, w3_opti]:
+            if cand_src_dir and (cand_src_dir / cand).exists():
+                src = cand_src_dir / cand
+                break
+        if src and src.exists():
+            try:
+                shutil.copy2(src, dest)
+                healed.append(cand)
+            except Exception:
+                pass
+
+    return healed
