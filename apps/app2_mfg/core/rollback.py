@@ -109,6 +109,21 @@ class RollbackEngine:
                         except Exception as e:
                             errors.append(f"恢复备份文件失败 '{orig_name}': {e}")
 
+        # 1.1 Also restore any orphan *.mfg_bak files in target_dir
+        td_p = Path(target_dir)
+        for orphan_bak in td_p.glob("*.mfg_bak"):
+            orig_candidate = orphan_bak.name[:-8]
+            orig_cand_path = td_p / orig_candidate
+            if not orig_cand_path.exists() or orig_candidate.lower() not in restored_originals:
+                try:
+                    if orig_cand_path.exists():
+                        safe_force_remove(str(orig_cand_path))
+                    shutil.copy2(str(orphan_bak), str(orig_cand_path))
+                    safe_force_remove(str(orphan_bak))
+                    restored_originals.add(orig_candidate.lower())
+                except Exception:
+                    pass
+
         imported_pe_dlls = set()
         try:
             from core.utils import get_game_statically_imported_dlls, auto_heal_game_dependencies

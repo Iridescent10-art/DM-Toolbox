@@ -573,11 +573,27 @@ def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
     Filters out Windows system DLLs (proxies and system libraries like winmm.dll, dxgi.dll, version.dll)
     so they are not mistakenly classified as native game files.
     Protects real native game dependencies (such as libxell.dll, libxess.dll, libxess_fg.dll, igxess.dll).
+    Includes binary scan fallback and signature recognition for Cyberpunk 2077 & Witcher 3.
     """
     td = Path(target_dir) if target_dir else None
     imported = set()
     if not td or not td.exists():
         return imported
+
+    # 1. Signature-based proactive protection for known REDengine games
+    is_cp2077 = any("cyberpunk2077" in f.name.lower() for f in (td.glob("*.exe") if td.is_dir() else [td]))
+    is_witcher3 = any("witcher3" in f.name.lower() for f in (td.glob("*.exe") if td.is_dir() else [td]))
+    if is_cp2077 or is_witcher3:
+        imported.update({
+            "libxell.dll", "libxess.dll", "libxess_fg.dll", "igxess.dll",
+            "amd_fidelityfx_loader_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll"
+        })
+
+    if (td / "amd_fidelityfx_loader_dx12.dll").exists():
+        imported.add("amd_fidelityfx_upscaler_dx12.dll")
+
+    # 2. Try pefile parsing
+    pefile_worked = False
     try:
         import pefile
         exes = [td] if td.is_file() else list(td.glob("*.exe"))
@@ -598,17 +614,43 @@ def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
                     dll_name = entry.dll.decode("utf-8", errors="ignore").lower()
                     if dll_name not in KNOWN_SYSTEM_PROXIES:
                         imported.add(dll_name)
+                pefile_worked = True
             except Exception:
                 pass
     except Exception:
-        pass
+        pefile_worked = False
+
+    # 3. Fast binary scan fallback if pefile wasn't available or returned empty
+    if not pefile_worked or not imported:
+        try:
+            exes = [td] if td.is_file() else list(td.glob("*.exe"))
+            target_candidates = [
+                b"libxell.dll", b"libxess.dll", b"libxess_fg.dll", b"igxess.dll",
+                b"amd_fidelityfx_loader_dx12.dll", b"amd_fidelityfx_upscaler_dx12.dll",
+                b"bink2w64.dll", b"sl.interposer.dll", b"sl.dlss.dll", b"sl.dlss_g.dll"
+            ]
+            for exe in exes:
+                name = exe.name.lower()
+                if any(x in name for x in ["crash", "report", "unins", "patch", "setup"]):
+                    continue
+                try:
+                    with open(exe, "rb") as f:
+                        header = f.read(16 * 1024 * 1024).lower()
+                    for cand_b in target_candidates:
+                        if cand_b in header:
+                            imported.add(cand_b.decode("ascii"))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     return imported
 
 
 def auto_heal_game_dependencies(target_dir: Union[str, Path]) -> List[str]:
     """
     Checks if any DLL statically imported by the game executable (such as libxell.dll, libxess.dll, libxess_fg.dll, igxess.dll)
-    is missing from target_dir, and automatically restores it from embedded_components.
+    is missing from target_dir, and automatically restores it from local backups or embedded_components.
     Returns list of restored filenames.
     """
     td = Path(target_dir) if target_dir else None
@@ -621,41 +663,69 @@ def auto_heal_game_dependencies(target_dir: Union[str, Path]) -> List[str]:
     # Check for known critical Intel XeSS/XeFG dependencies
     xess_candidates = ["libxell.dll", "libxess.dll", "libxess_fg.dll", "igxess.dll"]
     needed = []
+
+    is_cp2077 = any("cyberpunk2077" in f.name.lower() for f in (td.glob("*.exe") if td.is_dir() else [td]))
+    is_witcher3 = any("witcher3" in f.name.lower() for f in (td.glob("*.exe") if td.is_dir() else [td]))
+
     for cand in xess_candidates:
-        if (cand.lower() in imported or (cand == "igxess.dll" and "libxess.dll" in imported)) and not (td / cand).exists():
+        cand_needed = (
+            (cand.lower() in imported or (cand == "igxess.dll" and "libxess.dll" in imported)) or
+            (is_cp2077 or is_witcher3)
+        )
+        if cand_needed and not (td / cand).exists():
             needed.append(cand)
 
-    # Check for AMD FidelityFX loader dependency:
-    # Games like Witcher 3 and Cyberpunk 2077 have amd_fidelityfx_loader_dx12.dll which calls ffxQuery.
-    # Without amd_fidelityfx_upscaler_dx12.dll, REDengine dereferences a NULL pointer at 0x1cd4544 and crashes.
+    # Check for AMD FidelityFX loader dependency
     if (td / "amd_fidelityfx_loader_dx12.dll").exists() and not (td / "amd_fidelityfx_upscaler_dx12.dll").exists():
         needed.append("amd_fidelityfx_upscaler_dx12.dll")
 
     if not needed:
         return []
 
-    # Embedded OptiScaler components location
+    # Dynamic search for embedded OptiScaler components
     current_file = Path(__file__).resolve()
-    # current_file is apps/app2_mfg/core/utils.py -> root is 4 parents up
     root_dir = current_file.parent.parent.parent.parent
-    embedded_opti = root_dir / "apps" / "app2_mfg" / "embedded_components" / "optiscaler" / "nightly-20261020" / "OptiScaler"
-    if not embedded_opti.exists():
-        embedded_opti = root_dir / "dist" / "DMBOX" / "apps" / "app2_mfg" / "embedded_components" / "optiscaler" / "nightly-20261020" / "OptiScaler"
+    candidate_source_dirs = []
 
-    # Fallback to cache directory
-    cache_opti = Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "cache" / "app2_mfg" / "optiscaler" / "nightly-20261020" / "OptiScaler"
+    for base_parent in [
+        root_dir / "apps" / "app2_mfg" / "embedded_components" / "optiscaler",
+        root_dir / "dist" / "DMBOX" / "apps" / "app2_mfg" / "embedded_components" / "optiscaler",
+        Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "cache" / "app2_mfg" / "optiscaler"
+    ]:
+        if base_parent.exists():
+            for p in sorted(base_parent.glob("nightly*"), reverse=True):
+                if (p / "OptiScaler").exists():
+                    candidate_source_dirs.append(p / "OptiScaler")
+                candidate_source_dirs.append(p)
 
-    # Fallback to Witcher 3 DX12 if installed
+    # Cross-game sibling fallbacks
     w3_opti = Path("D:/game/steam/steamapps/common/The Witcher 3/bin/x64_dx12")
     cp_opti = Path("D:/game/steam/steamapps/common/Cyberpunk 2077/bin/x64")
+    if w3_opti != td and w3_opti.exists():
+        candidate_source_dirs.append(w3_opti)
+    if cp_opti != td and cp_opti.exists():
+        candidate_source_dirs.append(cp_opti)
 
     for cand in needed:
         dest = td / cand
         src = None
-        for cand_src_dir in [embedded_opti, cache_opti, cp_opti, w3_opti]:
-            if cand_src_dir and (cand_src_dir / cand).exists():
-                src = cand_src_dir / cand
+
+        # Priority 1: Restore from local .mfg_bak, .dm_backup, or .dlss5_backup right inside the game directory
+        local_bak = td / f"{cand}.mfg_bak"
+        dm_bak = td / ".dm_backup" / cand
+        dlss5_bak = td / ".dlss5_backup" / cand
+        for l_cand in [local_bak, dm_bak, dlss5_bak]:
+            if l_cand.exists() and l_cand.stat().st_size > 1024:
+                src = l_cand
                 break
+
+        # Priority 2: Restore from candidate component directories
+        if not src:
+            for cand_src_dir in candidate_source_dirs:
+                if cand_src_dir and (cand_src_dir / cand).exists():
+                    src = cand_src_dir / cand
+                    break
+
         if src and src.exists():
             try:
                 shutil.copy2(src, dest)

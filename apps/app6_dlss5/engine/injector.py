@@ -65,7 +65,7 @@ except Exception:
         td = Path(p) if p else None
         if not td or not td.exists():
             return False
-        return (td / "OptiScaler.ini").exists() or (td / "libxess_fg.dll").exists()
+        return (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists()
 
     def safe_force_remove(p: str) -> bool:
         try:
@@ -98,7 +98,7 @@ def is_mfg_present(target_dir: Union[str, Path]) -> bool:
         td / "mfg_unlocker.ini",
         td / "RTX40MFG-UI.ini",
         td / "OptiScaler.ini",
-        td / "libxess_fg.dll",
+        td / "OptiScaler.dll",
         td / "renodx-mfgunlock.addon64",
         td / "fakenvapi.dll"
     ]
@@ -278,6 +278,8 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
             "addon_names": [],
             "runtime_size_mb": 0.0,
             "detected_arch": "unknown",
+            "hook_point": "0",
+            "hook_point_label": "之后 (Upscaled · 推荐)",
             "manifest_data": None
         }
 
@@ -330,6 +332,34 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
         else:
             detected_arch = "rtx50"
 
+    # Detect current active Hook Point from ReShade.ini or Presets
+    current_hook_point = "0"
+    current_hook_label = "之后 (Upscaled · 推荐)"
+    for candidate_file in [td / "ReShade.ini", td / "RenoDX" / "DLSS5" / "Presets" / "My look.ini", td / "ReShadePreset.ini"]:
+        if candidate_file.exists():
+            try:
+                content_ini = candidate_file.read_text(encoding="utf-8", errors="ignore")
+                for line in content_ini.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("NRHookPoint=") or stripped.startswith("HookStage="):
+                        val = stripped.split("=", 1)[1].strip()
+                        if val == "2":
+                            current_hook_point = "2"
+                            current_hook_label = "呈现 (Present · 纯画质)"
+                            break
+                        elif val == "1":
+                            current_hook_point = "1"
+                            current_hook_label = "之前 (Before · 原生阶段)"
+                            break
+                        elif val == "0":
+                            current_hook_point = "0"
+                            current_hook_label = "之后 (Upscaled · 推荐)"
+                            break
+            except Exception:
+                pass
+            if current_hook_point in ("1", "2"):
+                break
+
     return {
         "valid_dir": True,
         "is_injected": is_injected,
@@ -339,6 +369,8 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
         "addon_names": dlss_addons or addons,
         "runtime_size_mb": runtime_size_mb,
         "detected_arch": detected_arch,
+        "hook_point": current_hook_point,
+        "hook_point_label": current_hook_label,
         "manifest_data": manifest_data
     }
 
@@ -406,8 +438,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRLayersEnabled": "1",
         "UiCorrection": "1",
         "NeuralUplift": "1",
-        "NRVramBuffering": "2",
-        "VramBuffering": "2",
+        "NRVramBuffering": "1",
+        "VramBuffering": "1",
         "NRVramBudgetGuard": "0",
         "NRVramBudgetMargin": "0",
         "VramBudgetGuard": "0",
@@ -433,7 +465,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingHookStage": "0",
         "DirectNeuralRenderingAlwaysPresent": "0",
         "DirectNeuralRenderingPresentMode": "0",
-        "DirectNeuralRenderingVramBuffering": "2",
+        "DirectNeuralRenderingVramBuffering": "1",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingSkinStructureStrength": "1.000000",
@@ -463,8 +495,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRModelLabEnabled": "1",
         "NRLayersEnabled": "1",
         "NeuralUplift": "1",
-        "NRVramBuffering": "2",
-        "VramBuffering": "2",
+        "NRVramBuffering": "1",
+        "VramBuffering": "1",
         "NRVramBudgetGuard": "0",
         "NRVramBudgetMargin": "0",
         "VramBudgetGuard": "0",
@@ -494,8 +526,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
         "NeuralUplift": "1",
-        "NRVramBuffering": "2",
-        "VramBuffering": "2",
+        "NRVramBuffering": "1",
+        "VramBuffering": "1",
         "NRVramBudgetGuard": "0",
         "NRVramBudgetMargin": "0",
         "VramBudgetGuard": "0",
@@ -519,7 +551,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingHookStage": "0",
         "DirectNeuralRenderingAlwaysPresent": "0",
         "DirectNeuralRenderingPresentMode": "0",
-        "DirectNeuralRenderingVramBuffering": "2",
+        "DirectNeuralRenderingVramBuffering": "1",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingSkinStructureStrength": "1.000000",
@@ -542,8 +574,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
         "NeuralUplift": "1",
-        "NRVramBuffering": "2",
-        "VramBuffering": "2",
+        "NRVramBuffering": "1",
+        "VramBuffering": "1",
         "NRVramBudgetGuard": "0",
         "NRVramBudgetMargin": "0",
         "VramBudgetGuard": "0",
@@ -586,8 +618,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRModelLabEnabled": "1",
         "NRLayersEnabled": "1",
         "NeuralUplift": "1",
-        "NRVramBuffering": "2",
-        "VramBuffering": "2",
+        "NRVramBuffering": "1",
+        "VramBuffering": "1",
         "NRVramBudgetGuard": "0",
         "NRVramBudgetMargin": "0",
         "VramBudgetGuard": "0",
@@ -609,7 +641,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "ResolutionScale": "0.500000",
         "HookStage": "0",
         "AlwaysPresent": "0",
-        "VramBuffering": "2",
+        "VramBuffering": "1",
         "LocalTone": "1.000000",
         "LocalStructure": "1.000000",
         "SkinStructure": "100",
@@ -625,7 +657,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingScaleReconstruction": "0",
         "DirectNeuralRenderingHookStage": "0",
         "DirectNeuralRenderingAlwaysPresent": "0",
-        "DirectNeuralRenderingVramBuffering": "2",
+        "DirectNeuralRenderingVramBuffering": "1",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingSkinStructureStrength": "1.000000",
@@ -777,9 +809,9 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -
         "NRPresentAlways": always_pres,
         "AlwaysPresent": always_pres,
         "NeuralUplift": "1",
-        "NRVramBuffering": "2",
-        "VramBuffering": "2",
-        "DirectNeuralRenderingVramBuffering": "2",
+        "NRVramBuffering": "1",
+        "VramBuffering": "1",
+        "DirectNeuralRenderingVramBuffering": "1",
         "NRVramBudgetGuard": "0",
         "NRVramBudgetMargin": "0",
         "VramBudgetGuard": "0",
@@ -883,10 +915,33 @@ class DLSS5Injector:
     """
 
     @staticmethod
+    def apply_hook_point(target_dir: str, hook_point: str = "0") -> Tuple[bool, str]:
+        """
+        Directly updates and applies DLSS 5 hook point to an existing game installation
+        without requiring re-injection or starting the game.
+        """
+        td = Path(target_dir) if target_dir else None
+        if not td or not td.exists() or not td.is_dir():
+            return False, f"目标游戏目录不存在: {target_dir}"
+
+        ok = sync_dlss5_hook_point(td, hook_point=hook_point)
+        if not ok:
+            return False, "未能成功写入配置文件，请检查目录权限或文件是否被占用。"
+
+        label_map = {
+            "0": "之后 (Upscaled · 防闪退/兼容多帧插帧)",
+            "2": "呈现 (Present · 纯画质呈现)",
+            "1": "之前 (Before · 原生渲染阶段)"
+        }
+        lbl = label_map.get(str(hook_point), f"模式 {hook_point}")
+        return True, f"已成功将当前游戏的 DLSS 5 挂钩模式修改为【{lbl}】！\n\n所有配置文件（ReShade.ini 与独立预设）已实时同步更新，无需进入游戏即可生效。"
+
+    @staticmethod
     def inject(
         target_dir: str,
         source_dir: Optional[str] = None,
-        arch_choice: str = "auto"
+        arch_choice: str = "auto",
+        hook_point: str = "0"
     ) -> Tuple[bool, str]:
         """
         Executes one-click standalone injection of DLSS 5 into target_dir.
@@ -1115,9 +1170,9 @@ class DLSS5Injector:
                     "NRModelLabEnabled=1\n"
                     "NRLayersEnabled=1\n"
                     "NeuralUplift=1\n"
-                    "NRVramBuffering=2\n"
-                    "VramBuffering=2\n"
-                    "DirectNeuralRenderingVramBuffering=2\n"
+                    "NRVramBuffering=1\n"
+                    "VramBuffering=1\n"
+                    "DirectNeuralRenderingVramBuffering=1\n"
                     "NRVramBudgetGuard=0\n"
                     "NRVramBudgetMargin=0\n"
                     "VramBudgetGuard=0\n"
@@ -1157,16 +1212,16 @@ class DLSS5Injector:
             except Exception:
                 pass
 
-            if has_mfg:
-                sync_dlss5_hook_point(td, hook_point="0")
-                if (td / "OptiScaler.ini").exists():
-                    try:
-                        from apps.app2_mfg.core.ini_sync import IniConfigManager
-                        from apps.app2_mfg.core.optiscaler_config import load_optiscaler_preset
-                        opti_p = IniConfigManager.read_mode_c_reverse(td) or load_optiscaler_preset()
-                        IniConfigManager.sync_mode_c_forward(td, opti_p)
-                    except Exception:
-                        pass
+            # Always apply selected hook point (defaults to 0: Upscaled mode)
+            sync_dlss5_hook_point(td, hook_point=hook_point)
+            if has_mfg and (td / "OptiScaler.ini").exists():
+                try:
+                    from apps.app2_mfg.core.ini_sync import IniConfigManager
+                    from apps.app2_mfg.core.optiscaler_config import load_optiscaler_preset
+                    opti_p = IniConfigManager.read_mode_c_reverse(td) or load_optiscaler_preset()
+                    IniConfigManager.sync_mode_c_forward(td, opti_p)
+                except Exception:
+                    pass
             manifest_data["injected_files"].append("RenoDX")
             manifest_data["injected_files"].append("ReShadePreset.ini")
 
@@ -1200,27 +1255,32 @@ class DLSS5Injector:
                 f"  • 进游戏同时开启【DLSS 超分辨率】与【DLSS 帧生成】即可同时获得神经重构 + XeSS 多倍插帧。\n"
             )
 
-        vram_warning = ""
+        # Auto-heal any native game dependencies at injection finish as well
         try:
-            from common.config_manager import detect_vram_overcommit
-            _vram_msg = detect_vram_overcommit()
-            if _vram_msg:
-                vram_warning = f"\n⚠️ 【显存伪装风险】{_vram_msg}\n"
+            from apps.app2_mfg.core.utils import auto_heal_game_dependencies
+            auto_heal_game_dependencies(td)
         except Exception:
             pass
 
+        hook_label_map = {
+            "0": "之后 (Upscaled · 超分之后 · 推荐防闪退)",
+            "2": "呈现 (Present · 画面呈现交换链 · 纯画质)",
+            "1": "之前 (Before · 原生渲染阶段)"
+        }
+        hook_disp = hook_label_map.get(str(hook_point), f"模式 {hook_point}")
         return True, (
             f"✅ DLSS 5 插件已成功注入至游戏目录！\n\n"
             f"• 渲染底座: ReShade 6.8 64-bit (dxgi.dll)\n"
             f"• 扩展插件: {Path(addon_src).name} (v11.9 旗舰版)\n"
             f"• 神经网络: {arch_label} ({round(os.path.getsize(nr_src)/(1024*1024), 1)} MB)\n"
-            f"• 默认调参: 预设[My look已完整载入] · {'挂钩点[Present模式 (呈现)]'} · 皮肤[80%] · 风格[模型 C] · 版本[新版] · 分辨率[匹配游戏]\n• 体验优化: 开启快捷键[已禁用，避免误触] · 显存缓冲[全量模式，调参流畅不卡顿] · 运行库路径[强制本地锁定]\n"
-            f"• 防闪退加固: Present[Present模式呈现挂钩] · 显存缓冲[精简模式，防OOM爆显存] · 运行库路径[强制本地锁定]\n"
-            f"{vram_warning}{coex_lines}\n"
+            f"• 调优配置: 预设[My look已载入] · 挂钩点[{hook_disp}] · 皮肤[100%] · 风格[模型 C] · 版本[新版] · 分辨率[匹配游戏]\n"
+            f"• 体验优化: 快捷键[已禁用防误触] · 显存缓冲[精简模式，防OOM爆显存] · 运行库路径[强制本地锁定]\n"
+            f"• 防闪退加固: Upscaled时序解耦 · 显存精简防爆 · 多帧生成动态槽位协同避让\n"
+            f"{coex_lines}\n"
             f"🎮 【进游戏体验指南】：\n"
             f"1. 启动游戏，在画面设置中确保开启【DirectX 12】与【DLSS 超分辨率】；\n"
             f"2. 进入游戏画面后，按键盘【Home】键即可呼出 DLSS 5 / RenoDX 简体中文调参面板；\n"
-            f"3. 已注入模式 C 时，再开启游戏内【DLSS 帧生成】即可启用 XeSS/XeFG 多倍插帧。"
+            f"3. 若同时注入了多帧生成（模式 A 或模式 B），开启游戏内【DLSS 帧生成】即可同时获得神经重构 + 多倍插帧。"
         )
 
     @staticmethod
@@ -1251,6 +1311,18 @@ class DLSS5Injector:
         restored_items = []
         backup_dir = td / DLSS5_BACKUP_DIRNAME
         dm_backup_dir = td / ".dm_backup"
+
+        # Layer 1.9: Restore any local *.mfg_bak files in game directory FIRST
+        for bak_f in td.glob("*.mfg_bak"):
+            orig_name = bak_f.name[:-8]
+            orig_dest = td / orig_name
+            if not orig_dest.exists():
+                try:
+                    shutil.copy2(str(bak_f), str(orig_dest))
+                    safe_force_remove(str(bak_f))
+                    restored_items.append(f"{orig_name} (从 .mfg_bak 还原)")
+                except Exception:
+                    pass
 
         # Layer 2: Put back ALL original files from backup directories FIRST
         for b_dir in [backup_dir, dm_backup_dir]:

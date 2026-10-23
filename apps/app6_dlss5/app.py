@@ -417,7 +417,82 @@ class DLSS5MainWindow(DMBaseWindow):
         self.content_layout.addWidget(self.card_plugin)
 
         # -------------------------------------------------------------
-        # Card 4: 📊 当前游戏 DLSS 5 注入状态
+        # Card 4: ⚙️ DLSS 5 挂钩阶段模式配置 (防启动闪退 / 多帧插帧协同)
+        # -------------------------------------------------------------
+        self.card_hook = DMCardFrame()
+        card_hook_layout = self.card_hook.card_layout
+        card_hook_layout.setContentsMargins(18, 16, 18, 16)
+        card_hook_layout.setSpacing(12)
+
+        hook_header = QHBoxLayout()
+        lbl_h_title = QLabel("⚙️ DLSS 5 挂钩阶段模式配置 (防启动闪退 / 多帧插帧协同)")
+        lbl_h_title.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.Bold))
+        hook_header.addWidget(lbl_h_title)
+        hook_header.addStretch(1)
+
+        self.btn_apply_hook = QPushButton("⚡ 立即应用/修改挂钩模式 (无需启动游戏)")
+        self.btn_apply_hook.setFixedHeight(30)
+        self.btn_apply_hook.setFont(QFont("Microsoft YaHei UI", 9, QFont.Weight.Bold))
+        self.btn_apply_hook.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_apply_hook.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 0 16px;
+            }
+            QPushButton:hover {
+                background-color: #0369a1;
+            }
+            QPushButton:pressed {
+                background-color: #075985;
+            }
+            QPushButton:disabled {
+                background-color: rgba(148, 163, 184, 0.2);
+                color: #94a3b8;
+            }
+        """)
+        self.btn_apply_hook.clicked.connect(self._apply_hook_mode_action)
+        hook_header.addWidget(self.btn_apply_hook)
+
+        card_hook_layout.addLayout(hook_header)
+
+        # Hook mode selection row
+        hook_row = QHBoxLayout()
+        hook_row.setSpacing(12)
+        lbl_hook_tag = QLabel("挂钩阶段模式 (Hook Point):")
+        lbl_hook_tag.setFont(QFont("Microsoft YaHei UI", 9, QFont.Weight.Bold))
+        hook_row.addWidget(lbl_hook_tag)
+
+        self.combo_hook_point = QComboBox()
+        self.combo_hook_point.setFixedHeight(34)
+        self.combo_hook_point.setFont(QFont("Microsoft YaHei UI", 9))
+        self.combo_hook_point.addItem("之后 (Upscaled) · 【推荐 · 防闪退 · 兼容 4X/多帧插帧与低显存】", "0")
+        self.combo_hook_point.addItem("呈现 (Present) · 【纯画质呈现 · 适合原生单卡无插帧高显存环境】", "2")
+        self.combo_hook_point.addItem("之前 (Before) · 【超分前原生阶段 · 原生画质处理】", "1")
+        self.combo_hook_point.setCurrentIndex(0)
+        hook_row.addWidget(self.combo_hook_point, 1)
+
+        card_hook_layout.addLayout(hook_row)
+
+        lbl_hook_explain = QLabel(
+            "💡 【模式特性说明与防闪退保障】\n"
+            "• 之后 (Upscaled · 推荐)：DLSS 5 在 DLSS 超分之后、帧生成之前介入。具备完整深度与运动矢量缓冲，"
+            "显存占用极小 (~600MB)，彻底根治 2077、巫师 3 开启 4X 插帧或高分辨率时的 0xc0000005 启动秒退！\n"
+            "• 呈现 (Present)：在最终画面呈现交换链介入。对 4K 全分辨率二次重构，显存占用较高 (~2.5GB)，且严禁与 4X 插帧同时开启。\n"
+            "• 离线修改保障：若游戏因配置冲突无法启动，直接在上方下拉框选择【之后 (Upscaled)】并点击右侧【立即应用/修改挂钩模式】，"
+            "本软件将直接写入游戏配置文件，免启动游戏即可彻底修复闪退！"
+        )
+        lbl_hook_explain.setFont(QFont("Microsoft YaHei UI", 8))
+        lbl_hook_explain.setWordWrap(True)
+        lbl_hook_explain.setStyleSheet("color: #0369a1; background: rgba(3, 105, 161, 0.08); border-radius: 6px; padding: 8px;")
+        card_hook_layout.addWidget(lbl_hook_explain)
+
+        self.content_layout.addWidget(self.card_hook)
+
+        # -------------------------------------------------------------
+        # Card 5: 📊 当前游戏 DLSS 5 注入状态
         # -------------------------------------------------------------
         self.card_status = DMCardFrame()
         card_status_layout = self.card_status.card_layout
@@ -440,7 +515,8 @@ class DLSS5MainWindow(DMBaseWindow):
         self.lbl_stat_reshade = QLabel("• ReShade 渲染底座: ⚪ 未就绪")
         self.lbl_stat_addon = QLabel("• DLSS 5 扩展插件: ⚪ 未就绪")
         self.lbl_stat_runtime = QLabel("• 神经重构模型: ⚪ 未就绪")
-        for lbl in [self.lbl_stat_reshade, self.lbl_stat_addon, self.lbl_stat_runtime]:
+        self.lbl_stat_hook = QLabel("• 运行挂钩阶段: ⚪ 未就绪")
+        for lbl in [self.lbl_stat_reshade, self.lbl_stat_addon, self.lbl_stat_runtime, self.lbl_stat_hook]:
             lbl.setFont(QFont("Microsoft YaHei UI", 9))
             card_status_layout.addWidget(lbl)
 
@@ -715,6 +791,9 @@ class DLSS5MainWindow(DMBaseWindow):
             self.lbl_stat_reshade.setText("• ReShade 渲染底座: ⚪ 未就绪")
             self.lbl_stat_addon.setText("• DLSS 5 扩展插件: ⚪ 未就绪")
             self.lbl_stat_runtime.setText("• 神经重构模型: ⚪ 未就绪")
+            self.lbl_stat_hook.setText("• 运行挂钩阶段: ⚪ 未就绪")
+            if hasattr(self, "btn_apply_hook"):
+                self.btn_apply_hook.setEnabled(False)
             return
 
         stat = check_game_dlss5_status(self.selected_game.target_dir)
@@ -749,6 +828,26 @@ class DLSS5MainWindow(DMBaseWindow):
             self.lbl_stat_runtime.setText("• 神经重构模型: ⚪ 未检测到")
             self.lbl_stat_runtime.setStyleSheet("color: #64748b;")
 
+        # Hook Point Status & Sync
+        if stat["is_injected"]:
+            self.lbl_stat_hook.setText(f"• 运行挂钩阶段: 🟢 {stat.get('hook_point_label', '之后 (Upscaled)')}")
+            self.lbl_stat_hook.setStyleSheet("color: #10b981;")
+            if hasattr(self, "btn_apply_hook"):
+                self.btn_apply_hook.setEnabled(True)
+        else:
+            self.lbl_stat_hook.setText("• 运行挂钩阶段: ⚪ 未就绪 (注入时将应用所选配置)")
+            self.lbl_stat_hook.setStyleSheet("color: #64748b;")
+            if hasattr(self, "btn_apply_hook"):
+                self.btn_apply_hook.setEnabled(False)
+
+        if hasattr(self, "combo_hook_point"):
+            cur_hook = stat.get("hook_point", "0")
+            self.combo_hook_point.blockSignals(True)
+            idx = self.combo_hook_point.findData(cur_hook)
+            if idx >= 0:
+                self.combo_hook_point.setCurrentIndex(idx)
+            self.combo_hook_point.blockSignals(False)
+
     def _update_all_states(self):
         self._update_rhi_status()
         self._update_status_card()
@@ -756,6 +855,30 @@ class DLSS5MainWindow(DMBaseWindow):
     # -----------------------------------------------------------------
     # Primary Actions: Inject & Restore
     # -----------------------------------------------------------------
+    def _apply_hook_mode_action(self):
+        """Immediately applies selected hook point to the game without launching it."""
+        if not self.selected_game:
+            ModernDialog.warning(self, "未选择游戏", "请先在上方游戏列表中选择目标游戏！")
+            return
+
+        stat = check_game_dlss5_status(self.selected_game.target_dir)
+        if not stat["is_injected"] and not (Path(self.selected_game.target_dir) / "ReShade.ini").exists():
+            ModernDialog.warning(self, "游戏尚未注入", "当前游戏尚未注入 DLSS 5，请先点击下方的【一键注入 DLSS 5 插件】！")
+            return
+
+        chosen_hook = self.combo_hook_point.currentData() if hasattr(self, "combo_hook_point") else "0"
+        self.set_status("正在修改游戏 DLSS 5 挂钩阶段模式...")
+        QApplication.processEvents()
+
+        ok, msg = DLSS5Injector.apply_hook_point(self.selected_game.target_dir, chosen_hook)
+        self._update_status_card()
+        self.set_status("挂钩模式修改完成" if ok else "修改失败")
+
+        if ok:
+            ModernDialog.success(self, "挂钩模式已更新", msg)
+        else:
+            ModernDialog.error(self, "修改失败", msg)
+
     def _inject_action(self):
         """Executes DLSS 5 one-click injection."""
         if not self.selected_game:
@@ -770,13 +893,16 @@ class DLSS5MainWindow(DMBaseWindow):
         else:
             arch_choice = "rtx50"
 
+        chosen_hook = self.combo_hook_point.currentData() if hasattr(self, "combo_hook_point") else "0"
+
         self.set_status("正在将 DLSS 5 插件及模型部署至游戏目录...")
         QApplication.processEvents()
 
         ok, msg = DLSS5Injector.inject(
             target_dir=self.selected_game.target_dir,
             source_dir=str(self.active_source_dir),
-            arch_choice=arch_choice
+            arch_choice=arch_choice,
+            hook_point=chosen_hook
         )
 
         self._update_status_card()
@@ -841,6 +967,8 @@ class DLSS5MainWindow(DMBaseWindow):
             self.card_rhi.apply_theme(is_dark)
         if hasattr(self, "card_plugin"):
             self.card_plugin.apply_theme(is_dark)
+        if hasattr(self, "card_hook"):
+            self.card_hook.apply_theme(is_dark)
         if hasattr(self, "card_status"):
             self.card_status.apply_theme(is_dark)
 

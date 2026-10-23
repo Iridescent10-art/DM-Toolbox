@@ -694,7 +694,7 @@ def test_assertion_9_mode_a_dlss5_coexistence_and_synergy():
         assert reshade_ini.exists()
         cp = configparser.ConfigParser(interpolation=None, strict=False)
         cp.read(reshade_ini, encoding="utf-8")
-        assert cp.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "0", "模式 A 共存态下 NRHookPoint 默认为 '0' (之后/Upscaled模式)"
+        assert cp.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "0", "DLSS 5 默认 NRHookPoint 为 '0' (Upscaled 模式)"
         assert cp.get("RenoDX.DLSS5", "HookStage", fallback="") == "0"
         assert cp.get("RenoDX.DLSS5", "NRPresentAlways", fallback="") == "0", "NRPresentAlways 默认为 '0'"
         assert cp.get("RenoDX.DLSS5", "NRFollowInputRes", fallback="") == "1", "NRFollowInputRes 必须为 '1' (匹配游戏)"

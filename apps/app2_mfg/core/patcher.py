@@ -154,13 +154,7 @@ class PatchEngine:
                     warn_text = "".join(
                         f"\n⚠️ {w}" for w in (IniConfigManager.last_report or {}).get("warnings", [])
                     )
-                    try:
-                        from common.config_manager import detect_vram_overcommit
-                        _vram = detect_vram_overcommit()
-                        if _vram:
-                            warn_text += f"\n⚠️ 【显存伪装风险】{_vram}"
-                    except Exception:
-                        pass
+
                     if has_dlss5 and not has_rtx_40_or_newer:
                         warn_text += (
                             "\n⚠️ 检测到 RTX 20/30 系 + DLSS 5：XeFG 需要游戏原生 DLSS-G 作为插帧输入，"
@@ -445,7 +439,7 @@ class PatchEngine:
                 pass
 
         td = Path(target_dir)
-        if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists() or (td / "libxess_fg.dll").exists():
+        if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists() or (td / "OptiScaler.dll").exists():
             return BackendType.OPTISCALER_FSR.value
         if (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists() or (td / "bink2w64Hooked.dll").exists():
             return BackendType.STANDALONE.value

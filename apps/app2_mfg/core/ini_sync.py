@@ -904,9 +904,9 @@ class IniConfigManager:
             "NRResolutionScale": "0.500000",
             "ResolutionScale": "0.500000",
             "NeuralUplift": "1",
-            "NRVramBuffering": "2",
-            "VramBuffering": "2",
-            "DirectNeuralRenderingVramBuffering": "2",
+            "NRVramBuffering": "1",
+            "VramBuffering": "1",
+            "DirectNeuralRenderingVramBuffering": "1",
             "NRVramBudgetGuard": "0",
             "NRVramBudgetMargin": "0",
             "VramBudgetGuard": "0",
@@ -1064,7 +1064,7 @@ class IniConfigManager:
             "NRPass2Preset": "2",
             "NRSkinStructure": "1.000000",
             "NRPresentNonBlocking": "1",
-            "NRVramBuffering": "2"
+            "NRVramBuffering": "1"
         }
 
         addon_name = "renodx-mfgunlock.addon64"

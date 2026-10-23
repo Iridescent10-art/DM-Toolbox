@@ -83,7 +83,8 @@ def test_standalone_injection_and_restoration():
         assert "CurrentPreset=My look" in ini_content, "应设置预设为 My look"
         assert "NRStyle=2" in ini_content, "NRStyle 应为模型 C (2)"
         assert "NRPass2Preset=2" in ini_content, "NRPass2Preset 应为新版 (2)"
-        assert "NRHookPoint=0" in ini_content, "NRHookPoint 挂钩点应为 之后/Upscaled 模式 (0)"
+        assert ("NRHookPoint=0" in ini_content or "HookStage=0" in ini_content), "NRHookPoint 挂钩点默认应为 Upscaled 模式 (0)"
+        assert ("NRVramBuffering=1" in ini_content or "VramBuffering=1" in ini_content), "显存缓冲应为精简模式 (1)"
         assert ("NRSkinStructure=1.000000" in ini_content or "NRSkinStructure=100" in ini_content or "SkinStructure=100" in ini_content), "NRSkinStructure 皮肤结构应为 100 (1.000000)"
         assert "NRFollowInputRes=1" in ini_content, "应启用匹配游戏分辨率"
         assert "[RenoDX DLSS5 preset]" in ini_content, "应包含预设专有段 [RenoDX DLSS5 preset]"
@@ -92,12 +93,26 @@ def test_standalone_injection_and_restoration():
         preset_file = mock_game_dir / "RenoDX" / "DLSS5" / "Presets" / "My look.ini"
         assert preset_file.exists(), "RenoDX 独立预设文件 My look.ini 应自动生成"
         preset_txt = preset_file.read_text(encoding="utf-8")
-        assert "NRHookPoint=0" in preset_txt, "预设中挂钩点应为 之后/Upscaled 模式 (0)"
+        assert ("NRHookPoint=0" in preset_txt or "HookStage=0" in preset_txt), "预设中挂钩点默认应为 Upscaled 模式 (0)"
+        assert ("NRVramBuffering=1" in preset_txt or "VramBuffering=1" in preset_txt), "预设中显存缓冲应为精简模式 (1)"
         assert "NRStyle=2" in preset_txt, "预设中风格应为模型 C (2)"
         assert "NRPass2Preset=2" in preset_txt, "预设中版本应为新版 (2)"
         assert ("NRSkinStructure=1.000000" in preset_txt or "NRSkinStructure=100" in preset_txt or "SkinStructure=100" in preset_txt), "预设中皮肤应为 100 (1.000000)"
 
         print("   [PASS] 注入成功且所有文件、独立预设及 Schema 11 调参配置正确落盘")
+
+        # Test direct hook point switching without re-injection
+        print("   -> 测试在应用内直接修改并同步挂钩模式...")
+        ok_hook, hook_msg = DLSS5Injector.apply_hook_point(str(mock_game_dir), hook_point="2")
+        assert ok_hook, f"切换为 Present 应成功: {hook_msg}"
+        stat_hook2 = check_game_dlss5_status(str(mock_game_dir))
+        assert stat_hook2["hook_point"] == "2", "状态应检测到 Present 模式 (2)"
+
+        ok_hook0, hook_msg0 = DLSS5Injector.apply_hook_point(str(mock_game_dir), hook_point="0")
+        assert ok_hook0, f"切换回 Upscaled 应成功: {hook_msg0}"
+        stat_hook0 = check_game_dlss5_status(str(mock_game_dir))
+        assert stat_hook0["hook_point"] == "0", "状态应检测到 Upscaled 模式 (0)"
+        print("   [PASS] 挂钩模式在应用内直接修改并实时同步测试通过")
 
         # Execute restore
         print("   -> 执行一键还原与卸载...")

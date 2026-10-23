@@ -46,8 +46,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("DM-Toolbox")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("1.3.24.0")]
-[assembly: AssemblyFileVersion("1.3.24.0")]
+[assembly: AssemblyVersion("1.3.25.0")]
+[assembly: AssemblyFileVersion("1.3.25.0")]
 
 namespace DMBOX
 {
@@ -187,6 +187,14 @@ def step2_assemble_staging_tree():
     # PIL
     shutil.copytree(PYTHON_SYS_DIR / "Lib" / "site-packages" / "PIL", sp_dest / "PIL", ignore=ignore_pycache)
 
+    # pefile & ordlookup (用于游戏 PE 导入表分析，保护原生 XeSS/XeFG 依赖)
+    pefile_src = PYTHON_SYS_DIR / "Lib" / "site-packages" / "pefile.py"
+    if pefile_src.exists():
+        shutil.copy2(pefile_src, sp_dest / "pefile.py")
+    ordlookup_src = PYTHON_SYS_DIR / "Lib" / "site-packages" / "ordlookup"
+    if ordlookup_src.exists():
+        shutil.copytree(ordlookup_src, sp_dest / "ordlookup", ignore=ignore_pycache)
+
     # PySide6 (剔除未使用的大型模块如 WebEngine/3D/Quick 等，体积由 630MB 骤降至 ~60MB)
     pyside_src = PYTHON_SYS_DIR / "Lib" / "site-packages" / "PySide6"
     pyside_dest = sp_dest / "PySide6"
@@ -238,6 +246,7 @@ def step3_validate_runtime():
             "import common.config_manager;"
             "import launcher.main;"
             "import apps.app2_mfg.gui_qt;"
+            "import pefile; import ordlookup;"
                         "print('VERIFIED_OK');"
         )
         res = subprocess.run([str(test_rt_py), "-c", test_code], capture_output=True, text=True, env=clean_env)

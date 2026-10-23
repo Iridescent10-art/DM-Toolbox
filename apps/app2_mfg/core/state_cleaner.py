@@ -212,7 +212,7 @@ def is_mode_c_present(target_dir: Union[str, Path]) -> bool:
 
         return False
 
-    return (td / "OptiScaler.ini").exists() or (td / "libxess_fg.dll").exists()
+    return (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists()
 
 
 
@@ -437,6 +437,20 @@ def CleanGameDirectoryState(
                     except Exception as e:
 
                         actions_taken.append(f"备份 {native_name} 失败: {e}")
+
+        # 1.1 Restore any orphan *.mfg_bak files in td where destination is missing or injected
+        for bak_f in td.glob("*.mfg_bak"):
+            orig_name = bak_f.name[:-8]
+            orig_path = td / orig_name
+            if not orig_path.exists() or is_optiscaler_dll_file(str(orig_path)) or is_dashdogy_dll_file(str(orig_path)):
+                try:
+                    if orig_path.exists():
+                        safe_remove_file(orig_path)
+                    shutil.copy2(str(bak_f), str(orig_path))
+                    safe_remove_file(bak_f)
+                    actions_taken.append(f"从 .mfg_bak 恢复游戏原生核心: {orig_name}")
+                except Exception:
+                    pass
 
     except Exception as e:
 
