@@ -405,8 +405,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "ModelLab": "1",
         "NRLayersEnabled": "1",
         "UiCorrection": "1",
-        "NRVramBuffering": "0",
-        "VramBuffering": "0",
+        "NRVramBuffering": "2",
+        "VramBuffering": "2",
         "NRPresentGuides": "0",
         "NRPresentAlways": "1",
         "AlwaysPresent": "1",
@@ -428,7 +428,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingHookStage": "2",
         "DirectNeuralRenderingAlwaysPresent": "1",
         "DirectNeuralRenderingPresentMode": "1",
-        "DirectNeuralRenderingVramBuffering": "0",
+        "DirectNeuralRenderingVramBuffering": "2",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingSkinStructureStrength": "0.801136",
@@ -457,7 +457,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPasses": "1",
         "NRModelLabEnabled": "1",
         "NRLayersEnabled": "1",
-        "NRVramBuffering": "0",
+        "NRVramBuffering": "2",
         "NRPresentGuides": "0",
         "NRPresentAlways": "1",
         "NRPresentNonBlocking": "1",
@@ -482,7 +482,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPresentGuides": "0",
         "NRPresentAlways": "1",
         "NRPresentNonBlocking": "1",
-        "NRVramBuffering": "0",
+        "NRVramBuffering": "2",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
         "NRGpuTimers": "0",
@@ -502,7 +502,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingHookStage": "2",
         "DirectNeuralRenderingAlwaysPresent": "1",
         "DirectNeuralRenderingPresentMode": "1",
-        "DirectNeuralRenderingVramBuffering": "0",
+        "DirectNeuralRenderingVramBuffering": "2",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingSkinStructureStrength": "0.801136",
@@ -524,7 +524,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPresentGuides": "0",
         "NRPresentAlways": "1",
         "NRPresentNonBlocking": "1",
-        "NRVramBuffering": "0",
+        "NRVramBuffering": "2",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
         "NRGpuTimers": "0",
@@ -562,7 +562,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPasses": "1",
         "NRModelLabEnabled": "1",
         "NRLayersEnabled": "1",
-        "NRVramBuffering": "0",
+        "NRVramBuffering": "2",
         "NRPresentGuides": "0",
         "NRPresentAlways": "1",
         "NRPresentNonBlocking": "1",
@@ -580,7 +580,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "ResolutionScale": "0.500000",
         "HookStage": "2",
         "AlwaysPresent": "1",
-        "VramBuffering": "0",
+        "VramBuffering": "2",
         "LocalTone": "1.000000",
         "LocalStructure": "1.000000",
         "SkinStructure": "80",
@@ -596,7 +596,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingScaleReconstruction": "0",
         "DirectNeuralRenderingHookStage": "2",
         "DirectNeuralRenderingAlwaysPresent": "1",
-        "DirectNeuralRenderingVramBuffering": "0",
+        "DirectNeuralRenderingVramBuffering": "2",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingSkinStructureStrength": "0.801136",
@@ -747,6 +747,9 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "2") -
         "DirectNeuralRenderingPresentMode": always_pres,
         "NRPresentAlways": always_pres,
         "AlwaysPresent": always_pres,
+        "NRVramBuffering": "2",
+        "VramBuffering": "2",
+        "DirectNeuralRenderingVramBuffering": "2",
     }
 
     # 1. Update ReShade.ini
@@ -1077,7 +1080,9 @@ class DLSS5Injector:
                     "NRPasses=1\n"
                     "NRModelLabEnabled=1\n"
                     "NRLayersEnabled=1\n"
-                    "NRVramBuffering=0\n"
+                    "NRVramBuffering=2\n"
+                    "VramBuffering=2\n"
+                    "DirectNeuralRenderingVramBuffering=2\n"
                     "NRPresetGuides=0\n"
                     "NRPresentAlways=1\n"
                     "AlwaysPresent=1\n"

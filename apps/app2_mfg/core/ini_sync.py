@@ -903,6 +903,9 @@ class IniConfigManager:
             "NRFollowInputRes": "1",
             "NRResolutionScale": "0.500000",
             "ResolutionScale": "0.500000",
+            "NRVramBuffering": "2",
+            "VramBuffering": "2",
+            "DirectNeuralRenderingVramBuffering": "2",
         }
 
         # 1. Update ReShade.ini
@@ -1056,7 +1059,7 @@ class IniConfigManager:
             "NRPass2Preset": "2",
             "NRSkinStructure": "0.801136",
             "NRPresentNonBlocking": "1",
-            "NRVramBuffering": "0"
+            "NRVramBuffering": "2"
         }
 
         addon_name = "renodx-mfgunlock.addon64"

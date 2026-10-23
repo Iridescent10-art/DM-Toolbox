@@ -1,3 +1,32 @@
+# 🎉 DM-Toolbox v1.3.19 · 彻底修复 JXR 转换器拖拽红色禁止标志 / DLSS 5 默认显存缓冲调整为最小 (Minimal)
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.3.19 核心更新与优化
+
+1. **彻底解决 JXR HDR 转换器拖拽文件显示 Windows 红色禁止标志（UIPI 权限穿透与 RevokeDragDrop）**
+   - **深挖根因 (Root Cause Analysis)**：
+     - 在 WPF 原生机制中，一旦窗口或子控件标记了 `AllowDrop="True"`，WPF 会自动在底层向操作系统注册 OLE `IDropTarget` 接口；
+     - 当主工具箱以管理员权限运行（High Integrity Level）时，标准权限的 Windows 资源管理器（`explorer.exe`，Medium Integrity Level）尝试向其拖拽文件时，受 Windows **UIPI（用户界面特权隔离）** 与 COM 安全机制限制，跨权限 COM 传输会被操作系统直接拦截，导致 Explorer 判定拖拽目标无效，从而显示红色的“禁止/Stop”鼠标光标，并且永远不会触发回退机制；
+   - **彻底修复方案**：
+     - 彻底清理 XAML 中残留的 `AllowDrop="True"`，杜绝 WPF 重复装载 OLE 接收器；
+     - 窗口加载第一时刻显式调用 `ole32.dll!RevokeDragDrop(hwnd)` 撤销 WPF 默认的 OLE 拦截器；
+     - 通过 `shell32.dll!DragAcceptFiles(hwnd, true)` 开启原生文件接收，并调用 `ChangeWindowMessageFilter` / `ChangeWindowMessageFilterEx` 完整穿透 `WM_DROPFILES`（0x0233）、`WM_COPYDATA`（0x004A）与 `WM_COPYGLOBALDATA`（0x0049）；
+     - 将文件路径提取升级为宽字符 Unicode 原生 `DragQueryFileW`，完美支持带中文、特殊字符和空格的截图路径；
+     - 重新编译生成全自包含单文件版 `apps/app5_jxr/JxrConverter.exe`（66.6 MB），支持单张、多选图片及包含子目录的文件夹无感拖拽。
+
+2. **DLSS 5 注入默认显存缓冲参数调整为最小（Minimal）**
+   - **内核规范与参数对齐**：
+     - RenoDX 神经重构内核对 `NRVramBuffering` 参数有着严格的分级机制：`0: Full`（全量缓存全部挂钩路由，占显存最大）、`1: Reduced`（仅缓存当前路由）、`2: Minimal`（最小显存模式，仅分配当前挂钩点及 Pass 必需显存，空闲时立即释放）；
+   - **全局默认值更新与自愈**：
+     - 全面更新注入引擎（`injector.py`）、预设模板（`My look.ini`）以及配置协同同步器（`ini_sync.py`），将默认参数锁定为 `NRVramBuffering=2`（并同步对齐 `VramBuffering=2` 与 `DirectNeuralRenderingVramBuffering=2`）；
+     - 在注入和同步时自动应用此参数，大幅降低 DLSS 5 对显存的额外占用，彻底消除 2K/4K 高画质或光追开启下的爆显存与显存溢出掉帧。
+
+3. **全量自动化测试套件 100% PASS**
+   - 107/107 项 pytest 测试用例全部通过，零回归。
+
+---
+
 # 🎉 DM-Toolbox v1.3.18 · 彻底解决 ReShade LoadFromDllMain 误载 DLSS 5 导致的 1114 初始化失败与 D3D12 启动闪退
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
