@@ -706,7 +706,7 @@ class IniConfigManager:
         # In coexistence mode, automatically synchronize DLSS 5 hook point to Upscaled mode (0)
         # to prevent DLSS 5 Present hook from colliding with XeFG synthetic swapchain.
         if has_dlss5:
-            cls.sync_dlss5_hook_point(target, hook_point="0")
+            cls.sync_dlss5_hook_point(target, hook_point="2")
 
         # Also sync mfg_unlocker.ini in target and OptiScaler/plugins for MFGUnlocker.asi
         mfg_updates = {
@@ -879,7 +879,7 @@ class IniConfigManager:
         return preset if preset else None
 
     @classmethod
-    def sync_dlss5_hook_point(cls, target_dir: Union[str, Path], hook_point: str = "0") -> bool:
+    def sync_dlss5_hook_point(cls, target_dir: Union[str, Path], hook_point: str = "2") -> bool:
         """
         Synchronizes DLSS 5 hook point between Present (2) and Upscaled (0) mode.
         When coexisting with Mode C (XeSS FG / OptiScaler), setting hook_point="0" prevents
@@ -901,8 +901,8 @@ class IniConfigManager:
             "NRPresentAlways": always_pres,
             "AlwaysPresent": always_pres,
             "NRFollowInputRes": "1",
-            "NRResolutionScale": "0.500000" if str_hook == "0" else "1.000000",
-            "ResolutionScale": "0.500000" if str_hook == "0" else "1.000000",
+            "NRResolutionScale": "0.500000",
+            "ResolutionScale": "0.500000",
         }
 
         # 1. Update ReShade.ini
