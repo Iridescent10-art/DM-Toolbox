@@ -706,7 +706,7 @@ class IniConfigManager:
         # In coexistence mode, automatically synchronize DLSS 5 hook point to Upscaled mode (0)
         # to prevent DLSS 5 Present hook from colliding with XeFG synthetic swapchain.
         if has_dlss5:
-            cls.sync_dlss5_hook_point(target, hook_point="2")
+            cls.sync_dlss5_hook_point(target, hook_point="0")
 
         # Also sync mfg_unlocker.ini in target and OptiScaler/plugins for MFGUnlocker.asi
         mfg_updates = {
@@ -879,7 +879,7 @@ class IniConfigManager:
         return preset if preset else None
 
     @classmethod
-    def sync_dlss5_hook_point(cls, target_dir: Union[str, Path], hook_point: str = "2") -> bool:
+    def sync_dlss5_hook_point(cls, target_dir: Union[str, Path], hook_point: str = "0") -> bool:
         """
         Synchronizes DLSS 5 hook point between Present (2) and Upscaled (0) mode.
         When coexisting with Mode C (XeSS FG / OptiScaler), setting hook_point="0" prevents
@@ -1054,7 +1054,7 @@ class IniConfigManager:
             "RuntimeSelectionMode": "1",
             "HDRCompatibilityMode": "0",
             "NRRuntimePath": r".\nvngx_dlssnr.dll",
-            "NRHookPoint": "2",
+            "NRHookPoint": "0",
             "NRStyle": "2",
             "NRPass2Preset": "2",
             "NRSkinStructure": "0.801136",

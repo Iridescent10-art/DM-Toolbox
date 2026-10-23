@@ -379,8 +379,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPreset": "My look",
         "Preset": "My look",
         "CurrentPreset": "My look",
-        "NRHookPoint": "2",
-        "HookStage": "2",
+        "NRHookPoint": "0",
+        "HookStage": "0",
         "NRStyle": "2",
         "Style": "2",
         "NRPass2Preset": "2",
@@ -408,8 +408,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRVramBuffering": "2",
         "VramBuffering": "2",
         "NRPresentGuides": "0",
-        "NRPresentAlways": "1",
-        "AlwaysPresent": "1",
+        "NRPresentAlways": "0",
+        "AlwaysPresent": "0",
         "NRPresentNonBlocking": "1",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
@@ -425,9 +425,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingModelVersion": "1",
         "DirectNeuralRenderingProcessingScale": "100",
         "DirectNeuralRenderingScaleReconstruction": "0",
-        "DirectNeuralRenderingHookStage": "2",
-        "DirectNeuralRenderingAlwaysPresent": "1",
-        "DirectNeuralRenderingPresentMode": "1",
+        "DirectNeuralRenderingHookStage": "0",
+        "DirectNeuralRenderingAlwaysPresent": "0",
+        "DirectNeuralRenderingPresentMode": "0",
         "DirectNeuralRenderingVramBuffering": "2",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
@@ -443,7 +443,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "ConfigVersion": "11",
         "NREnabled": "1",
         "NRPreset": "My look",
-        "NRHookPoint": "2",
+        "NRHookPoint": "0",
         "NRStyle": "2",
         "NRPass2Preset": "2",
         "NRSkinStructure": "0.801136",
@@ -459,7 +459,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRLayersEnabled": "1",
         "NRVramBuffering": "2",
         "NRPresentGuides": "0",
-        "NRPresentAlways": "1",
+        "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll"
     },
@@ -468,7 +468,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "Enabled": "1",
         "Status": "1",
         "ConfigVersion": "11",
-        "NRHookPoint": "2",
+        "NRHookPoint": "0",
         "NRStyle": "2",
         "NRPass2Preset": "2",
         "NRSkinStructure": "0.801136",
@@ -480,7 +480,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRLocalTone": "1.000000",
         "NRLocalStructure": "1.000000",
         "NRPresentGuides": "0",
-        "NRPresentAlways": "1",
+        "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
         "NRVramBuffering": "2",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
@@ -499,9 +499,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingModelVersion": "1",
         "DirectNeuralRenderingProcessingScale": "100",
         "DirectNeuralRenderingScaleReconstruction": "0",
-        "DirectNeuralRenderingHookStage": "2",
-        "DirectNeuralRenderingAlwaysPresent": "1",
-        "DirectNeuralRenderingPresentMode": "1",
+        "DirectNeuralRenderingHookStage": "0",
+        "DirectNeuralRenderingAlwaysPresent": "0",
+        "DirectNeuralRenderingPresentMode": "0",
         "DirectNeuralRenderingVramBuffering": "2",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
@@ -520,9 +520,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRPass2Preset": "2",
         "NRResolutionScale": "0.500000",
         "NRFollowInputRes": "1",
-        "NRHookPoint": "2",
+        "NRHookPoint": "0",
         "NRPresentGuides": "0",
-        "NRPresentAlways": "1",
+        "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
         "NRVramBuffering": "2",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
@@ -548,7 +548,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "Enabled": "1",
         "CurrentPreset": "My look",
         "ConfigVersion": "11",
-        "NRHookPoint": "2",
+        "NRHookPoint": "0",
         "NRStyle": "2",
         "NRPass2Preset": "2",
         "NRSkinStructure": "0.801136",
@@ -564,7 +564,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRLayersEnabled": "1",
         "NRVramBuffering": "2",
         "NRPresentGuides": "0",
-        "NRPresentAlways": "1",
+        "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
@@ -578,8 +578,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "Style": "2",
         "ModelVersion": "1",
         "ResolutionScale": "0.500000",
-        "HookStage": "2",
-        "AlwaysPresent": "1",
+        "HookStage": "0",
+        "AlwaysPresent": "0",
         "VramBuffering": "2",
         "LocalTone": "1.000000",
         "LocalStructure": "1.000000",
@@ -594,8 +594,8 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingModelVersion": "1",
         "DirectNeuralRenderingProcessingScale": "100",
         "DirectNeuralRenderingScaleReconstruction": "0",
-        "DirectNeuralRenderingHookStage": "2",
-        "DirectNeuralRenderingAlwaysPresent": "1",
+        "DirectNeuralRenderingHookStage": "0",
+        "DirectNeuralRenderingAlwaysPresent": "0",
         "DirectNeuralRenderingVramBuffering": "2",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
@@ -726,7 +726,7 @@ def _update_preset_file_kv(file_path: Path, kv: Dict[str, str]):
         pass
 
 
-def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "2") -> bool:
+def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -> bool:
     """
     Synchronizes DLSS 5 hook point between Present (2) and Upscaled (0) mode.
     When coexisting with Mode C (XeSS FG / OptiScaler), setting hook_point="0" prevents
@@ -1062,8 +1062,8 @@ class DLSS5Injector:
                     "ConfigVersion=11\n"
                     "NREnabled=1\n"
                     "NRPreset=My look\n"
-                    "NRHookPoint=2\n"
-                    "HookStage=2\n"
+                    "NRHookPoint=0\n"
+                    "HookStage=0\n"
                     "NRStyle=2\n"
                     "Style=2\n"
                     "NRPass2Preset=2\n"
@@ -1084,8 +1084,8 @@ class DLSS5Injector:
                     "VramBuffering=2\n"
                     "DirectNeuralRenderingVramBuffering=2\n"
                     "NRPresetGuides=0\n"
-                    "NRPresentAlways=1\n"
-                    "AlwaysPresent=1\n"
+                    "NRPresentAlways=0\n"
+                    "AlwaysPresent=0\n"
                     "NRPresentNonBlocking=1\n"
                     "NRRuntimePath=.\\nvngx_dlssnr.dll\n"
                     "NRToggleKey=0,0,0,0\n"
@@ -1119,7 +1119,7 @@ class DLSS5Injector:
                 pass
 
             if has_mfg:
-                sync_dlss5_hook_point(td, hook_point="2")
+                sync_dlss5_hook_point(td, hook_point="0")
                 if (td / "OptiScaler.ini").exists():
                     try:
                         from apps.app2_mfg.core.ini_sync import IniConfigManager

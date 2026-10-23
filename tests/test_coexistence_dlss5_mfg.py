@@ -242,7 +242,7 @@ def test_assertion_3_addon_mounting_and_ini_syntax():
         # 5. 校验 DLSS 5 预设参数未被破坏
         assert cp.has_section("RenoDX.DLSS5"), "应包含 [RenoDX.DLSS5] 节点"
         nr_hook = cp.get("RenoDX.DLSS5", "NRHookPoint", fallback="")
-        assert nr_hook == "2", f"DLSS 5 挂钩点必须为 Present 模式 (2)，实际为: {nr_hook}"
+        assert nr_hook == "0", f"DLSS 5 挂钩点必须为 之后/Upscaled 模式 (0)，实际为: {nr_hook}"
         nr_style = cp.get("RenoDX.DLSS5", "NRStyle", fallback="")
         assert nr_style == "2", f"DLSS 5 风格必须为模型 C (2)，实际为: {nr_style}"
 
@@ -475,18 +475,18 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         cp_reshade = configparser.ConfigParser(interpolation=None, strict=False)
         cp_reshade.read(reshade_ini_a, encoding="utf-8")
 
-        assert cp_reshade.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "2", "DLSS 5 NRHookPoint 默认为 '2' (Present模式)"
-        assert cp_reshade.get("RenoDX.DLSS5", "HookStage", fallback="") == "2", "HookStage 必须为 '2'"
-        assert cp_reshade.get("RenoDX.DLSS5", "DirectNeuralRenderingHookStage", fallback="") == "2", "DirectNeuralRenderingHookStage 必须为 '2'"
-        assert cp_reshade.get("RenoDX.DLSS5", "DirectNeuralRenderingAlwaysPresent", fallback="") == "1", "DirectNeuralRenderingAlwaysPresent 必须为 '1'"
-        assert cp_reshade.get("RenoDX.DLSS5", "DirectNeuralRenderingPresentMode", fallback="") == "1", "DirectNeuralRenderingPresentMode 必须为 '1'"
-        assert cp_reshade.get("RenoDX.DLSS5", "NRPresentAlways", fallback="") == "1", "NRPresentAlways 必须为 '1'"
+        assert cp_reshade.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "0", "DLSS 5 NRHookPoint 默认为 '0' (之后/Upscaled模式)"
+        assert cp_reshade.get("RenoDX.DLSS5", "HookStage", fallback="") == "0", "HookStage 必须为 '0'"
+        assert cp_reshade.get("RenoDX.DLSS5", "DirectNeuralRenderingHookStage", fallback="") == "0", "DirectNeuralRenderingHookStage 必须为 '0'"
+        assert cp_reshade.get("RenoDX.DLSS5", "DirectNeuralRenderingAlwaysPresent", fallback="") == "0", "DirectNeuralRenderingAlwaysPresent 必须为 '0'"
+        assert cp_reshade.get("RenoDX.DLSS5", "DirectNeuralRenderingPresentMode", fallback="") == "0", "DirectNeuralRenderingPresentMode 必须为 '0'"
+        assert cp_reshade.get("RenoDX.DLSS5", "NRPresentAlways", fallback="") == "0", "NRPresentAlways 必须为 '0'"
 
         preset_mylook_a = game_dir_a / "RenoDX" / "DLSS5" / "Presets" / "My look.ini"
         assert preset_mylook_a.exists(), "My look.ini 独立预设文件应存在"
         txt_mylook = preset_mylook_a.read_text(encoding="utf-8")
-        assert "NRHookPoint=2" in txt_mylook, "预设文件中 NRHookPoint 必须为 '2'"
-        assert "HookStage=2" in txt_mylook, "预设文件中 HookStage 必须为 '2'"
+        assert "NRHookPoint=0" in txt_mylook, "预设文件中 NRHookPoint 必须为 '0'"
+        assert "HookStage=0" in txt_mylook, "预设文件中 HookStage 必须为 '0'"
 
         # 验证 4: 只要存在 DLSS 5，就必须清理 fakenvapi（任何显卡架构）
         assert not (game_dir_a / "fakenvapi.dll").exists(), "DLSS 5 共存态下严禁部署 fakenvapi.dll"
@@ -550,8 +550,8 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         reshade_ini_b = game_dir_b / "ReShade.ini"
         cp_reshade_b = configparser.ConfigParser(interpolation=None, strict=False)
         cp_reshade_b.read(reshade_ini_b, encoding="utf-8")
-        assert cp_reshade_b.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "2"
-        assert cp_reshade_b.get("RenoDX.DLSS5", "HookStage", fallback="") == "2"
+        assert cp_reshade_b.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "0"
+        assert cp_reshade_b.get("RenoDX.DLSS5", "HookStage", fallback="") == "0"
 
         # 验证 fakenvapi 已被清理（任何显卡架构）
         assert not (game_dir_b / "fakenvapi.dll").exists(), "遗留的 fakenvapi.dll 必须被清理"
@@ -694,9 +694,9 @@ def test_assertion_9_mode_a_dlss5_coexistence_and_synergy():
         assert reshade_ini.exists()
         cp = configparser.ConfigParser(interpolation=None, strict=False)
         cp.read(reshade_ini, encoding="utf-8")
-        assert cp.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "2", "模式 A 共存态下 NRHookPoint 默认为 '2' (Present模式)"
-        assert cp.get("RenoDX.DLSS5", "HookStage", fallback="") == "2"
-        assert cp.get("RenoDX.DLSS5", "NRPresentAlways", fallback="") == "1", "NRPresentAlways 默认为 '1'"
+        assert cp.get("RenoDX.DLSS5", "NRHookPoint", fallback="") == "0", "模式 A 共存态下 NRHookPoint 默认为 '0' (之后/Upscaled模式)"
+        assert cp.get("RenoDX.DLSS5", "HookStage", fallback="") == "0"
+        assert cp.get("RenoDX.DLSS5", "NRPresentAlways", fallback="") == "0", "NRPresentAlways 默认为 '0'"
         assert cp.get("RenoDX.DLSS5", "NRFollowInputRes", fallback="") == "1", "NRFollowInputRes 必须为 '1' (匹配游戏)"
         assert cp.get("RenoDX.DLSS5", "NRResolutionScale", fallback="") == "0.500000"
 
@@ -704,8 +704,8 @@ def test_assertion_9_mode_a_dlss5_coexistence_and_synergy():
         my_look_file = game_dir / "RenoDX" / "DLSS5" / "Presets" / "My look.ini"
         assert my_look_file.exists()
         txt_mylook = my_look_file.read_text(encoding="utf-8")
-        assert "NRHookPoint=2" in txt_mylook
-        assert "NRPresentAlways=1" in txt_mylook
+        assert "NRHookPoint=0" in txt_mylook
+        assert "NRPresentAlways=0" in txt_mylook
         assert "NRFollowInputRes=1" in txt_mylook
 
         # 5. 执行卸载还原

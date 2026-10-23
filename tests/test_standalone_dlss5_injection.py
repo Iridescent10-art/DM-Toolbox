@@ -83,7 +83,7 @@ def test_standalone_injection_and_restoration():
         assert "CurrentPreset=My look" in ini_content, "应设置预设为 My look"
         assert "NRStyle=2" in ini_content, "NRStyle 应为模型 C (2)"
         assert "NRPass2Preset=2" in ini_content, "NRPass2Preset 应为新版 (2)"
-        assert "NRHookPoint=2" in ini_content, "NRHookPoint 挂钩点应为 Present 模式 (2)"
+        assert "NRHookPoint=0" in ini_content, "NRHookPoint 挂钩点应为 之后/Upscaled 模式 (0)"
         assert ("NRSkinStructure=0.801136" in ini_content or "NRSkinStructure=80" in ini_content or "SkinStructure=80" in ini_content), "NRSkinStructure 皮肤结构应为 80 (0.801136)"
         assert "NRFollowInputRes=1" in ini_content, "应启用匹配游戏分辨率"
         assert "[RenoDX DLSS5 preset]" in ini_content, "应包含预设专有段 [RenoDX DLSS5 preset]"
@@ -92,7 +92,7 @@ def test_standalone_injection_and_restoration():
         preset_file = mock_game_dir / "RenoDX" / "DLSS5" / "Presets" / "My look.ini"
         assert preset_file.exists(), "RenoDX 独立预设文件 My look.ini 应自动生成"
         preset_txt = preset_file.read_text(encoding="utf-8")
-        assert "NRHookPoint=2" in preset_txt, "预设中挂钩点应为 Present 模式 (2)"
+        assert "NRHookPoint=0" in preset_txt, "预设中挂钩点应为 之后/Upscaled 模式 (0)"
         assert "NRStyle=2" in preset_txt, "预设中风格应为模型 C (2)"
         assert "NRPass2Preset=2" in preset_txt, "预设中版本应为新版 (2)"
         assert ("NRSkinStructure=0.801136" in preset_txt or "NRSkinStructure=80" in preset_txt or "SkinStructure=80" in preset_txt), "预设中皮肤应为 80 (0.801136)"
