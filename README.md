@@ -76,7 +76,7 @@
 - **集成 ReShade HDR (RHI) 与云端智能测速同步**：
   - 内置独立离线 RHI-Setup.exe，直连 RankFTW/RHI 官方 GitHub 仓库热更新；
   - 拥有与主工具箱完全一致的 **智能测速优选**（GH-Proxy / GHFast / 直连等多节点并发 Ping 测速与徽章标注），自动锁定最低延迟节点，支持多节点无缝故障转移；
-  - 一键异步检查并同步 Mode A/B/C/D 四大插帧后端与 RHI 工具包，安全隔离存放于系统 AppData，不污染游戏或软件目录。
+  - 一键异步检查并同步 Mode A / Mode B 双插帧核心与 RHI 工具包，安全隔离存放于系统 AppData，不污染游戏或软件目录。
 
 > [!WARNING]
 > **反作弊与多人联机安全须知 (Anti-Cheat Warning)**：
