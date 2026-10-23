@@ -392,17 +392,16 @@ def CleanGameDirectoryState(
 
             actions_taken.append("创建 .dm_backup 原始白名单目录")
 
+        imported_pe_dlls = get_game_statically_imported_dlls(td)
         whitelist_natives = [
-
             "nvngx_dlss.dll",
-
             "nvngx_dlssg.dll",
-
             "sl.interposer.dll",
-
             "sl.dlss_g.dll"
-
         ]
+        for pe_dll in imported_pe_dlls:
+            if pe_dll.lower() not in [x.lower() for x in whitelist_natives]:
+                whitelist_natives.append(pe_dll)
 
         for native_name in whitelist_natives:
 
@@ -547,6 +546,20 @@ def CleanGameDirectoryState(
         actions_taken.append("清理非模式 B 的 renodx-mfgunlock.addon64")
 
 
+
+    # If restoring/unpatching (target_mode is None), restore all backed-up files from .dm_backup
+    if target_mode is None:
+        if backup_dir.exists() and backup_dir.is_dir():
+            for bf in backup_dir.glob("*"):
+                if bf.is_file() and not bf.name.endswith(".json"):
+                    dest_f = td / bf.name
+                    if not is_optiscaler_dll_file(str(bf)) and not is_dashdogy_dll_file(str(bf)) and not is_reshade_dll_file(str(bf)):
+                        try:
+                            safe_remove_file(dest_f)
+                            shutil.copy2(str(bf), str(dest_f))
+                            actions_taken.append(f"从 .dm_backup 还原原始文件: {bf.name}")
+                        except Exception as e:
+                            actions_taken.append(f"还原 {bf.name} 失败: {e}")
 
     # (D) dxgi.dll Slot Management:
 

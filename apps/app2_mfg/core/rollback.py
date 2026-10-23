@@ -109,10 +109,17 @@ class RollbackEngine:
                         except Exception as e:
                             errors.append(f"恢复备份文件失败 '{orig_name}': {e}")
 
+        imported_pe_dlls = set()
+        try:
+            from core.utils import get_game_statically_imported_dlls, auto_heal_game_dependencies
+            imported_pe_dlls = get_game_statically_imported_dlls(target_dir)
+        except Exception:
+            pass
+
         # 2. Delete created files via safe_force_remove
         if manifest:
             for rel_file in manifest.created_files:
-                if rel_file.lower() in restored_originals:
+                if rel_file.lower() in restored_originals or rel_file.lower() in imported_pe_dlls:
                     continue
                 full_path = os.path.join(target_dir, rel_file)
                 if not clean_all and rel_file.lower() == "dxgi.dll" and other_addons:
@@ -171,7 +178,7 @@ class RollbackEngine:
                         safe_force_remove(dst_b)
                         shutil.copy2(src_b, dst_b)
                         restored_originals.add(bf.lower())
-                shutil.rmtree(dm_backup_dir, ignore_errors=True)
+                pass
             except Exception:
                 pass
 
@@ -302,6 +309,8 @@ class RollbackEngine:
 
         # 5. Remove manifest file itself
         safe_force_remove(manifest_file)
+        if os.path.exists(dm_backup_dir) and os.path.isdir(dm_backup_dir):
+            shutil.rmtree(dm_backup_dir, ignore_errors=True)
 
         # 6. Final sweep of any temporary trash files
         cleanup_pending_files(target_dir)

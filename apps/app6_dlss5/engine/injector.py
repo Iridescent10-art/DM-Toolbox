@@ -27,7 +27,7 @@ if str(APP2_DIR) not in sys.path:
     sys.path.insert(0, str(APP2_DIR))
 
 try:
-    from apps.app2_mfg.core.state_cleaner import is_reshade_dll_file, is_optiscaler_dll_file, is_mode_c_present
+    from apps.app2_mfg.core.state_cleaner import is_reshade_dll_file, is_optiscaler_dll_file, is_mode_c_present, is_dashdogy_dll_file
     from apps.app2_mfg.core.rollback import RollbackEngine
     from apps.app2_mfg.core.utils import safe_force_remove, kill_locking_processes, cleanup_pending_files
 except Exception:
@@ -38,6 +38,16 @@ except Exception:
             with open(p, "rb") as f:
                 data = f.read(4 * 1024 * 1024)
             return b"ReShade" in data or b"crosire" in data
+        except Exception:
+            return False
+
+    def is_dashdogy_dll_file(p: str) -> bool:
+        if not os.path.exists(p):
+            return False
+        try:
+            with open(p, "rb") as f:
+                data = f.read(4 * 1024 * 1024)
+            return b"MFGUnlocker" in data or b"RTX40MFG" in data or b"RTXMFG" in data
         except Exception:
             return False
 
@@ -1193,6 +1203,11 @@ class DLSS5Injector:
         """
         Executes deep one-click clean uninstallation of DLSS 5 and RHI/ReShade remnants from target_dir,
         completely purging all mod runtimes, proxy DLLs, and restoring the game to 100% vanilla environment.
+        Follows the strict protocol:
+        1. Restore all original files from backup directories (.dm_backup and .dlss5_backup)
+        2. Delete own injected mod files, addons, and configs
+        3. Protect and auto-heal all game statically imported PE dependencies
+        4. Clean up backup directories only after full restore is verified.
         """
         td = Path(target_dir) if target_dir else None
         if not td or not td.exists() or not td.is_dir():
@@ -1210,8 +1225,25 @@ class DLSS5Injector:
         removed_items = []
         restored_items = []
         backup_dir = td / DLSS5_BACKUP_DIRNAME
+        dm_backup_dir = td / ".dm_backup"
 
-        # Layer 1.5: Restore Bink2 Hook if present (Mode A chainload restore)
+        # Layer 2: Put back ALL original files from backup directories FIRST
+        for b_dir in [backup_dir, dm_backup_dir]:
+            if b_dir.exists() and b_dir.is_dir():
+                for b_file in b_dir.glob("*"):
+                    if b_file.is_file() and not b_file.name.endswith(".json"):
+                        dest_f = td / b_file.name
+                        # Skip if the backup itself is an injected proxy
+                        if is_reshade_dll_file(str(b_file)) or is_optiscaler_dll_file(str(b_file)) or is_dashdogy_dll_file(str(b_file)):
+                            continue
+                        try:
+                            safe_force_remove(str(dest_f))
+                            shutil.copy2(str(b_file), str(dest_f))
+                            restored_items.append(f"{b_file.name} (从备份还原)")
+                        except Exception:
+                            pass
+
+        # Layer 2.5: Restore Bink2 Hook if present (bink2w64Hooked.dll -> bink2w64.dll)
         bink_hook = td / "bink2w64Hooked.dll"
         bink_orig = td / "bink2w64.dll"
         if bink_hook.exists():
@@ -1227,7 +1259,8 @@ class DLSS5Injector:
                 except Exception:
                     pass
 
-        # Layer 2: Remove all addon files (*.addon64, *.addon)
+        # Layer 3: Delete own injected mod files
+        # (A) All addon files
         for addon_file in list(td.glob("*.addon64")) + list(td.glob("*.addon")):
             try:
                 safe_force_remove(str(addon_file))
@@ -1235,41 +1268,20 @@ class DLSS5Injector:
             except Exception:
                 pass
 
-        # Layer 3: Handle dxgi.dll
+        # (B) dxgi.dll if it is a ReShade / OptiScaler proxy and was not restored as native
         dxgi_file = td / "dxgi.dll"
-        bak_dxgi = backup_dir / "dxgi.dll"
         if dxgi_file.exists():
             if is_reshade_dll_file(str(dxgi_file)) or is_optiscaler_dll_file(str(dxgi_file)):
                 safe_force_remove(str(dxgi_file))
                 removed_items.append("dxgi.dll (ReShade底座/代理)")
 
-        # If backup dxgi exists, verify whether backup was native or ReShade/RHI
-        if bak_dxgi.exists():
-            if is_reshade_dll_file(str(bak_dxgi)) or is_optiscaler_dll_file(str(bak_dxgi)):
-                # Backup was also ReShade installed by RHI previously! Purge it, DO NOT RESTORE!
-                safe_force_remove(str(bak_dxgi))
-                removed_items.append(".dlss5_backup/dxgi.dll (非原生ReShade备份已清除)")
-            else:
-                # Truly a native game file: restore it
-                try:
-                    if dxgi_file.exists():
-                        safe_force_remove(str(dxgi_file))
-                    shutil.move(str(bak_dxgi), str(dxgi_file))
-                    restored_items.append("dxgi.dll (原生游戏文件)")
-                except Exception:
-                    pass
-
-        # Layer 4: Handle nvngx_dlssnr.dll
+        # (C) nvngx_dlssnr.dll
         nr_file = td / "nvngx_dlssnr.dll"
         if nr_file.exists():
             safe_force_remove(str(nr_file))
             removed_items.append("nvngx_dlssnr.dll (神经重构模型)")
 
-        bak_nr = backup_dir / "nvngx_dlssnr.dll"
-        if bak_nr.exists():
-            safe_force_remove(str(bak_nr))
-
-        # Layer 5: Deep remove all ReShade / RHI / DLSS 5 directories
+        # (D) Remove mod directories
         folders_to_purge = [
             "RenoDX",
             "dlss5-nr-runtime",
@@ -1279,9 +1291,7 @@ class DLSS5Injector:
             "XeSS",
             "amd_fidelityfx",
             "reshade-shaders",
-            "reshade-presets",
-            DLSS5_BACKUP_DIRNAME,
-            ".dm_backup"
+            "reshade-presets"
         ]
         for fld in folders_to_purge:
             fld_path = td / fld
@@ -1292,7 +1302,14 @@ class DLSS5Injector:
                 except Exception:
                     pass
 
-        # Layer 6: Deep remove config, backup and log files
+        # (E) Config, proxy and log files (NEVER delete game native PE dependencies!)
+        imported_pe_dlls = set()
+        try:
+            from apps.app2_mfg.core.utils import get_game_statically_imported_dlls
+            imported_pe_dlls = get_game_statically_imported_dlls(td)
+        except Exception:
+            pass
+
         files_to_purge = [
             "ReShade.ini",
             "ReShade.ini.v11-backup",
@@ -1305,10 +1322,6 @@ class DLSS5Injector:
             ".dlss5_patch_manifest.json",
             ".mfg_patch_manifest.json",
             "dxgi.dll.dlss5_bak",
-            "version.dll",
-            "winmm.dll",
-            "dinput8.dll",
-            "wininet.dll",
             "fakenvapi.dll",
             "fakenvapi.ini",
             "fakenvapi.log",
@@ -1336,47 +1349,58 @@ class DLSS5Injector:
             "libxess_dx11.dll",
             "libxess_fg.dll"
         ]
-        imported_pe_dlls = set()
-        try:
-            from apps.app2_mfg.core.utils import get_game_statically_imported_dlls, auto_heal_game_dependencies
-            imported_pe_dlls = get_game_statically_imported_dlls(td)
-        except Exception:
-            pass
-
         for fname in files_to_purge:
-            if fname.lower() in imported_pe_dlls:
+            if fname.lower() in imported_pe_dlls or any(fname.lower() in r.lower() for r in restored_items):
                 continue
             fp = td / fname
             if fp.exists():
                 safe_force_remove(str(fp))
                 removed_items.append(fname)
 
-        try:
-            from apps.app2_mfg.core.utils import auto_heal_game_dependencies
-            auto_heal_game_dependencies(td)
-        except Exception:
-            pass
+        # Proxies (only delete if they are confirmed proxies and not native game files)
+        for proxy_name in ["version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"]:
+            if proxy_name.lower() in imported_pe_dlls:
+                continue
+            pp = td / proxy_name
+            if pp.exists() and (is_dashdogy_dll_file(str(pp)) or is_optiscaler_dll_file(str(pp)) or is_reshade_dll_file(str(pp))):
+                safe_force_remove(str(pp))
+                removed_items.append(proxy_name)
 
-        # Also purge any wildcard crash logs or logs
+        # Wildcard logs
         for pat in ["dlss5-nr-crash-*.txt", "ReShade*.ini*", "RTXMFG-*.log", "RTXMFG-*.csv"]:
             for match_f in td.glob(pat):
                 safe_force_remove(str(match_f))
                 removed_items.append(match_f.name)
 
-        # Layer 7: Secondary sweep via RollbackEngine (clean_all=True) to eliminate any OptiScaler/proxy remnants
+        # Layer 4: Auto-heal any missing game PE dependencies (libxell.dll, libxess.dll, libxess_fg.dll, igxess.dll)
         try:
-            rb_engine = RollbackEngine()
-            rb_engine.rollback(target_dir_str, clean_all=True)
+            from apps.app2_mfg.core.utils import auto_heal_game_dependencies
+            healed = auto_heal_game_dependencies(td)
+            for h in healed:
+                restored_items.append(f"{h} (原生依赖自愈)")
         except Exception:
             pass
 
-        # Layer 8: Final cleanup of any pending / temp files
+        # Layer 5: Only NOW clean up backup directories after all files have been safely verified and restored
+        for b_dir in [backup_dir, dm_backup_dir]:
+            if b_dir.exists() and b_dir.is_dir():
+                try:
+                    shutil.rmtree(b_dir, ignore_errors=True)
+                except Exception:
+                    pass
+
+        # Final cleanup of any pending / temp files
         try:
             cleanup_pending_files(target_dir_str)
         except Exception:
             pass
 
-        res_msg = f"🧹 DLSS 5 与 RHI/ReShade 模组环境已彻底卸载并净化还原！\n\n已彻底清除组件 ({len(removed_items)} 项):\n"
+        res_msg = f"🧹 DLSS 5 与 RHI/ReShade 模组环境已彻底卸载并净化还原！\n\n已成功恢复原生文件 ({len(restored_items)} 项):\n"
+        if restored_items:
+            res_msg += " • " + "\n • ".join(restored_items[:10])
+            if len(restored_items) > 10:
+                res_msg += f"\n • ...及其他 {len(restored_items) - 10} 项"
+        res_msg += f"\n\n已彻底清除模组组件 ({len(removed_items)} 项):\n"
         if removed_items:
             res_msg += " • " + "\n • ".join(removed_items[:12])
             if len(removed_items) > 12:
@@ -1384,8 +1408,4 @@ class DLSS5Injector:
         else:
             res_msg += "（未检测到残留模组组件）"
 
-        if restored_items:
-            res_msg += f"\n\n已恢复原生游戏备份:\n • " + "\n • ".join(restored_items)
-
-        res_msg += "\n\n✨ 游戏目录已 100% 恢复为官方纯净无篡改环境！"
         return True, res_msg

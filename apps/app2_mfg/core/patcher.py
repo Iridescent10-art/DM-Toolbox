@@ -285,7 +285,16 @@ class PatchEngine:
         # Mode A proxy slot: dynamically resolved based on PE imports (winmm > version)
         selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.STANDALONE)
         dest_proxy_path = os.path.join(target_dir, selected_proxy)
+        dm_backup_dir = os.path.join(target_dir, ".dm_backup")
+        os.makedirs(dm_backup_dir, exist_ok=True)
+        dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
+
         if os.path.exists(dest_proxy_path):
+            if not os.path.exists(dm_proxy_bak) and not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path):
+                try:
+                    shutil.copy2(dest_proxy_path, dm_proxy_bak)
+                except Exception:
+                    pass
             safe_force_remove(dest_proxy_path)
         shutil.copy2(source_dll, dest_proxy_path)
         manifest.created_files.append(selected_proxy)
@@ -835,8 +844,17 @@ class PatchEngine:
             if not os.path.exists(src_item):
                 continue
             dst_item = os.path.join(target_dir, item)
-            if os.path.exists(dst_item):
-                # Backup existing file
+            dm_backup_dir = os.path.join(target_dir, ".dm_backup")
+            os.makedirs(dm_backup_dir, exist_ok=True)
+            dm_bak_file = os.path.join(dm_backup_dir, item)
+
+            was_preexisting = os.path.exists(dst_item)
+            if was_preexisting:
+                if not os.path.exists(dm_bak_file) and not self._is_optiscaler_dll(dst_item) and not self._is_dashdogy_dll(dst_item):
+                    try:
+                        shutil.copy2(dst_item, dm_bak_file)
+                    except Exception:
+                        pass
                 bak_name = item + ".mfg_bak"
                 bak_path = os.path.join(target_dir, bak_name)
                 safe_force_remove(bak_path)
@@ -846,7 +864,8 @@ class PatchEngine:
                 except Exception:
                     pass
             shutil.copy2(src_item, dst_item)
-            manifest.created_files.append(item)
+            if not was_preexisting:
+                manifest.created_files.append(item)
 
         # 3. Deploy OptiScaler subdirectory (OptiScaler 10+ backend libraries) if exists
         opti_sub = os.path.join(opti_dir, "OptiScaler")
