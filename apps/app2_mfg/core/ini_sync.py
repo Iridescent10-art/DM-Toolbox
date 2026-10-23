@@ -1062,7 +1062,7 @@ class IniConfigManager:
             "NRHookPoint": "0",
             "NRStyle": "2",
             "NRPass2Preset": "2",
-            "NRSkinStructure": "0.801136",
+            "NRSkinStructure": "1.000000",
             "NRPresentNonBlocking": "1",
             "NRVramBuffering": "2"
         }

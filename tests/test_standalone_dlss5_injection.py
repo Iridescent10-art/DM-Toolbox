@@ -84,7 +84,7 @@ def test_standalone_injection_and_restoration():
         assert "NRStyle=2" in ini_content, "NRStyle 应为模型 C (2)"
         assert "NRPass2Preset=2" in ini_content, "NRPass2Preset 应为新版 (2)"
         assert "NRHookPoint=0" in ini_content, "NRHookPoint 挂钩点应为 之后/Upscaled 模式 (0)"
-        assert ("NRSkinStructure=0.801136" in ini_content or "NRSkinStructure=80" in ini_content or "SkinStructure=80" in ini_content), "NRSkinStructure 皮肤结构应为 80 (0.801136)"
+        assert ("NRSkinStructure=1.000000" in ini_content or "NRSkinStructure=100" in ini_content or "SkinStructure=100" in ini_content), "NRSkinStructure 皮肤结构应为 100 (1.000000)"
         assert "NRFollowInputRes=1" in ini_content, "应启用匹配游戏分辨率"
         assert "[RenoDX DLSS5 preset]" in ini_content, "应包含预设专有段 [RenoDX DLSS5 preset]"
 
@@ -95,7 +95,7 @@ def test_standalone_injection_and_restoration():
         assert "NRHookPoint=0" in preset_txt, "预设中挂钩点应为 之后/Upscaled 模式 (0)"
         assert "NRStyle=2" in preset_txt, "预设中风格应为模型 C (2)"
         assert "NRPass2Preset=2" in preset_txt, "预设中版本应为新版 (2)"
-        assert ("NRSkinStructure=0.801136" in preset_txt or "NRSkinStructure=80" in preset_txt or "SkinStructure=80" in preset_txt), "预设中皮肤应为 80 (0.801136)"
+        assert ("NRSkinStructure=1.000000" in preset_txt or "NRSkinStructure=100" in preset_txt or "SkinStructure=100" in preset_txt), "预设中皮肤应为 100 (1.000000)"
 
         print("   [PASS] 注入成功且所有文件、独立预设及 Schema 11 调参配置正确落盘")
 
