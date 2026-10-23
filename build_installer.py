@@ -13,6 +13,7 @@ import sys
 import shutil
 import subprocess
 from pathlib import Path
+from common.version import APP_VERSION
 
 ROOT_DIR = Path(__file__).resolve().parent
 PYTHON_SYS_DIR = Path(os.environ.get("LOCALAPPDATA")) / "Programs" / "Python" / "Python314"
@@ -86,6 +87,7 @@ namespace DMBOX
     }
 }
 """
+    cs_source = cs_source.replace("1.3.25.0", f"{APP_VERSION}.0")
     cs_file.write_text(cs_source, encoding="utf-8")
 
     manifest_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -267,16 +269,16 @@ def step4_build_inno_installer():
     iss_content = f"""[Setup]
 ; 基本应用信息
 AppName=DM工具箱
-AppVersion=1.3.24
+AppVersion={APP_VERSION}
 AppPublisher=DM Studio
 AppPublisherURL=https://github.com/Iridescent10-art/DM-Toolbox
 AppSupportURL=https://github.com/Iridescent10-art/DM-Toolbox
 AppUpdatesURL=https://github.com/Iridescent10-art/DM-Toolbox/releases
-VersionInfoVersion=1.3.24.0
+VersionInfoVersion={APP_VERSION}.0
 VersionInfoCompany=DM Studio
 VersionInfoDescription=DM工具箱 安装向导
 VersionInfoProductName=DM工具箱
-VersionInfoProductVersion=1.3.24.0
+VersionInfoProductVersion={APP_VERSION}.0
 VersionInfoCopyright=Copyright (C) 2026 DM Studio
 DefaultDirName={{autopf}}\\DMBOX
 DefaultGroupName=DM工具箱
