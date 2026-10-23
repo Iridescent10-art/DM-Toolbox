@@ -569,7 +569,8 @@ def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
         return imported
     try:
         import pefile
-        for exe in td.glob("*.exe"):
+        exes = [td] if td.is_file() else list(td.glob("*.exe"))
+        for exe in exes:
             name = exe.name.lower()
             if any(x in name for x in ["crash", "report", "unins", "patch", "setup"]):
                 continue
@@ -577,10 +578,10 @@ def get_game_statically_imported_dlls(target_dir: Union[str, Path]) -> set:
                 if exe.stat().st_size < 4096:
                     continue
                 with open(exe, "rb") as f:
-                    header = f.read(1024 * 1024)
-                if not header.startswith(b"MZ"):
+                    data = f.read()
+                if not data.startswith(b"MZ"):
                     continue
-                pe = pefile.PE(data=header, fast_load=True)
+                pe = pefile.PE(data=data, fast_load=True)
                 pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
                 for entry in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
                     imported.add(entry.dll.decode("utf-8", errors="ignore").lower())
@@ -626,12 +627,13 @@ def auto_heal_game_dependencies(target_dir: Union[str, Path]) -> List[str]:
     cache_opti = Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "cache" / "app2_mfg" / "optiscaler" / "nightly-20261020" / "OptiScaler"
 
     # Fallback to Witcher 3 DX12 if installed
-    w3_opti = Path(r"D:\game\steam\steamapps\common\The Witcher 3ind_dx12")
+    w3_opti = Path("D:/game/steam/steamapps/common/The Witcher 3/bin/x64_dx12")
+    cp_opti = Path("D:/game/steam/steamapps/common/Cyberpunk 2077/bin/x64")
 
     for cand in needed:
         dest = td / cand
         src = None
-        for cand_src_dir in [embedded_opti, cache_opti, w3_opti]:
+        for cand_src_dir in [embedded_opti, cache_opti, cp_opti, w3_opti]:
             if cand_src_dir and (cand_src_dir / cand).exists():
                 src = cand_src_dir / cand
                 break
