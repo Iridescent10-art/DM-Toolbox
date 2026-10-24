@@ -11,6 +11,7 @@ Updated:
 
 import sys
 import os
+import shutil
 import ctypes
 import json
 import threading
@@ -2400,8 +2401,84 @@ class OptiScalerPresetDialog(QDialog):
             IniConfigManager.sync_mode_a_forward(self.game.target_dir, self.preset_a)
             IniConfigManager.sync_mode_c_forward(self.game.target_dir, self.preset_c, exe_name=self.game.exe_name)
             IniConfigManager.sync_dlssg_sm86_forward(self.game.target_dir, self.preset_sm86, exe_name=self.game.exe_name)
+            if hasattr(self, "combo_sm86_proxy"):
+                self._swap_dlssg_sm86_proxy(self.game.target_dir, self.combo_sm86_proxy.currentData())
 
         self.accept()
+
+    def _swap_dlssg_sm86_proxy(self, target_dir: str, new_proxy: str):
+        """
+        Swap the proxy DLL for dlssg_for_sm86 on disk without leaving multiple proxies.
+        '游戏不加载 version.dll 时，从 alternatives\\ 换一个（换，不是加）'
+        """
+        if not target_dir or not os.path.exists(target_dir):
+            return
+        td = Path(target_dir)
+        if not (td / "dlssg_sm86.ini").exists() and not (td / "dlssg_sm86").exists():
+            return  # Mode C not installed in this game
+
+        from core.state_cleaner import is_dlss5_present, is_reshade_dll_file
+        has_dlss5 = is_dlss5_present(td)
+        valid_proxies = ["version.dll", "winmm.dll", "dbghelp.dll", "dinput8.dll", "d3d12.dll", "dxgi.dll"]
+        target_name = (new_proxy or "version.dll").strip().lower()
+        if target_name not in valid_proxies:
+            target_name = "version.dll"
+
+        # 1. Clean all other proxy slots (换，不是加；代理任何时候只放一个)
+        for p in valid_proxies:
+            if p.lower() == target_name:
+                continue
+            cand = td / p
+            if cand.exists():
+                if p.lower() == "dxgi.dll" and has_dlss5 and is_reshade_dll_file(str(cand)):
+                    continue
+                try:
+                    cand.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        # 2. Find source DLL in updater cache or embedded
+        from core.updater import ComponentUpdater
+        from core.models import BackendType
+        source_dir = ComponentUpdater().get_latest_cached_dir(BackendType.DLSSG_SM86)
+        if not source_dir or not os.path.exists(source_dir):
+            emb = ROOT_DIR / "apps" / "app2_mfg" / "embedded_components" / "dlssg_sm86" / "v0.4.0"
+            if emb.exists():
+                source_dir = str(emb)
+
+        if not source_dir or not os.path.exists(source_dir):
+            return
+
+        src_p = os.path.join(source_dir, target_name)
+        if not os.path.exists(src_p):
+            alt_p = os.path.join(source_dir, "alternatives", target_name)
+            if os.path.exists(alt_p):
+                src_p = alt_p
+            else:
+                src_p = os.path.join(source_dir, "version.dll")
+                target_name = "version.dll"
+
+        dest_p = td / target_name
+        if src_p and os.path.exists(src_p):
+            try:
+                shutil.copy2(src_p, str(dest_p))
+            except Exception:
+                pass
+
+        # 3. Update manifest if exists
+        manifest_p = td / ".mfg_patch_manifest.json"
+        if manifest_p.exists():
+            try:
+                with open(manifest_p, "r", encoding="utf-8") as f:
+                    mdata = json.load(f)
+                c_files = mdata.get("created_files", [])
+                new_c_files = [x for x in c_files if x.lower() not in valid_proxies]
+                new_c_files.append(target_name)
+                mdata["created_files"] = new_c_files
+                with open(manifest_p, "w", encoding="utf-8") as f:
+                    json.dump(mdata, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
 
 
 # ----------------- QSS THEMES -----------------
@@ -5531,7 +5608,7 @@ class ModernMFGGUI(QMainWindow):
             self.lbl_lock_stat.setText("运行状态: ✅ 未运行 (可安全执行修补与还原)")
             self.lbl_lock_stat.setStyleSheet("font-size: 11px; color: #16a34a;")
 
-        # Clean legacy Mode B (RenoDX addon) & Mode D (dlssg_sm86) if found in game directory
+        # Clean legacy Mode B (RenoDX addon) if found in game directory
         if game.target_dir and os.path.exists(game.target_dir):
             legacy_addon = os.path.join(game.target_dir, "renodx-mfgunlock.addon64")
             if os.path.exists(legacy_addon):
@@ -5539,16 +5616,6 @@ class ModernMFGGUI(QMainWindow):
                     os.remove(legacy_addon)
                 except Exception:
                     pass
-            legacy_d_ini = os.path.join(game.target_dir, "dlssg_sm86.ini")
-            if os.path.exists(legacy_d_ini):
-                try:
-                    os.remove(legacy_d_ini)
-                except Exception:
-                    pass
-            legacy_d_dir = os.path.join(game.target_dir, "dlssg_sm86")
-            if os.path.exists(legacy_d_dir) and os.path.isdir(legacy_d_dir):
-                import shutil
-                shutil.rmtree(legacy_d_dir, ignore_errors=True)
 
         if game.is_patched:
             b_str = str(game.patched_backend).lower()
@@ -5558,11 +5625,14 @@ class ModernMFGGUI(QMainWindow):
             elif "dashdogy" in b_str or "standalone" in b_str:
                 self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 A (dashdogy 原生通用解锁)")
                 self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 A 原生多帧解锁 (Universal RTX 全系)")
+            elif "dlssg_sm86" in b_str or "sm86" in b_str:
+                self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 C (dlssg_for_sm86 原生多帧)")
+                self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 C 原生多帧生成 (RTX 20/30 深度适配)")
             else:
                 game.is_patched = False
                 game.patched_backend = None
                 self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 未修补 (已自动清除旧版遗留模式)")
-                self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，推荐应用模式 A (Universal 多帧解锁)")
+                self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，推荐应用模式 C (dlssg_for_sm86 原生多帧)")
         else:
             self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 未修补")
             self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，可随时应用修补")

@@ -88,6 +88,17 @@ def is_optiscaler_dll_file(path: str) -> bool:
 
     return b"OptiScaler" in data or b"libxess" in data
 
+def is_dlssg_sm86_dll_file(path: str) -> bool:
+    """Check if file is a dlssg_for_sm86 loader proxy binary."""
+    if not os.path.exists(path) or not os.path.isfile(path):
+        return False
+    data = _read_dll_signature_bytes(path)
+    return b"dlssg_sm86" in data or b"dlssg_for_sm86" in data
+
+def is_injected_proxy_dll(path: str) -> bool:
+    """Check if file is any known injected proxy binary (dashdogy, optiscaler, dlssg_sm86)."""
+    return is_dashdogy_dll_file(path) or is_optiscaler_dll_file(path) or is_dlssg_sm86_dll_file(path)
+
 def is_dlss5_present(target_dir: Union[str, Path]) -> bool:
 
     """
@@ -472,65 +483,18 @@ def CleanGameDirectoryState(
 
 
 
-    # (B) version.dll, winmm.dll, dinput8.dll Proxy Slots:
-
-    # Mode A / C / D dynamically utilize one of these proxy slots.
-
-    # When target_proxy is specified, the chosen proxy is strictly protected.
-
-    version_path = td / "version.dll"
-
-    if version_path.exists():
-
-        if is_dashdogy_dll_file(str(version_path)) or is_optiscaler_dll_file(str(version_path)):
-
-            if target_proxy_norm == "version.dll":
-
-                pass  # Exempt! Active target proxy
-
-            elif mode not in ("A", "C", "D") or (target_proxy_norm and target_proxy_norm != "version.dll"):
-
-                safe_remove_file(version_path)
-
-                actions_taken.append("清理非目标代理槽位的 version.dll")
-
-
-
-    winmm_path = td / "winmm.dll"
-
-    if winmm_path.exists():
-
-        if is_dashdogy_dll_file(str(winmm_path)) or is_optiscaler_dll_file(str(winmm_path)):
-
-            if target_proxy_norm == "winmm.dll":
-
-                pass  # Exempt! Active target proxy for yysls / winmm-imported games
-
-            elif mode not in ("A", "C", "D") or (target_proxy_norm and target_proxy_norm != "winmm.dll"):
-
-                safe_remove_file(winmm_path)
-
-                actions_taken.append("清理非目标代理槽位的 winmm.dll")
-
-
-
-    dinput8_path = td / "dinput8.dll"
-
-    if dinput8_path.exists():
-
-        if is_dashdogy_dll_file(str(dinput8_path)) or is_optiscaler_dll_file(str(dinput8_path)):
-
-            if target_proxy_norm == "dinput8.dll":
-
-                pass  # Exempt! Active target proxy
-
-            elif mode not in ("A", "C", "D") or (target_proxy_norm and target_proxy_norm != "dinput8.dll"):
-
-                safe_remove_file(dinput8_path)
-
-                actions_taken.append("清理非目标代理槽位的 dinput8.dll")
-
-
+    # (B) Proxy Slot Isolation across all supported proxy names:
+    # ["version.dll", "winmm.dll", "dbghelp.dll", "dinput8.dll", "d3d12.dll"]
+    all_proxies = ["version.dll", "winmm.dll", "dbghelp.dll", "dinput8.dll", "d3d12.dll"]
+    for proxy_name in all_proxies:
+        p_path = td / proxy_name
+        if p_path.exists():
+            if is_injected_proxy_dll(str(p_path)):
+                if target_proxy_norm == proxy_name:
+                    pass  # Exempt! Active target proxy
+                elif mode not in ("A", "C", "D", "DLSSG_SM86", "SM86") or (target_proxy_norm and target_proxy_norm != proxy_name):
+                    safe_remove_file(p_path)
+                    actions_taken.append(f"清理非目标代理槽位的 {proxy_name}")
 
     # (C) renodx-mfgunlock.addon64: ONLY exists in Mode B!
 
@@ -556,102 +520,37 @@ def CleanGameDirectoryState(
                             actions_taken.append(f"还原 {bf.name} 失败: {e}")
 
     # (D) dxgi.dll Slot Management:
-
     # Under DLSS 5 coexistence: dxgi.dll is STRICTLY reserved for ReShade 6.8 (DLSS 5 base).
-
-    # OptiScaler, Mode A, Mode D MUST NOT overwrite dxgi.dll!
-
+    # Other modes MUST NOT overwrite or leak dxgi.dll.
     dxgi_path = td / "dxgi.dll"
-
     if dxgi_path.exists():
-
         if preserve_dlss5:
-
             # DLSS 5 Coexistence: purge non-ReShade proxies so ReShade takes dxgi.dll
-
-            if is_optiscaler_dll_file(str(dxgi_path)) or is_dashdogy_dll_file(str(dxgi_path)):
-
+            if is_injected_proxy_dll(str(dxgi_path)):
                 safe_remove_file(dxgi_path)
-
                 actions_taken.append("清理 dxgi.dll (非 ReShade 代理)，锁死 ReShade 6.8 渲染底座")
-
         else:
-
             if mode == "B":
-
-                if is_optiscaler_dll_file(str(dxgi_path)) or is_dashdogy_dll_file(str(dxgi_path)):
-
-                    safe_remove_file(dxgi_path)
-
-                    actions_taken.append("清理 dxgi.dll (非 ReShade 代理)，为模式 B 让出槽位")
-
-            elif mode in ("B", "C"):
-
-                if target_proxy_norm and target_proxy_norm != "dxgi.dll":
-
-                    if is_optiscaler_dll_file(str(dxgi_path)) or is_dashdogy_dll_file(str(dxgi_path)):
-
+                if is_injected_proxy_dll(str(dxgi_path)):
+                    if target_proxy_norm and target_proxy_norm != "dxgi.dll":
                         safe_remove_file(dxgi_path)
-
                         actions_taken.append("清理非目标代理槽位的 dxgi.dll")
-
-                else:
-
-                    if is_dashdogy_dll_file(str(dxgi_path)):
-
+            elif mode in ("C", "D", "DLSSG_SM86", "SM86"):
+                if target_proxy_norm != "dxgi.dll":
+                    if is_injected_proxy_dll(str(dxgi_path)) or is_reshade_dll_file(str(dxgi_path)):
                         safe_remove_file(dxgi_path)
-
-                        actions_taken.append("清理 dxgi.dll (dashdogy)，为模式 C 让出槽位")
-
-            elif mode in ("A", "D"):
-
-                if is_optiscaler_dll_file(str(dxgi_path)):
-
+                        actions_taken.append("清理非目标代理槽位的 dxgi.dll")
+            elif mode == "A":
+                if is_injected_proxy_dll(str(dxgi_path)):
                     safe_remove_file(dxgi_path)
-
-                    actions_taken.append("清理残留的 dxgi.dll (OptiScaler)")
-
+                    actions_taken.append("清理残留的 dxgi.dll")
             elif mode == "":
-
-                if is_optiscaler_dll_file(str(dxgi_path)) or is_dashdogy_dll_file(str(dxgi_path)):
-
+                if is_injected_proxy_dll(str(dxgi_path)):
                     safe_remove_file(dxgi_path)
-
                     actions_taken.append("完全卸载清理 dxgi.dll 代理")
-
                 elif not preserve_dlss5 and is_reshade_dll_file(str(dxgi_path)):
-
                     safe_remove_file(dxgi_path)
-
                     actions_taken.append("完全卸载清理 dxgi.dll (ReShade)")
-
-
-
-    # If preserving DLSS 5, ensure dxgi.dll has ReShade 6.8 host
-
-    if preserve_dlss5:
-
-        if not dxgi_path.exists() or not is_reshade_dll_file(str(dxgi_path)):
-
-            dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
-
-            reshade_fw = str(dlss5_dxgi) if dlss5_dxgi.exists() else find_reshade_framework_dll()
-
-            if reshade_fw and os.path.exists(reshade_fw):
-
-                try:
-
-                    safe_remove_file(dxgi_path)
-
-                    shutil.copy2(reshade_fw, dxgi_path)
-
-                    actions_taken.append("自动恢复 DLSS 5 所需 ReShade 64 宿主底座 (dxgi.dll)")
-
-                except Exception as e:
-
-                    actions_taken.append(f"部署 ReShade 底座失败: {e}")
-
-
 
     # Clean any stale trash files
 

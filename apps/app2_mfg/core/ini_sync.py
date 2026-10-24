@@ -1578,6 +1578,19 @@ class IniConfigManager:
             except Exception:
                 pass
 
+        # Check active proxy DLL on disk
+        valid_proxies = ["version.dll", "winmm.dll", "dbghelp.dll", "dinput8.dll", "d3d12.dll", "dxgi.dll"]
+        for p in valid_proxies:
+            p_file = target / p
+            if p_file.exists():
+                try:
+                    from core.state_cleaner import is_dlssg_sm86_dll_file
+                    if is_dlssg_sm86_dll_file(str(p_file)):
+                        config["proxy_dll"] = p
+                        break
+                except Exception:
+                    pass
+
         return config if config else None
 
     # Aliases

@@ -404,6 +404,9 @@ class PatchEngine:
         """
         if active_backend == BackendType.RESHADE_ADDON:
             return "dxgi.dll"
+        if active_backend == BackendType.DLSSG_SM86:
+            return "version.dll"
+
 
         imported = self._get_pe_imported_proxies(game.exe_path)
         if "winmm.dll" in imported:
@@ -1092,11 +1095,11 @@ class PatchEngine:
     def _apply_dlssg_sm86_patch(self, game: GameInfo, manifest: PatchManifest) -> Tuple[bool, str]:
         """
         Deploy Mode C (DLSSG for SM86/SM75 Native DLSS-G - 首选推荐: RTX 20/30 系列)
-        1. Clean conflicting Mode A and Mode B files
-        2. Deploy selected proxy DLL (default: version.dll or winmm.dll)
-        3. Deploy dlssg_sm86 folder (runtime, backend, kernels, sr, xefg)
-        4. Deploy and forward sync dlssg_sm86.ini (enforcing Mode=Off for SR if DLSS 5 present)
-        5. DLSS 5 coexistence: ensure ReShade 6.8 is deployed on dxgi.dll if DLSS 5 present
+        严格注入三项:
+          1. 代理 DLL (默认 version.dll，或用户指定的单一备选)
+          2. dlssg_sm86.ini
+          3. 整个 dlssg_sm86 目录
+        代理任何时候只放一个；换槽位时彻底移除旧代理。严禁注入无关 dxgi.dll / ReShade。
         """
         source_dir = self.updater.get_latest_cached_dir(BackendType.DLSSG_SM86)
         if not source_dir or not os.path.exists(source_dir):
@@ -1110,15 +1113,22 @@ class PatchEngine:
         kill_locking_processes(target_dir, game.exe_name)
         cleanup_pending_files(target_dir)
 
-        # 1. Clean conflicting Mode A, B files
+        # 1. 彻底清理旧版方案 C (OptiScaler/XeSS/FSR) 遗留目录与文件，杜绝残留混淆
+        for opti_d_name in ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx"]:
+            opti_dir = os.path.join(target_dir, opti_d_name)
+            if os.path.exists(opti_dir) and os.path.isdir(opti_dir):
+                shutil.rmtree(opti_dir, ignore_errors=True)
+
         for conflicting_file in [
-            "OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll",
+            "OptiScaler.ini", "nvngx.ini", "OptiScaler.log", "nvngx.log", "dlssg_to_fsr3.log",
+            "dlssg_to_fsr3_amd_is_better.dll", "OptiScaler.dll",
             "fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log", "renodx-mfgunlock.addon64",
             "RTX40MFG-UI.ini", "RTXMFG-UI.ini", "mfg_unlocker.ini", "RTXMFG-Universal.json",
-            "RTX40MFG-UI-layout.ini", "MFGUnlocker.log", "rtxmfg.log",
+            "RTX40MFG-UI-layout.ini", "MFGUnlocker.log", "rtxmfg.log", "MFGUnlocker.dll",
             "libxess_fg.dll", "libxess.dll", "libxess_dx11.dll", "libxell.dll",
             "amd_fidelityfx_dx12.dll", "amd_fidelityfx_framegeneration_dx12.dll",
-            "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_vk.dll"
+            "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_vk.dll",
+            "ReShade64.dll"
         ]:
             f_p = os.path.join(target_dir, conflicting_file)
             if os.path.exists(f_p):
@@ -1140,21 +1150,35 @@ class PatchEngine:
 
         has_dlss5 = is_dlss5_present(target_dir)
 
-        # 2. Load Mode C preset to check preferred proxy DLL
+        # 2. 确定选用的唯一代理 DLL (默认 version.dll)
         try:
             from core.optiscaler_config import load_dlssg_sm86_preset
             preset_c = load_dlssg_sm86_preset()
         except Exception:
             preset_c = {"proxy_dll": "version.dll"}
 
-        selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.DLSSG_SM86)
-        pref = str(preset_c.get("proxy_dll", "")).strip().lower()
-        if pref and pref.endswith(".dll") and not (has_dlss5 and pref == "dxgi.dll") and pref != "dxgi.dll":
-            imported = self._get_pe_imported_proxies(game.exe_path)
-            if not imported or pref in imported:
+        valid_proxies = ["version.dll", "winmm.dll", "dbghelp.dll", "dinput8.dll", "d3d12.dll", "dxgi.dll"]
+        pref = str(preset_c.get("proxy_dll", "version.dll")).strip().lower()
+        if pref in valid_proxies:
+            if has_dlss5 and pref == "dxgi.dll":
+                selected_proxy = "version.dll"
+            else:
                 selected_proxy = pref
+        else:
+            selected_proxy = "version.dll"
 
-        # Locate proxy source file
+        # 严格执行: 代理任何时候只放一个！彻底清理所有其他代理槽位 (换，不是加)
+        for p_name in valid_proxies:
+            if p_name.lower() == selected_proxy.lower():
+                continue
+            cand_p = os.path.join(target_dir, p_name)
+            if os.path.exists(cand_p):
+                # 仅当目标目录存在实体的 DLSS 5 addon 时保留 dxgi.dll (由 DLSS 5 独立管理)
+                if p_name.lower() == "dxgi.dll" and has_dlss5 and self._is_reshade_dll(cand_p):
+                    continue
+                safe_force_remove(cand_p)
+
+        # 定位代理文件源 (version.dll 在根目录，备选在 alternatives/)
         source_proxy = os.path.join(source_dir, selected_proxy)
         if not os.path.exists(source_proxy):
             alt_path = os.path.join(source_dir, "alternatives", selected_proxy)
@@ -1162,6 +1186,7 @@ class PatchEngine:
                 source_proxy = alt_path
             else:
                 source_proxy = os.path.join(source_dir, "version.dll")
+                selected_proxy = "version.dll"
 
         if not os.path.exists(source_proxy):
             return False, f"dlssg_for_sm86 组件目录中缺少核心代理文件 {selected_proxy} 或 version.dll！"
@@ -1182,7 +1207,7 @@ class PatchEngine:
         shutil.copy2(source_proxy, dest_proxy_path)
         manifest.created_files.append(selected_proxy)
 
-        # 3. Deploy dlssg_sm86 directory (runtime, backend, kernels, sr, xefg)
+        # 3. 部署整个 dlssg_sm86 目录 (runtime, backend, kernels, sr, xefg)
         src_dlssg_sub = os.path.join(source_dir, "dlssg_sm86")
         if not os.path.exists(src_dlssg_sub):
             src_dlssg_sub = source_dir
@@ -1206,7 +1231,7 @@ class PatchEngine:
                 dst_f = os.path.join(dest_root, file)
                 shutil.copy2(src_f, dst_f)
 
-        # 4. Deploy and forward sync dlssg_sm86.ini
+        # 4. 部署与前向同步 dlssg_sm86.ini
         src_ini = os.path.join(source_dir, "dlssg_sm86.ini")
         dst_ini = os.path.join(target_dir, "dlssg_sm86.ini")
         if os.path.exists(src_ini) and not os.path.exists(dst_ini):
@@ -1214,7 +1239,7 @@ class PatchEngine:
         if "dlssg_sm86.ini" not in manifest.created_files:
             manifest.created_files.append("dlssg_sm86.ini")
 
-        # In coexistence with DLSS 5, enforce SuperResolution Mode=Off so dlssg_sm86 leaves SR untouched
+        # 与 DLSS 5 共存时，强制 SuperResolution Mode=Off 避免与 DLSS 5 超分冲突
         if has_dlss5:
             preset_c["super_resolution_mode"] = "Off"
 
@@ -1224,16 +1249,4 @@ class PatchEngine:
         except Exception:
             pass
 
-        # 5. DLSS 5 Coexistence: ensure ReShade is deployed on dxgi.dll if DLSS 5 present
-        if has_dlss5:
-            dxgi_path = os.path.join(target_dir, "dxgi.dll")
-            if not os.path.exists(dxgi_path) or not self._is_reshade_dll(dxgi_path):
-                dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
-                reshade_src = str(dlss5_dxgi) if dlss5_dxgi.exists() else self.updater.get_reshade_framework_dll()
-                if reshade_src and os.path.exists(reshade_src):
-                    safe_force_remove(dxgi_path)
-                    shutil.copy2(reshade_src, dxgi_path)
-            safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
-
         return True, ""
-

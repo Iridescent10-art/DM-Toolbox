@@ -3,9 +3,12 @@
 Unit and integration tests for v1.3.30 Mode C: dlssg_for_sm86 integration:
 1. BackendType.DLSSG_SM86 and embedded assets verification.
 2. Smart Auto GPU routing: RTX 20/30 series preference for Mode C.
-3. DLSSG_SM86 patch deployment, proxy dll selection, and ini synchronization.
-4. Coexistence with DLSS 5: zero DXGI collision, SuperResolution Mode=Off.
-5. Rollback and mode switching state cleanliness.
+3. DLSSG_SM86 patch deployment: exactly 3 items, purging old Scheme C (OptiScaler/XeSS), single proxy rule.
+4. INI synchronization and preset management for dlssg_sm86.
+5. Coexistence with DLSS 5: zero DXGI collision, SuperResolution Mode=Off.
+6. Rollback and mode switching state cleanliness.
+7. Preset & Guide Dialogs for Mode C.
+8. Proxy hot-swapping from alternatives/ (换，不是加；代理任何时候只放一个).
 """
 
 import os
@@ -51,10 +54,16 @@ def test_1_embedded_assets_and_updater():
     assert (embedded_dir / "dlssg_sm86").is_dir(), "dlssg_sm86 subdirectory missing in embedded components"
     assert (embedded_dir / "dlssg_sm86" / "backend").is_dir(), "dlssg_sm86/backend directory missing"
 
+    # Verify alternatives directory
+    alt_dir = embedded_dir / "alternatives"
+    assert alt_dir.is_dir(), "alternatives directory missing"
+    for alt_dll in ["winmm.dll", "dbghelp.dll", "dinput8.dll", "d3d12.dll", "dxgi.dll"]:
+        assert (alt_dir / alt_dll).exists(), f"Alternative proxy missing: {alt_dll}"
+
     updater = ComponentUpdater()
     cached_dir = updater.get_latest_cached_dir("dlssg_sm86")
     assert cached_dir is not None and Path(cached_dir).exists(), f"Updater failed to locate dlssg_sm86 cached dir: {cached_dir}"
-    print("  -> Embedded assets and ComponentUpdater lookup verified successfully!")
+    print("  -> Embedded assets, alternatives, and ComponentUpdater lookup verified successfully!")
 
 
 def test_2_gpu_smart_auto_preference():
@@ -79,10 +88,19 @@ def test_2_gpu_smart_auto_preference():
 
 
 def test_3_patch_engine_deployment_mode_c():
-    print("[TEST 3] Testing PatchEngine deployment of Mode C (dlssg_sm86)...")
+    print("[TEST 3] Testing PatchEngine deployment of Mode C (dlssg_sm86: 规范三样注入与彻底清理)...")
     td = Path(tempfile.mkdtemp())
     try:
-        # Create a mock game directory with dummy game exe and nvngx_dlss.dll
+        # 1. Simulate legacy leftovers from old Mode C (OptiScaler / XeSS) and rogue proxies
+        (td / "OptiScaler").mkdir(parents=True, exist_ok=True)
+        (td / "OptiScaler" / "dummy.txt").write_text("old", encoding="utf-8")
+        (td / "XeSS").mkdir(parents=True, exist_ok=True)
+        (td / "XeSS" / "libxess.dll").write_text("old xess", encoding="utf-8")
+        (td / "OptiScaler.ini").write_text("old opti ini", encoding="utf-8")
+        (td / "libxess_fg.dll").write_text("old fg", encoding="utf-8")
+        (td / "winmm.dll").write_text("stale winmm proxy", encoding="utf-8")
+        (td / "dxgi.dll").write_text("stale dxgi proxy", encoding="utf-8")
+
         game_exe = td / "game.exe"
         game_exe.write_text("dummy exe", encoding="utf-8")
         dlss_dll = td / "nvngx_dlss.dll"
@@ -105,24 +123,33 @@ def test_3_patch_engine_deployment_mode_c():
         assert success, f"Patching failed: {msg}"
         print(f"  -> Patch message: {msg[:60]}...")
 
-        # Verify deployed files
+        # 2. Verify EXACTLY three items were deployed:
+        # (1) version.dll, (2) dlssg_sm86.ini, (3) dlssg_sm86/
         assert (td / "version.dll").exists(), "version.dll was not deployed"
         assert (td / "dlssg_sm86.ini").exists(), "dlssg_sm86.ini was not deployed"
         assert (td / "dlssg_sm86").is_dir(), "dlssg_sm86 directory was not deployed"
         assert (td / "dlssg_sm86" / "backend").is_dir(), "dlssg_sm86/backend directory was not deployed"
 
-        # Verify manifest
+        # 3. Verify ALL old OptiScaler/XeSS directories and rogue proxies were completely PURGED!
+        assert not (td / "OptiScaler").exists(), "Old OptiScaler directory was not cleaned"
+        assert not (td / "XeSS").exists(), "Old XeSS directory was not cleaned"
+        assert not (td / "OptiScaler.ini").exists(), "Old OptiScaler.ini was not cleaned"
+        assert not (td / "libxess_fg.dll").exists(), "Old libxess_fg.dll was not cleaned"
+        assert not (td / "winmm.dll").exists(), "Rogue winmm.dll was not cleaned (single proxy rule violated!)"
+        assert not (td / "dxgi.dll").exists(), "Rogue dxgi.dll was not cleaned (single proxy rule violated!)"
+
+        # 4. Verify manifest
         manifest_file = td / ".mfg_patch_manifest.json"
         assert manifest_file.exists(), "Manifest file was not saved"
         manifest = PatchManifest.from_json(manifest_file.read_text(encoding="utf-8"))
         assert manifest is not None, "Manifest was not parsed"
         assert manifest.active_backend == BackendType.DLSSG_SM86.value
 
-        # Verify state cleaner recognition
+        # 5. Verify state cleaner recognition
         assert is_dlssg_sm86_present(td) is True
     finally:
         shutil.rmtree(td, ignore_errors=True)
-    print("  -> Mode C deployment and manifest verification succeeded!")
+    print("  -> Mode C deployment: 3-item injection, legacy purge, and single proxy rule verified!")
 
 
 def test_4_ini_sync_and_preset():
@@ -276,6 +303,65 @@ def test_7_preset_and_guide_dialogs_mode_c():
     print("  -> OptiScalerPresetDialog and ModernTranslationGuideDialog verified successfully!")
 
 
+def test_8_proxy_hot_swap_alternatives():
+    print("[TEST 8] Testing proxy hot-swapping from alternatives/ ('换，不是加' & '代理任何时候只放一个')...")
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(sys.argv)
+    from gui_qt import OptiScalerPresetDialog
+
+    td = Path(tempfile.mkdtemp())
+    try:
+        game_exe = td / "game.exe"
+        game_exe.write_text("dummy exe", encoding="utf-8")
+
+        game = GameInfo(
+            name="TestGame",
+            source="Custom",
+            install_dir=str(td),
+            target_dir=str(td),
+            exe_path=str(game_exe),
+            exe_name=game_exe.name,
+            qualification=QualificationStatus.QUALIFIED,
+            is_patched=False
+        )
+
+        updater = ComponentUpdater()
+        patch_engine = PatchEngine(updater=updater)
+        # Patch Mode C initial state (default proxy: version.dll)
+        success, msg = patch_engine.patch_game(game, requested_backend=BackendType.DLSSG_SM86)
+        assert success is True
+        assert (td / "version.dll").exists()
+        assert not (td / "winmm.dll").exists()
+
+        dlg = OptiScalerPresetDialog(game=game)
+
+        # 1. Swap from version.dll -> winmm.dll
+        dlg._swap_dlssg_sm86_proxy(str(td), "winmm.dll")
+        assert not (td / "version.dll").exists(), "version.dll was not removed on proxy swap!"
+        assert (td / "winmm.dll").exists(), "winmm.dll was not deployed on proxy swap!"
+        assert not (td / "dbghelp.dll").exists()
+        assert not (td / "dxgi.dll").exists()
+
+        # 2. Swap from winmm.dll -> dbghelp.dll
+        dlg._swap_dlssg_sm86_proxy(str(td), "dbghelp.dll")
+        assert not (td / "winmm.dll").exists(), "winmm.dll was not removed on proxy swap!"
+        assert (td / "dbghelp.dll").exists(), "dbghelp.dll was not deployed on proxy swap!"
+
+        # 3. Swap from dbghelp.dll -> back to version.dll
+        dlg._swap_dlssg_sm86_proxy(str(td), "version.dll")
+        assert not (td / "dbghelp.dll").exists(), "dbghelp.dll was not removed on proxy swap!"
+        assert (td / "version.dll").exists(), "version.dll was not deployed on proxy swap!"
+
+        # 4. Verify reverse detection reads active proxy from disk
+        cfg = IniConfigManager.read_dlssg_sm86_reverse(td)
+        assert cfg is not None
+        assert cfg.get("proxy_dll") == "version.dll"
+
+        print("  -> Proxy hot-swapping ('换，不是加') and single proxy enforcement verified!")
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
 if __name__ == "__main__":
     print("=== Running v1.3.30 Mode C (dlssg_for_sm86) Verification Suite ===")
     test_1_embedded_assets_and_updater()
@@ -285,4 +371,5 @@ if __name__ == "__main__":
     test_5_dlss5_coexistence_and_sr_off()
     test_6_clean_and_rollback()
     test_7_preset_and_guide_dialogs_mode_c()
-    print("=== ALL 7 TESTS PASSED SUCCESSFULLY! ===")
+    test_8_proxy_hot_swap_alternatives()
+    print("=== ALL 8 TESTS PASSED SUCCESSFULLY! ===")
