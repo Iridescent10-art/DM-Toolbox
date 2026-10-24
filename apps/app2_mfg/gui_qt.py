@@ -27,7 +27,7 @@ if sys.platform == "win32":
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt, Signal, QObject, QPoint, QTimer, QEvent, QFileSystemWatcher, QSize
-from PySide6.QtGui import QIcon, QPixmap, QColor, QFont, QGuiApplication, QCursor
+from PySide6.QtGui import QIcon, QPixmap, QColor, QFont, QGuiApplication, QCursor, QPainter, QPainterPath
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QFrame, QFileDialog, QDialog,
@@ -49,6 +49,12 @@ if str(ROOT_DIR) not in sys.path:
 from common.config_manager import get_global_theme, set_global_theme
 from common.ui_theme import CaptionButton, CaptionButtonType, ModernProgressDialog, ProgressSignalBridge, theme_toggle_icon
 from common.dm_ui_core import DMSizeGrip, apply_dm_window_frame, ModernDialog, SCROLLBAR_LIGHT_QSS, SCROLLBAR_DARK_QSS
+from common.wallpaper_manager import (
+    load_wallpaper_config, resolve_cached_image_path,
+    render_wallpaper_background, get_acrylic_qss_styles,
+    GLOBAL_WALLPAPER_NOTIFIER, DMWallpaperDialog,
+    GLOBAL_WALLPAPER_CONFIG_PATH
+)
 
 # Core modules
 from core.models import BackendType, QualificationStatus, GameInfo
@@ -2753,8 +2759,17 @@ class ModernMFGGUI(QMainWindow):
         self.drag_position = QPoint()
         self.subapp_id = "app2_mfg"
         self.wallpaper_pixmap = None
-        self.wallpaper_config = {}
+        self.wallpaper_config = load_wallpaper_config("app2_mfg")
+        if self.wallpaper_config.get("enabled", False):
+            img_path = resolve_cached_image_path(self.wallpaper_config.get("cached_image_path", ""))
+            if img_path and img_path.exists():
+                self.wallpaper_pixmap = QPixmap(str(img_path))
         self._last_wallpaper_mtime = 0
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                self._last_wallpaper_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
         GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.connect(lambda _: self.reload_wallpaper())
 
         # Bi-directional INI synchronization engine (Stage 4)
@@ -2845,12 +2860,29 @@ class ModernMFGGUI(QMainWindow):
                 pal.setColor(QtGui.QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
             app.setPalette(pal)
         self.setStyleSheet(theme_str)
-        if self.centralWidget():
-            self.centralWidget().setStyleSheet(theme_str)
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
         if self.centralWidget():
             if has_wp:
-                self.centralWidget().setStyleSheet("background-color: transparent; border: none;")
+                tb_bg = f"rgba(26, 28, 36, {card_op:.2f})" if self.is_dark_mode else f"rgba(255, 255, 255, {card_op:.2f})"
+                tb_border = "rgba(255, 255, 255, 0.12)" if self.is_dark_mode else "rgba(0, 0, 0, 0.08)"
+                self.centralWidget().setStyleSheet(f"""
+                    QWidget#CentralWidget {{ background-color: transparent; border: none; }}
+                    QWidget#Sidebar {{
+                        background-color: {tb_bg};
+                        border-top-left-radius: 0px;
+                        border-bottom-left-radius: 16px;
+                        border-right: 1px solid {tb_border};
+                    }}
+                    QWidget#TitleBar {{
+                        background-color: {tb_bg};
+                        border-bottom: 1px solid {tb_border};
+                    }}
+                    QScrollArea, QScrollArea > QWidget, QScrollArea QWidget, QStackedWidget {{
+                        background: transparent;
+                        background-color: transparent;
+                    }}
+                """)
             else:
                 self.centralWidget().setStyleSheet(theme_str)
 
@@ -4090,53 +4122,58 @@ class ModernMFGGUI(QMainWindow):
 
     def _update_entry_cards_style(self):
         is_dark = self.is_dark_mode
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        card_bg = (f"rgba(26, 28, 36, {card_op:.2f})" if is_dark else f"rgba(255, 255, 255, {card_op:.2f})") if has_wp else ("#2A2B2C" if is_dark else "#FFFFFF")
+        card_bd = ("rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)") if has_wp else ("#3A3A3A" if is_dark else "#E5E5E5")
+        card_hover_bg = (f"rgba(45, 48, 58, {card_op:.2f})" if is_dark else f"rgba(240, 243, 248, {card_op:.2f})") if has_wp else ("#343434" if is_dark else "#EFEFEF")
         if is_dark:
-            bink_qss = """
-                QFrame#CardBink {
-                    background-color: #2A2B2C;
-                    border: 1px solid #3A3A3A;
+            bink_qss = f"""
+                QFrame#CardBink {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_bd};
                     border-radius: 11px;
                     min-height: 42px;
-                }
-                QFrame#CardBink:hover {
-                    background-color: #343434;
+                }}
+                QFrame#CardBink:hover {{
+                    background-color: {card_hover_bg};
                     border: 1px solid #4A4A4A;
-                }
+                }}
             """
-            guide_qss = """
-                QFrame#CardGuide {
-                    background-color: #2A2B2C;
-                    border: 1px solid #3A3A3A;
+            guide_qss = f"""
+                QFrame#CardGuide {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_bd};
                     border-radius: 11px;
                     min-height: 42px;
-                }
-                QFrame#CardGuide:hover {
-                    background-color: #343434;
+                }}
+                QFrame#CardGuide:hover {{
+                    background-color: {card_hover_bg};
                     border: 1px solid #4A4A4A;
-                }
+                }}
             """
-            preset_qss = """
-                QFrame#CardPreset {
-                    background-color: #2A2B2C;
-                    border: 1px solid #3A3A3A;
+            preset_qss = f"""
+                QFrame#CardPreset {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_bd};
                     border-radius: 11px;
                     min-height: 52px;
-                }
-                QFrame#CardPreset:hover {
-                    background-color: #343434;
+                }}
+                QFrame#CardPreset:hover {{
+                    background-color: {card_hover_bg};
                     border: 1px solid #4A4A4A;
-                }
+                }}
             """
             btn_bink_qss = "QPushButton { background: transparent; color: #A0A0A0; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #3A3A3A; color: #E8E8E8; } QPushButton:pressed { background-color: #444444; }"
             btn_guide_qss = "QPushButton { background: transparent; color: #A0A0A0; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #3A3A3A; color: #E8E8E8; } QPushButton:pressed { background-color: #444444; }"
             btn_preset_qss = "QPushButton { background: transparent; color: #A0A0A0; border: none; font-size: 12px; font-weight: bold; text-align: left; padding: 6px 8px; border-radius: 8px; } QPushButton:hover { background-color: #3A3A3A; color: #E8E8E8; } QPushButton:pressed { background-color: #444444; }"
             lbl_summary_col = "#A0A0A0"
-            info_qss = """
-                QFrame#CardGameInfo {
-                    background-color: #2A2B2C;
-                    border: 1px solid #3A3A3A;
+            info_qss = f"""
+                QFrame#CardGameInfo {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_bd};
                     border-radius: 10px;
-                }
+                }}
             """
             btn_pick_qss = """
                 QPushButton#BtnPickExe, QPushButton#BtnPickDir {

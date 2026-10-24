@@ -296,13 +296,13 @@ class AppCard(QFrame):
     def on_action_clicked(self):
         self.parent_launcher.launch_or_activate_app(self.app_id)
 
-    def apply_theme(self, is_dark: bool, wallpaper_active: bool = False, card_opacity: float = 0.80):
+    def apply_theme(self, is_dark: bool, wallpaper_active: bool = False, card_opacity: float = 0.86):
         if wallpaper_active:
             if is_dark:
                 self.setStyleSheet(f"""
                     QFrame.GridCard {{
-                        background-color: rgba(32, 34, 40, {card_opacity:.2f});
-                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        background-color: rgba(26, 28, 36, {card_opacity:.2f});
+                        border: 1px solid rgba(255, 255, 255, 0.12);
                         border-radius: 16px;
                     }}
                     QFrame.GridCard:hover {{
@@ -313,7 +313,7 @@ class AppCard(QFrame):
                 self.setStyleSheet(f"""
                     QFrame.GridCard {{
                         background-color: rgba(255, 255, 255, {card_opacity:.2f});
-                        border: 1px solid rgba(0, 0, 0, 0.06);
+                        border: 1px solid rgba(0, 0, 0, 0.08);
                         border-radius: 16px;
                     }}
                     QFrame.GridCard:hover {{
@@ -324,27 +324,27 @@ class AppCard(QFrame):
             self.setStyleSheet("")
 
         if is_dark:
-            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #F5F5F5;")
+            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #FFFFFF;")
             self.lbl_tag.setStyleSheet("""
-                color: #A0A0A0;
+                color: #6EE7B7;
                 font-size: 11px;
                 font-weight: 700;
-                background-color: #303132;
+                background-color: rgba(6, 78, 59, 0.65);
                 padding: 2px 7px;
                 border-radius: 5px;
             """)
-            self.lbl_desc.setStyleSheet("color: #94A3B8; font-size: 12px; line-height: 1.45;")
+            self.lbl_desc.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 500; line-height: 1.45;")
         else:
-            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #292929;")
+            self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #111827;")
             self.lbl_tag.setStyleSheet("""
-                color: #5A5A5A;
+                color: #047857;
                 font-size: 11px;
                 font-weight: 700;
-                background-color: #F0F0F0;
+                background-color: rgba(16, 185, 129, 0.12);
                 padding: 2px 7px;
                 border-radius: 5px;
             """)
-            self.lbl_desc.setStyleSheet("color: #4A4A4A; font-size: 12px; line-height: 1.45;")
+            self.lbl_desc.setStyleSheet("color: #374151; font-size: 12px; font-weight: 500; line-height: 1.45;")
 
         self._render_status(is_dark)
 
@@ -574,46 +574,47 @@ class ToolboxLauncher(BaseWindow):
     def apply_theme(self):
         super().apply_theme()
         is_dark = getattr(self, "is_dark_mode", False)
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+
         if hasattr(self, "t_lbl"):
-            self.t_lbl.setStyleSheet(f"font-size: 19px; font-weight: 800; color: {'#F5F5F5' if is_dark else '#292929'};")
+            self.t_lbl.setStyleSheet(f"font-size: 19px; font-weight: 800; color: {'#FFFFFF' if is_dark else '#111827'};")
         if hasattr(self, "sub_lbl"):
-            self.sub_lbl.setStyleSheet(f"font-size: 12px; color: {'#94A3B8' if is_dark else '#64748B'};")
+            self.sub_lbl.setStyleSheet(f"font-size: 12px; font-weight: 500; color: {'#CBD5E1' if is_dark else '#374151'};")
         if hasattr(self, "lbl_cache_size"):
             if is_dark:
                 self.lbl_cache_size.setStyleSheet("""
-                    background-color: #292929;
-                    color: #94A3B8;
+                    background-color: rgba(26, 28, 36, 0.85);
+                    color: #6EE7B7;
                     font-size: 11px;
                     font-weight: 700;
                     padding: 6px 12px;
-                    border: 1px solid #3A3A3A;
+                    border: 1px solid rgba(255, 255, 255, 0.12);
                     border-radius: 8px;
                 """)
             else:
                 self.lbl_cache_size.setStyleSheet("""
-                    background-color: #F5F5F5;
-                    color: #3A3A3A;
+                    background-color: rgba(255, 255, 255, 0.88);
+                    color: #047857;
                     font-size: 11px;
                     font-weight: 700;
                     padding: 6px 12px;
-                    border: 1px solid #E5E5E5;
+                    border: 1px solid rgba(0, 0, 0, 0.08);
                     border-radius: 8px;
                 """)
-        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.80))
 
         if hasattr(self, "tip_card"):
             if has_wp:
                 if is_dark:
                     self.tip_card.setStyleSheet(f"""
-                        background-color: rgba(32, 34, 40, {card_op:.2f});
-                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        background-color: rgba(26, 28, 36, {card_op:.2f});
+                        border: 1px solid rgba(255, 255, 255, 0.12);
                         border-radius: 12px;
                     """)
                 else:
                     self.tip_card.setStyleSheet(f"""
                         background-color: rgba(255, 255, 255, {card_op:.2f});
-                        border: 1px solid rgba(0, 0, 0, 0.06);
+                        border: 1px solid rgba(0, 0, 0, 0.08);
                         border-radius: 12px;
                     """)
             else:
@@ -630,7 +631,7 @@ class ToolboxLauncher(BaseWindow):
                         border-radius: 12px;
                     """)
         if hasattr(self, "tip_lbl"):
-            self.tip_lbl.setStyleSheet(f"color: {'#94A3B8' if is_dark else '#4A4A4A'}; font-size: 12px;")
+            self.tip_lbl.setStyleSheet(f"color: {'#E2E8F0' if is_dark else '#1F2937'}; font-size: 12px; font-weight: 500;")
 
         if hasattr(self, "cards"):
             for card in self.cards.values():
@@ -720,6 +721,15 @@ class ToolboxLauncher(BaseWindow):
             if not exe_path.exists():
                 ModernDialog.error(self, "启动失败", f"未找到目标程序:\n{exe_path}")
                 return
+            if app_id == "app5_jxr":
+                try:
+                    jxr_settings = ROOT_DIR / "apps" / "app5_jxr" / "settings.json"
+                    if jxr_settings.exists():
+                        s = json.loads(jxr_settings.read_text(encoding="utf-8"))
+                        s["Theme"] = "dark" if get_global_theme() == "dark" else "light"
+                        jxr_settings.write_text(json.dumps(s, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
             try:
                 if meta.get("require_admin", False) and not is_admin():
                     ret = ctypes.windll.shell32.ShellExecuteW(

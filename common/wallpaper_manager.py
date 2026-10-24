@@ -88,10 +88,10 @@ DEFAULT_WALLPAPER_CONFIG = {
     "source_hash": "",
     "source_path": "",
     "cached_image_path": "",
-    "blur_radius": 15,
-    "tint_opacity_dark": 0.68,
-    "tint_opacity_light": 0.72,
-    "card_opacity": 0.80,
+    "blur_radius": 18,
+    "tint_opacity_dark": 0.76,
+    "tint_opacity_light": 0.80,
+    "card_opacity": 0.86,
     "scale_mode": "aspect_fill",
     "subapp_overrides": {
         "hardware_master": {"enabled": False, "cached_image_path": ""},
@@ -497,10 +497,10 @@ def render_wallpaper_background(
     # Theme Tint Color
     if is_dark:
         alpha = int(max(0.1, min(1.0, tint_dark)) * 255)
-        tint_col = QColor(18, 18, 22, alpha)
+        tint_col = QColor(16, 17, 22, alpha)
     else:
         alpha = int(max(0.1, min(1.0, tint_light)) * 255)
-        tint_col = QColor(242, 244, 248, alpha)
+        tint_col = QColor(246, 248, 252, alpha)
 
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -989,3 +989,18 @@ class DMWallpaperDialog(QDialog):
         save_wallpaper_config(self.config, self.subapp_id)
         GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
         self._load_config_to_ui()
+
+
+def main():
+    import sys
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    subapp_id = sys.argv[1] if len(sys.argv) > 1 else None
+    dlg = DMWallpaperDialog(subapp_id=subapp_id)
+    dlg.exec()
+
+
+if __name__ == "__main__":
+    main()
+

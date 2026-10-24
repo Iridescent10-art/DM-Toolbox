@@ -141,6 +141,7 @@ class AutoHDRWindow(BaseWindow):
             width=960,
             height=640
         )
+        self.subapp_id = "app3_autohdr"
         self.setAcceptDrops(True)
         self.all_apps = []
         self.filtered_apps = []
@@ -159,6 +160,7 @@ class AutoHDRWindow(BaseWindow):
         # 1. 顶部 Hero Banner 卡片 (统一 Fluent Modern Card 样式)
         banner_card = QFrame()
         banner_card.setProperty("class", "GridCard")
+        self.banner_card = banner_card
         b_layout = QHBoxLayout(banner_card)
         b_layout.setContentsMargins(22, 16, 22, 16)
         b_layout.setSpacing(16)
@@ -180,6 +182,7 @@ class AutoHDRWindow(BaseWindow):
 
         t_lbl = QLabel("Windows Auto HDR 强制开启管理器")
         t_lbl.setProperty("class", "CardTitle")
+        self.t_lbl = t_lbl
         title_row.addWidget(t_lbl)
 
         self.badge_count = QLabel("已配置 0 款游戏")
@@ -198,6 +201,7 @@ class AutoHDRWindow(BaseWindow):
 
         d_lbl = QLabel("为未认证或未自动触发的 Direct3D 游戏强制开启 Windows 11 高动态范围 (Auto HDR) 渲染与 10-Bit 色深缓冲。")
         d_lbl.setProperty("class", "CardSubtitle")
+        self.d_lbl = d_lbl
         info_box.addWidget(d_lbl)
 
         b_layout.addLayout(info_box, 1)
@@ -206,6 +210,7 @@ class AutoHDRWindow(BaseWindow):
         # 2. 控制操作栏
         ctrl_card = QFrame()
         ctrl_card.setProperty("class", "GridCard")
+        self.ctrl_card = ctrl_card
         ctrl_layout = QVBoxLayout(ctrl_card)
         ctrl_layout.setContentsMargins(20, 14, 20, 14)
         ctrl_layout.setSpacing(10)
@@ -292,6 +297,7 @@ class AutoHDRWindow(BaseWindow):
         # 3. 游戏列表表格卡片
         table_card = QFrame()
         table_card.setProperty("class", "GridCard")
+        self.table_card = table_card
         t_layout = QVBoxLayout(table_card)
         t_layout.setContentsMargins(18, 16, 18, 16)
         t_layout.setSpacing(10)
@@ -322,6 +328,33 @@ class AutoHDRWindow(BaseWindow):
     def apply_theme(self):
         """深度应用当前日间 / 夜间模式，重绘表格、下拉框与搜索框"""
         super().apply_theme()
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+
+        # Acrylic styling for 3 main cards
+        card_bg = f"rgba(26, 28, 36, {card_op:.2f})" if self.is_dark_mode else f"rgba(255, 255, 255, {card_op:.2f})"
+        card_border = "rgba(255, 255, 255, 0.12)" if self.is_dark_mode else "rgba(0, 0, 0, 0.08)"
+        solid_bg = "#2A2B2C" if self.is_dark_mode else "#FFFFFF"
+        solid_border = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
+
+        active_card_bg = card_bg if has_wp else solid_bg
+        active_border = card_border if has_wp else solid_border
+
+        for card in [getattr(self, "banner_card", None), getattr(self, "ctrl_card", None), getattr(self, "table_card", None)]:
+            if card:
+                card.setStyleSheet(f"""
+                    QFrame {{
+                        background-color: {active_card_bg};
+                        border: 1px solid {active_border};
+                        border-radius: 14px;
+                    }}
+                """)
+
+        # Crisp high-contrast title and subtitle
+        if hasattr(self, "t_lbl") and self.t_lbl:
+            self.t_lbl.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {'#F9FAFB' if self.is_dark_mode else '#111827'};")
+        if hasattr(self, "d_lbl") and self.d_lbl:
+            self.d_lbl.setStyleSheet(f"font-size: 12px; color: {'#CBD5E1' if self.is_dark_mode else '#374151'};")
 
         # 1. 搜索框样式响应
         if hasattr(self, "search_input") and self.search_input:

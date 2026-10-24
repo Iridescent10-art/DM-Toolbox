@@ -113,6 +113,7 @@ class DLSS5MainWindow(DMBaseWindow):
             height=820,
             icon_filename="dlss5_icon.ico"
         )
+        self.subapp_id = "app6_dlss5" 
 
         # Shared backend helpers from App 2
         self.rhi = RHIInstaller()
@@ -178,13 +179,21 @@ class DLSS5MainWindow(DMBaseWindow):
     def _init_ui(self):
         # Create a smooth scroll area inside body_layout
         scroll = QScrollArea(self)
+        scroll.setObjectName("DLSS5ScrollArea")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         is_dark = get_global_theme() == "dark"
         scroll.setStyleSheet(SCROLLBAR_DARK_QSS if is_dark else SCROLLBAR_LIGHT_QSS)
+        scroll.viewport().setAutoFillBackground(False)
+        scroll.viewport().setStyleSheet("background: transparent;")
+        self.scroll = scroll
 
         container = QWidget()
+        container.setObjectName("DLSS5ScrollContainer")
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        self.container = container
         self.content_layout = QVBoxLayout(container)
         self.content_layout.setContentsMargins(6, 4, 16, 12)
         self.content_layout.setSpacing(14)
@@ -1354,27 +1363,40 @@ class DLSS5MainWindow(DMBaseWindow):
         except Exception:
             pass
 
-        if hasattr(self, "card_game"):
-            self.card_game.apply_theme(is_dark)
-        if hasattr(self, "card_rhi"):
-            self.card_rhi.apply_theme(is_dark)
-        if hasattr(self, "card_plugin"):
-            self.card_plugin.apply_theme(is_dark)
-        if hasattr(self, "card_hook"):
-            self.card_hook.apply_theme(is_dark)
-        if hasattr(self, "card_status"):
-            self.card_status.apply_theme(is_dark)
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
 
-        bg = "#18181b" if is_dark else "#f4f6f9"
-        card_bg = "#27272a" if is_dark else "#ffffff"
-        text_color = "#f4f4f5" if is_dark else "#1e293b"
-        border_color = "#3f3f46" if is_dark else "#cbd5e1"
-        sub_text_color = "#a1a1aa" if is_dark else "#64748b"
+        if hasattr(self, "card_game"):
+            self.card_game.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)
+        if hasattr(self, "card_rhi"):
+            self.card_rhi.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)
+        if hasattr(self, "card_plugin"):
+            self.card_plugin.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)
+        if hasattr(self, "card_hook"):
+            self.card_hook.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)
+        if hasattr(self, "card_status"):
+            self.card_status.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)
+
+        if hasattr(self, "scroll") and self.scroll:
+            scrollbar_qss = SCROLLBAR_DARK_QSS if is_dark else SCROLLBAR_LIGHT_QSS
+            if has_wp:
+                self.scroll.setStyleSheet(scrollbar_qss + "\nQScrollArea, QScrollArea > QWidget { background: transparent; border: none; }")
+                self.scroll.viewport().setStyleSheet("background: transparent;")
+                if self.scroll.widget():
+                    self.scroll.widget().setStyleSheet("background: transparent;")
+            else:
+                self.scroll.setStyleSheet(scrollbar_qss)
+
+        bg = "transparent" if has_wp else ("#18181b" if is_dark else "#f4f6f9")
+        card_bg = (f"rgba(26, 28, 36, {card_op:.2f})" if is_dark else f"rgba(255, 255, 255, {card_op:.2f})") if has_wp else ("#27272a" if is_dark else "#ffffff")
+        text_color = "#F9FAFB" if is_dark else "#111827"
+        border_color = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
+        sub_text_color = "#CBD5E1" if is_dark else "#374151"
 
         if hasattr(self, "game_info_frame"):
             self.game_info_frame.setStyleSheet(f"""
                 QFrame {{
-                    background: {'rgba(255, 255, 255, 0.05)' if is_dark else 'rgba(0, 0, 0, 0.04)'};
+                    background: {'rgba(255, 255, 255, 0.08)' if is_dark else 'rgba(0, 0, 0, 0.04)'};
                     border: 1px solid {border_color};
                     border-radius: 8px;
                 }}
@@ -1383,6 +1405,10 @@ class DLSS5MainWindow(DMBaseWindow):
         self.central_widget.setStyleSheet(f"""
             QWidget#RootContainer {{
                 background-color: {bg};
+            }}
+            QScrollArea, QScrollArea > QWidget, QScrollArea QWidget, QWidget#DLSS5ScrollContainer {{
+                background: transparent;
+                background-color: transparent;
             }}
             #dlss5_head_title {{
                 color: {text_color};

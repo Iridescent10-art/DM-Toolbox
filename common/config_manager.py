@@ -42,6 +42,13 @@ def ensure_toolbox_root():
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
         (CACHE_ROOT / "wallpapers").mkdir(parents=True, exist_ok=True)
 
+        theme_file = CONFIG_ROOT / "theme.json"
+        if not theme_file.exists():
+            try:
+                theme_file.write_text(json.dumps({"theme": "dark"}, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
         # Seamlessly migrate data from legacy C:/ToolboxData if it exists
         legacy = Path("C:/ToolboxData")
         if legacy.exists():
@@ -99,25 +106,34 @@ THEME_CONFIG_FILE = CONFIG_ROOT / "theme.json"
 
 
 def get_global_theme() -> str:
-    """Reads global theme from C:/ToolboxData/config/theme.json, defaults to 'light'."""
+    """Reads global theme from C:/ToolboxData/config/theme.json, defaults to 'dark'."""
     if THEME_CONFIG_FILE.exists():
         try:
             with open(THEME_CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data.get("theme", "light")
+                return data.get("theme", "dark")
         except Exception:
             pass
-    return "light"
+    return "dark"
 
 
 def set_global_theme(theme_name: str):
-    """Sets and broadcasts global theme to C:/ToolboxData/config/theme.json."""
+    """Sets and broadcasts global theme to C:/ToolboxData/config/theme.json and subapps."""
     try:
         import time
         ensure_toolbox_root()
         data = {"theme": theme_name, "updated_at": time.time()}
         with open(THEME_CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+    try:
+        jxr_settings = Path(__file__).resolve().parent.parent / "apps" / "app5_jxr" / "settings.json"
+        if jxr_settings.exists():
+            s = json.loads(jxr_settings.read_text(encoding="utf-8"))
+            s["Theme"] = "dark" if theme_name == "dark" else "light"
+            jxr_settings.write_text(json.dumps(s, indent=2), encoding="utf-8")
     except Exception:
         pass
 

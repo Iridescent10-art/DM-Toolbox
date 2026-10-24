@@ -13,7 +13,7 @@ import winreg
 import subprocess
 
 from PySide6.QtCore import Qt, QSize, QPoint, QEvent, QTimer
-from PySide6.QtGui import QIcon, QPixmap, QFont, QColor, QGuiApplication, QCursor
+from PySide6.QtGui import QIcon, QPixmap, QFont, QColor, QGuiApplication, QCursor, QPainter, QPainterPath
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QLineEdit, QCheckBox,
@@ -2752,10 +2752,39 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(sheet)
 
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
         if hasattr(self, "central_widget") and self.central_widget:
             if has_wp:
-                self.central_widget.setStyleSheet("QWidget#CentralWidget { background-color: transparent; border: none; }")
+                self.central_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+                sb_bg = f"rgba(26, 28, 36, {card_op:.2f})" if self.is_dark_mode else f"rgba(255, 255, 255, {card_op:.2f})"
+                sb_border = "rgba(255, 255, 255, 0.12)" if self.is_dark_mode else "rgba(0, 0, 0, 0.08)"
+                card_bg = f"rgba(26, 28, 36, {card_op:.2f})" if self.is_dark_mode else f"rgba(255, 255, 255, {card_op:.2f})"
+                card_border = "rgba(255, 255, 255, 0.12)" if self.is_dark_mode else "rgba(0, 0, 0, 0.08)"
+                self.central_widget.setStyleSheet(f"""
+                    QWidget#CentralWidget {{ background-color: transparent; border: none; }}
+                    QFrame#Sidebar {{
+                        background-color: {sb_bg};
+                        border-top-left-radius: 8px;
+                        border-bottom-left-radius: 14px;
+                        border-right: 1px solid {sb_border};
+                    }}
+                    QStackedWidget, QScrollArea, QScrollArea > QWidget, QScrollArea QWidget, QWidget#HomeView {{
+                        background: transparent;
+                        background-color: transparent;
+                    }}
+                    QFrame#HeroCard {{
+                        background: {card_bg};
+                        border: 1px solid {card_border};
+                        border-radius: 18px;
+                    }}
+                    QFrame.GridCard, QFrame[class="GridCard"], QFrame.Card, QFrame#Card, QFrame[class="Card"] {{
+                        background-color: {card_bg};
+                        border: 1px solid {card_border};
+                        border-radius: 18px;
+                    }}
+                """)
             else:
+                self.central_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
                 self.central_widget.setStyleSheet("")
 
         if hasattr(self, "btn_wallpaper"):
@@ -2790,12 +2819,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, "size_grip") and self.size_grip:
             self.size_grip.set_dark_mode(self.is_dark_mode)
 
-        bg_color = "#292929" if self.is_dark_mode else "#F5F5F5"
-        border_color = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
-        if self.isMaximized():
-            self.central_widget.setStyleSheet(f"#CentralWidget {{ background-color: {bg_color}; border: none; border-radius: 0px; }}")
-        else:
-            self.central_widget.setStyleSheet(f"#CentralWidget {{ background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 14px; }}")
+        if not has_wp:
+            bg_color = "#292929" if self.is_dark_mode else "#F5F5F5"
+            border_color = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
+            if self.isMaximized():
+                self.central_widget.setStyleSheet(f"#CentralWidget {{ background-color: {bg_color}; border: none; border-radius: 0px; }}")
+            else:
+                self.central_widget.setStyleSheet(f"#CentralWidget {{ background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 14px; }}")
 
         apply_dm_window_frame(self, self.is_dark_mode)
 
@@ -3041,14 +3071,11 @@ class MainWindow(QMainWindow):
         super().changeEvent(event)
 
     def toggle_maximized(self):
-        bg_color = "#292929" if getattr(self, "is_dark_mode", False) else "#F5F5F5"
-        border_color = "#3A3A3A" if getattr(self, "is_dark_mode", False) else "#E5E5E5"
         if self.isMaximized():
             self.showNormal()
-            self.central_widget.setStyleSheet(f"#CentralWidget {{ background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 14px; }}")
         else:
             self.showMaximized()
-            self.central_widget.setStyleSheet(f"#CentralWidget {{ background-color: {bg_color}; border: none; border-radius: 0px; }}")
+        self.apply_theme()
         if hasattr(self, "btn_max"):
             self.btn_max.set_maximized_state(self.isMaximized())
 

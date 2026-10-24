@@ -580,6 +580,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
             height=680,
             icon_filename="dlss_icon.png"
         )
+        self.subapp_id = "app4_dlss"
         self.setMinimumSize(860, 580)
         self.resize(920, 680)
         self.init_content()
@@ -911,12 +912,20 @@ class DLSSIndicatorWindow(DMBaseWindow):
             return
         is_dark = self.is_dark_mode
 
-        card_bg = "#2A2B2C" if is_dark else "#FFFFFF"
-        card_border = "#3A3A3A" if is_dark else "#E5E5E5"
-        card_hover = "#4A4A4A" if is_dark else "#D4D4D4"
-        text_primary = "#E8E8E8" if is_dark else "#1A1A1A"
-        text_secondary = "#A0A0A0" if is_dark else "#8A8A8A"
-        sep_color = "#3A3A3A" if is_dark else "#E5E5E5"
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        if has_wp:
+            card_bg = f"rgba(26, 28, 36, {card_op:.2f})" if is_dark else f"rgba(255, 255, 255, {card_op:.2f})"
+            card_border = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
+            card_hover = "#3E9E69" if is_dark else "#2F8F5B"
+        else:
+            card_bg = "#2A2B2C" if is_dark else "#FFFFFF"
+            card_border = "#3A3A3A" if is_dark else "#E5E5E5"
+            card_hover = "#4A4A4A" if is_dark else "#D4D4D4"
+
+        text_primary = "#F9FAFB" if is_dark else "#111827"
+        text_secondary = "#CBD5E1" if is_dark else "#374151"
+        sep_color = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
         btn_outline_bg = "#303132" if is_dark else "#EFEFEF"
         btn_outline_fg = "#D4D4D4" if is_dark else "#4A4A4A"
 
