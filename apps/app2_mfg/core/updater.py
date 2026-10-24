@@ -44,9 +44,6 @@ UPSTREAM_REPOS = {
     BackendType.RESHADE_ADDON: [
         "https://api.github.com/repos/mavismmg/MFGAdaUnlock-RenoDx/releases/latest"
     ],
-    BackendType.DLSSG_SM86: [
-        "https://api.github.com/repos/sdli1995/dlssg_for_sm86/releases/latest"
-    ],
     BackendType.OPTISCALER_FSR: [
         "https://api.github.com/repos/optiscaler/OptiScaler-nightly/releases?per_page=1",
         "https://api.github.com/repos/optiscaler/OptiScaler/releases/latest"
@@ -353,14 +350,6 @@ class ComponentUpdater:
                 "file_patterns": ["OptiScaler.dll"],
 
                 "default_name": "OptiScaler.dll"
-
-            },
-
-            BackendType.DLSSG_SM86.value: {
-
-                "file_patterns": ["version.dll", "*.dll"],
-
-                "default_name": "version.dll"
 
             },
 
@@ -1048,114 +1037,6 @@ class ComponentUpdater:
 
 
 
-        elif backend == BackendType.DLSSG_SM86 or str(backend) == BackendType.DLSSG_SM86.value or (hasattr(backend, "value") and backend.value == BackendType.DLSSG_SM86.value):
-
-            zip_asset = None
-
-            for asset in assets:
-
-                name = asset.get("name", "").lower()
-
-                if name.endswith(".zip"):
-
-                    zip_asset = asset
-
-                    break
-
-
-
-            if not zip_asset:
-
-                return False, "未能找到 DLSSG SM86 发布资产 (.zip)。"
-
-
-
-            download_url = zip_asset.get("browser_download_url")
-
-            temp_zip = target_dir / "temp_download.zip"
-
-            ok, err = download_file(download_url, str(temp_zip), mirror_prefix=mirror_prefix, progress_cb=progress_cb)
-
-            if not ok:
-
-                return False, f"下载 DLSSG SM86 失败: {err}"
-
-
-
-            try:
-
-                with zipfile.ZipFile(temp_zip, "r") as zf:
-
-                    zf.extractall(target_dir)
-
-            except Exception as e:
-
-                return False, f"解压 DLSSG SM86 归档异常: {e}"
-
-            finally:
-
-                if temp_zip.exists():
-
-                    try:
-
-                        temp_zip.unlink()
-
-                    except Exception:
-
-                        pass
-
-
-
-            found_dll = target_dir / "version.dll"
-
-            if not found_dll.exists():
-
-                for root, _, files in os.walk(target_dir):
-
-                    if "version.dll" in [f.lower() for f in files]:
-
-                        found_dll = Path(root) / "version.dll"
-
-                        break
-
-
-
-            if not found_dll or not found_dll.exists():
-
-                return False, "DLSSG SM86 归档中缺少核心 version.dll 文件！"
-
-
-
-            b_key = BackendType.DLSSG_SM86.value
-
-            sha256 = calculate_sha256(str(found_dll))
-
-            reg = self.load_registry()
-
-            if b_key not in reg:
-
-                reg[b_key] = {"latest_tag": None, "cached_versions": {}}
-
-            reg[b_key]["latest_tag"] = tag_name
-
-            reg[b_key]["cached_versions"][tag_name] = {
-
-                "file": "version.dll",
-
-                "path": str(found_dll),
-
-                "dir": str(target_dir),
-
-                "sha256": sha256
-
-            }
-
-            self.save_registry(reg)
-
-            return True, f"成功缓存 DLSSG-SM86 资产 {tag_name} ({sha256[:8]})"
-
-
-
         elif backend == BackendType.RHI or str(backend) == BackendType.RHI.value or (hasattr(backend, "value") and backend.value == BackendType.RHI.value):
 
             exe_asset = None
@@ -1378,10 +1259,6 @@ class ComponentUpdater:
 
                     return str(f)
 
-                elif backend_key == BackendType.DLSSG_SM86.value and "version.dll" == f.name.lower():
-
-                    return str(f)
-
             for f in b_dir.rglob("*.addon64"):
 
                 if backend_key == BackendType.RESHADE_ADDON.value:
@@ -1413,10 +1290,6 @@ class ComponentUpdater:
                             return str(ef)
 
                         elif backend_key == BackendType.OPTISCALER_FSR.value and ef.name.lower() == "optiscaler.dll":
-
-                            return str(ef)
-
-                        elif backend_key == BackendType.DLSSG_SM86.value and ef.name.lower() == "version.dll":
 
                             return str(ef)
 

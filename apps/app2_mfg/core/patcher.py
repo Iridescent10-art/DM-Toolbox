@@ -79,7 +79,7 @@ class PatchEngine:
         if active_backend in (None, BackendType.SMART_AUTO):
             gpu_name = get_system_gpu_name()
             gpu_upper = gpu_name.upper()
-            if any(k in gpu_upper for k in ["RTX", "GEFORCE RTX", "SM86", "SM89", "SM75", "A100", "TITAN RTX"]):
+            if any(k in gpu_upper for k in ["RTX", "GEFORCE RTX", "A100", "TITAN RTX"]):
                 # All NVIDIA RTX (20/30/40/50) series -> Mode A (dashdogy Universal)
                 active_backend = BackendType.STANDALONE
             else:
@@ -104,8 +104,6 @@ class PatchEngine:
                 target_mode_char = "C"
             elif active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
                 target_mode_char = "B"
-            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
-                target_mode_char = "D"
             else:
                 target_mode_char = "C"
             has_dlss5 = is_dlss5_present(game.target_dir)
@@ -122,10 +120,6 @@ class PatchEngine:
                     return False, err
             elif active_backend == BackendType.OPTISCALER_FSR or backend_str == BackendType.OPTISCALER_FSR.value:
                 success, err = self._apply_optiscaler_patch(game, manifest)
-                if not success:
-                    return False, err
-            elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
-                success, err = self._apply_dlssg_sm86_patch(game, manifest)
                 if not success:
                     return False, err
             else:
@@ -322,12 +316,25 @@ class PatchEngine:
         if not exe_path or not os.path.exists(exe_path) or os.path.getsize(exe_path) < 1024:
             return imported
         try:
+            with open(exe_path, "rb") as fh:
+                hdr = fh.read(1024)
+            if not hdr.startswith(b"MZ") or len(hdr) < 0x40:
+                raise ValueError("Not a valid PE")
+            pe_offset = int.from_bytes(hdr[0x3C:0x40], byteorder="little")
+            if pe_offset <= 0 or pe_offset + 4 > len(hdr) or hdr[pe_offset:pe_offset+4] != b"PE\x00\x00":
+                raise ValueError("Invalid PE offset/signature")
             import pefile
             pe = pefile.PE(exe_path, fast_load=True)
-            pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
-            for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []):
-                dll_name = entry.dll.decode("utf-8", errors="ignore").lower()
-                imported.append(dll_name)
+            try:
+                pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
+                for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []):
+                    dll_name = entry.dll.decode("utf-8", errors="ignore").lower()
+                    imported.append(dll_name)
+            finally:
+                try:
+                    pe.close()
+                except Exception:
+                    pass
         except Exception:
             try:
                 with open(exe_path, "rb") as f:
@@ -358,22 +365,21 @@ class PatchEngine:
         - For Mode A (dashdogy):
           Inspects PE Import Table: if game imports winmm.dll and not version.dll, uses winmm.dll;
           if game imports version.dll, uses version.dll; else defaults to version.dll.
-        - For Mode D (DLSSG-SM86):
-          If coexisting with DLSS 5, follows the same imported proxy rule.
         """
         if active_backend == BackendType.RESHADE_ADDON:
             return "dxgi.dll"
 
+        imported = self._get_pe_imported_proxies(game.exe_path)
+        if "winmm.dll" in imported and "version.dll" not in imported:
+            return "winmm.dll"
+        if "version.dll" in imported:
+            return "version.dll"
+        if "dinput8.dll" in imported:
+            return "dinput8.dll"
+
         if not is_coexisting_with_dlss5:
             if active_backend == BackendType.OPTISCALER_FSR:
                 return "dxgi.dll"
-            imported = self._get_pe_imported_proxies(game.exe_path)
-            if "winmm.dll" in imported and "version.dll" not in imported:
-                return "winmm.dll"
-            if "version.dll" in imported:
-                return "version.dll"
-            if "dinput8.dll" in imported:
-                return "dinput8.dll"
             return "version.dll"
 
         # Under DLSS 5 coexistence: dxgi.dll is strictly reserved for ReShade 6.8.
@@ -759,11 +765,14 @@ class PatchEngine:
         fg_output = str(preset.get("fg_output", "xefg")).strip().lower()
         needs_fakenvapi = fg_output in ("xefg", "nukems")
 
-        # fakenvapi is side-loaded by OptiScaler by file name (it is NOT installed as
-        # nvapi64.dll), so it does not replace the driver NVAPI that Streamline uses.
-        # It is only purged when the selected output does not need it and the GPU/game
-        # already provides native DLSS-G.
-        deploy_fakenvapi = needs_fakenvapi or not (has_rtx_40_or_newer or is_qualified)
+        # fakenvapi is only for non-NVIDIA GPUs (AMD/Intel) that lack official NVAPI.
+        # On NVIDIA GPUs, native NVAPI exists and fakenvapi causes crashes (0xC0000005) in Streamline/Messiah
+        # and disables native DLSS capability reporting.
+        is_nvidia_gpu = "nvidia" in gpu_name.lower() or "geforce" in gpu_name.lower() or "rtx" in gpu_name.lower() or "gtx" in gpu_name.lower()
+        if is_nvidia_gpu:
+            deploy_fakenvapi = False
+        else:
+            deploy_fakenvapi = needs_fakenvapi or not (has_rtx_40_or_newer or is_qualified)
 
         # Fatal conflict fix: fakenvapi emulates a whole NVAPI device, and the
         # DLSS 5 neural-reconstruction runtime queries NVAPI to pick its kernels.
@@ -829,6 +838,23 @@ class PatchEngine:
             shutil.copy2(src_item, dst_item)
             if not was_preexisting:
                 manifest.created_files.append(item)
+
+        # 2.5 Expose game-local Streamline DLSS runtime at root for OptiScaler
+        # Streamline games place nvngx_dlss.dll under Streamline/ subdirectory.
+        # OptiScaler's root scan looks for nvngx_dlss.dll at game root. Exposing it ensures
+        # OptiScaler finds DLSS and does not disable it ("nvngx_dlss.dll not found, disabling DLSS"),
+        # keeping in-game DLSS Super Resolution 100% available and stable.
+        sl_dir = os.path.join(target_dir, "Streamline")
+        if os.path.exists(sl_dir) and os.path.isdir(sl_dir):
+            for sl_file in ["nvngx_dlss.dll", "nvngx_dlssg.dll"]:
+                sl_src = os.path.join(sl_dir, sl_file)
+                root_dst = os.path.join(target_dir, sl_file)
+                if os.path.exists(sl_src) and not os.path.exists(root_dst):
+                    try:
+                        shutil.copy2(sl_src, root_dst)
+                        manifest.created_files.append(sl_file)
+                    except Exception:
+                        pass
 
         # 3. Deploy OptiScaler subdirectory (OptiScaler 10+ backend libraries) if exists
         opti_sub = os.path.join(opti_dir, "OptiScaler")
@@ -1024,116 +1050,3 @@ class PatchEngine:
             return True
 
         return False
-
-    def _apply_dlssg_sm86_patch(self, game: GameInfo, manifest: PatchManifest) -> Tuple[bool, str]:
-        """
-        Deploy Mode D (DLSSG for SM86/SM75 Native DLSS-G & INT8 Super Resolution)
-        1. Clean conflicting Mode A, B, C files
-        2. Deploy selected proxy DLL (default: version.dll)
-        3. Deploy dlssg_sm86 folder (runtime, backend, kernels, sr, xefg)
-        4. Deploy and forward sync dlssg_sm86.ini
-        5. DLSS 5 coexistence: ensure ReShade is deployed on dxgi.dll if DLSS 5 present
-        """
-        source_dir = self.updater.get_latest_cached_dir(BackendType.DLSSG_SM86)
-        if not source_dir or not os.path.exists(source_dir):
-            return False, "本地缓存中未找到 DLSSG-SM86 组件！\n请先在主界面点击【检查并同步最新版本】进行下载。"
-
-        target_dir = game.target_dir
-        kill_locking_processes(target_dir, game.exe_name)
-        cleanup_pending_files(target_dir)
-
-        # 1. Clean conflicting Mode A, B, C files
-        for conflicting_file in [
-            "OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll",
-            "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64",
-            "RTX40MFG-UI.ini", "RTXMFG-UI.ini", "mfg_unlocker.ini", "RTXMFG-Universal.json"
-        ]:
-            f_p = os.path.join(target_dir, conflicting_file)
-            if os.path.exists(f_p):
-                safe_force_remove(f_p)
-
-        has_dlss5 = is_dlss5_present(target_dir)
-
-        # 2. Load Mode D preset to check preferred proxy DLL
-        try:
-            from core.optiscaler_config import load_dlssg_sm86_preset
-            preset_d = load_dlssg_sm86_preset()
-        except Exception:
-            preset_d = {"proxy_dll": "version.dll"}
-
-        selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.DLSSG_SM86)
-        pref = str(preset_d.get("proxy_dll", "")).strip().lower()
-        if pref and pref.endswith(".dll") and not (has_dlss5 and pref == "dxgi.dll"):
-            imported = self._get_pe_imported_proxies(game.exe_path)
-            if not imported or pref in imported:
-                selected_proxy = pref
-
-        # Locate proxy source file
-        source_proxy = os.path.join(source_dir, selected_proxy)
-        if not os.path.exists(source_proxy):
-            # Check alternatives folder
-            alt_path = os.path.join(source_dir, "alternatives", selected_proxy)
-            if os.path.exists(alt_path):
-                source_proxy = alt_path
-            else:
-                source_proxy = os.path.join(source_dir, "version.dll")
-
-        if not os.path.exists(source_proxy):
-            return False, f"DLSSG-SM86 资源目录中缺少代理文件 {selected_proxy} 或 version.dll！"
-
-        dest_proxy_path = os.path.join(target_dir, selected_proxy)
-        if os.path.exists(dest_proxy_path):
-            safe_force_remove(dest_proxy_path)
-        shutil.copy2(source_proxy, dest_proxy_path)
-        manifest.created_files.append(selected_proxy)
-
-        # 3. Deploy dlssg_sm86 directory (runtime, backend, kernels, sr, xefg)
-        src_dlssg_sub = os.path.join(source_dir, "dlssg_sm86")
-        if not os.path.exists(src_dlssg_sub):
-            src_dlssg_sub = source_dir
-
-        dst_dlssg_sub = os.path.join(target_dir, "dlssg_sm86")
-        os.makedirs(dst_dlssg_sub, exist_ok=True)
-        if "dlssg_sm86" not in manifest.created_files:
-            manifest.created_files.append("dlssg_sm86")
-
-        for root, dirs, files in os.walk(src_dlssg_sub):
-            rel = os.path.relpath(root, src_dlssg_sub)
-            if rel == ".":
-                dest_root = dst_dlssg_sub
-            else:
-                dest_root = os.path.join(dst_dlssg_sub, rel)
-            os.makedirs(dest_root, exist_ok=True)
-            for file in files:
-                if file.lower() == "nvngx_dlssnr.dll":
-                    continue
-                src_f = os.path.join(root, file)
-                dst_f = os.path.join(dest_root, file)
-                shutil.copy2(src_f, dst_f)
-
-        # 4. Deploy and forward sync dlssg_sm86.ini
-        src_ini = os.path.join(source_dir, "dlssg_sm86.ini")
-        dst_ini = os.path.join(target_dir, "dlssg_sm86.ini")
-        if os.path.exists(src_ini) and not os.path.exists(dst_ini):
-            shutil.copy2(src_ini, dst_ini)
-        if "dlssg_sm86.ini" not in manifest.created_files:
-            manifest.created_files.append("dlssg_sm86.ini")
-
-        try:
-            from core.ini_sync import IniConfigManager
-            IniConfigManager.sync_mode_d_forward(target_dir, preset_d, game.exe_name)
-        except Exception:
-            pass
-
-        # 5. DLSS 5 Coexistence: ensure ReShade is deployed on dxgi.dll if DLSS 5 present
-        if has_dlss5:
-            dxgi_path = os.path.join(target_dir, "dxgi.dll")
-            if not os.path.exists(dxgi_path) or not self._is_reshade_dll(dxgi_path):
-                dlss5_dxgi = ROOT_DIR / "apps" / "app6_dlss5" / "assets" / "dxgi.dll"
-                reshade_src = str(dlss5_dxgi) if dlss5_dxgi.exists() else self.updater.get_reshade_framework_dll()
-                if reshade_src and os.path.exists(reshade_src):
-                    safe_force_remove(dxgi_path)
-                    shutil.copy2(reshade_src, dxgi_path)
-            safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
-
-        return True, ""

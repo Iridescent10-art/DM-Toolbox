@@ -142,6 +142,10 @@ def is_dlss5_present(target_dir: Union[str, Path]) -> bool:
 
         (td / "renodx-dlss.addon64").exists(),
 
+        (td / "Lecram-v12.addon64").exists(),
+
+        (td / "lecram-v12.addon64").exists(),
+
         (td / "lecram-dlss5-beta10.addon64").exists(),
 
         (td / "dlss5-nr.addon64").exists(),
@@ -230,18 +234,6 @@ def is_mode_c_present(target_dir: Union[str, Path]) -> bool:
                 actions_taken.append("清理并重置旧版遗留后端配置 (.mfg_patch_manifest.json)")
         except Exception:
             pass
-
-def is_dlssg_sm86_present(target_dir: Union[str, Path]) -> bool:
-
-    """Check if DLSSG-SM86 is installed in target directory."""
-
-    if not target_dir:
-
-        return False
-
-    td = Path(target_dir)
-
-    return (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists()
 
 def is_dashdogy_dll_file(path: str) -> bool:
 
@@ -377,7 +369,6 @@ def CleanGameDirectoryState(
 
              Removes Mode A/B/D conflicting files.
 
-      - 'D': Prepares for Mode D (DLSSG-SM86 Native DLSS-G). dlssg_sm86 uses target_proxy (version.dll/winmm.dll).
 
              Removes Mode A/B/C conflicting files.
 
@@ -802,22 +793,18 @@ def CleanGameDirectoryState(
 
 
 
-    # Mode D (DLSSG-SM86) configs & runtime files:
-
+    # Clean legacy dlssg_sm86 files if present:
     dlssg_sm86_dir = td / "dlssg_sm86"
-
     dlssg_sm86_ini = td / "dlssg_sm86.ini"
-
-    if mode != "D":
-        if dlssg_sm86_ini.exists():
-            safe_remove_file(dlssg_sm86_ini)
-            actions_taken.append("清理非模式 D 配置文件: dlssg_sm86.ini")
-        if dlssg_sm86_dir.exists() and dlssg_sm86_dir.is_dir():
-            try:
-                shutil.rmtree(dlssg_sm86_dir, ignore_errors=True)
-                actions_taken.append("清理非模式 D dlssg_sm86 目录")
-            except Exception:
-                pass
+    if dlssg_sm86_ini.exists():
+        safe_remove_file(dlssg_sm86_ini)
+        actions_taken.append("清理遗留配置文件: dlssg_sm86.ini")
+    if dlssg_sm86_dir.exists() and dlssg_sm86_dir.is_dir():
+        try:
+            shutil.rmtree(dlssg_sm86_dir, ignore_errors=True)
+            actions_taken.append("清理遗留 dlssg_sm86 目录")
+        except Exception:
+            pass
 
     # (F) DLSS 5 Addon & Runtime Protection / Removal:
 
@@ -832,6 +819,10 @@ def CleanGameDirectoryState(
             "renodx-dlss5-Lecram-v11-Beta48.addon64",
 
             "renodx-dlss.addon64",
+
+            "Lecram-v12.addon64",
+
+            "lecram-v12.addon64",
 
             "renodx-dlss-ShortFuse-261017汉化版.addon64",
 

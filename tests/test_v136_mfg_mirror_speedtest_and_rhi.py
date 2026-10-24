@@ -72,7 +72,6 @@ class TestMFGMirrorSpeedTestAndRHI(unittest.TestCase):
 
         self.assertEqual(BackendType.RESHADE_ADDON.value, "mavismmg")
 
-        self.assertEqual(BackendType.DLSSG_SM86.value, "dlssg_sm86")
 
         self.assertEqual(BackendType.OPTISCALER_FSR.value, "optiscaler")
 
@@ -93,12 +92,6 @@ class TestMFGMirrorSpeedTestAndRHI(unittest.TestCase):
         self.assertIn(BackendType.RESHADE_ADDON, UPSTREAM_REPOS)
 
         self.assertIn("mavismmg/MFGAdaUnlock-RenoDx", UPSTREAM_REPOS[BackendType.RESHADE_ADDON][0])
-
-
-
-        self.assertIn(BackendType.DLSSG_SM86, UPSTREAM_REPOS)
-
-        self.assertIn("sdli1995/dlssg_for_sm86", UPSTREAM_REPOS[BackendType.DLSSG_SM86][0])
 
 
 
@@ -311,7 +304,6 @@ class TestMFGMirrorSpeedTestAndRHI(unittest.TestCase):
 
             self.assertIn("ReShade", summary_text)
 
-            self.assertIn("DLSSG-SM86", summary_text)
 
             self.assertIn("OptiScaler", summary_text)
 

@@ -178,27 +178,12 @@ def test_assertion_2_dual_channel_isolation():
         assert cp.get("Upscalers", "Dx12Upscaler", fallback="").lower() == "dlss", "Dx12Upscaler 必须是合法的 DLSS 直通值"
         print("   [PASS] 通道 C (DLSS 5 + OptiScaler) 隔离校验成功: DLSS 直通保留，无重复 ReShade 宿主")
 
-    # 测试 D: DLSS 5 + 模式 D (DLSSG-SM86 原生插帧)
-    with tempfile.TemporaryDirectory() as tmpdir_d:
-        game_dir_d, game_info_d = _create_mock_game_environment(Path(tmpdir_d))
-        DLSS5Injector.inject(str(game_dir_d), arch_choice="rtx20_30_40")
-        patcher = PatchEngine(updater)
-        ok_d, msg_d = patcher.patch_game(game_info_d, requested_backend=BackendType.DLSSG_SM86)
-        assert ok_d, f"模式 D 注入应当成功: {msg_d}"
-
-        dxgi_d = game_dir_d / "dxgi.dll"
-        version_d = game_dir_d / "version.dll"
-        assert dxgi_d.exists() and version_d.exists(), "模式 D 共存下 dxgi.dll 与 version.dll 必须同时存在"
-        assert _calculate_file_sha256(dxgi_d) != _calculate_file_sha256(version_d), "模式 D 双通道哈希必须隔离"
-        assert (game_dir_d / "dlssg_sm86").is_dir(), "dlssg_sm86 目录必须就绪"
-        print("   [PASS] 通道 D (DLSS 5 + DLSSG-SM86) 隔离校验成功: 代理与运行时完全物理隔离")
-
 
 def test_assertion_3_addon_mounting_and_ini_syntax():
     """
     Assertion 3: Addon 挂载与 INI 语法校验
     在【DLSS 5 + 模式 B】组合测试下，解析生成的 ReShade.ini，验证 [ADDON] 节点语法合法，包含 LoadFromDllMain 配置，
-    且 renodx-dlss5-v11.9.addon64 与模式 B 插件均位于有效加载目录。
+    且 renodx-dlss.addon64 与模式 B 插件均位于有效加载目录。
     """
     print("\n----------------------------------------------------------------------")
     print("-> 执行 Assertion 3: Addon 挂载与 INI 语法校验 (DLSS 5 + 模式 B RenoDX 合并)...")
@@ -208,8 +193,8 @@ def test_assertion_3_addon_mounting_and_ini_syntax():
         # 1. 注入 DLSS 5
         ok_dlss5, msg_dlss5 = DLSS5Injector.inject(str(game_dir), arch_choice="rtx20_30_40")
         assert ok_dlss5, f"DLSS 5 注入应成功: {msg_dlss5}"
-        dlss5_addon = game_dir / "renodx-dlss5-v11.9.addon64"
-        assert dlss5_addon.exists(), "初始应包含 renodx-dlss5-v11.9.addon64"
+        dlss5_addon = game_dir / "renodx-dlss.addon64"
+        assert dlss5_addon.exists(), "初始应包含 renodx-dlss.addon64"
 
         # 2. 注入 模式 B (mavismmg/MFGAdaUnlock-RenoDx)
         updater = ComponentUpdater()
@@ -219,7 +204,7 @@ def test_assertion_3_addon_mounting_and_ini_syntax():
 
         # 3. 校验双 Addon 同时有效存在
         mfg_addon = game_dir / "renodx-mfgunlock.addon64"
-        assert dlss5_addon.exists(), "模式 B 注入后，renodx-dlss5-v11.9.addon64 必须依然完好保留！"
+        assert dlss5_addon.exists(), "模式 B 注入后，renodx-dlss.addon64 必须依然完好保留！"
         assert mfg_addon.exists(), "模式 B 插件 renodx-mfgunlock.addon64 必须成功挂载！"
 
         # 4. 解析 ReShade.ini 验证合法语法与 [ADDON] 节点
@@ -236,7 +221,7 @@ def test_assertion_3_addon_mounting_and_ini_syntax():
         load_main = cp.get("ADDON", "LoadFromDllMain", fallback="")
         load_main_parts = [x.strip() for x in load_main.split(",") if x.strip()]
         assert "1" not in load_main_parts, f"[ADDON] LoadFromDllMain 严禁包含布尔值 '1'！实际为: '{load_main}'"
-        assert "renodx-dlss5-v11.9.addon64" not in load_main, "DLSS 5 插件严禁加入 LoadFromDllMain (避免 Loader Lock 导致 Error 1114/0xc0000005)"
+        assert "renodx-dlss.addon64" not in load_main, "DLSS 5 插件严禁加入 LoadFromDllMain (避免 Loader Lock 导致 Error 1114/0xc0000005)"
         assert "renodx-mfgunlock.addon64" in load_main, f"LoadFromDllMain 必须包含模式 B 插件！实际为: '{load_main}'"
 
         # 5. 校验 DLSS 5 预设参数未被破坏

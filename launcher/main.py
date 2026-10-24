@@ -36,6 +36,7 @@ from common.ui_theme import (
     ModernProgressDialog, ModernConfirmDialog, ModernDialog,
     get_global_theme
 )
+from common.wallpaper_manager import cleanup_unused_wallpapers
 from common.config_manager import (
     TOOLBOX_ROOT, CACHE_ROOT, CONFIG_ROOT,
     get_total_cache_size_mb, reset_all_data,
@@ -295,7 +296,33 @@ class AppCard(QFrame):
     def on_action_clicked(self):
         self.parent_launcher.launch_or_activate_app(self.app_id)
 
-    def apply_theme(self, is_dark: bool):
+    def apply_theme(self, is_dark: bool, wallpaper_active: bool = False, card_opacity: float = 0.80):
+        if wallpaper_active:
+            if is_dark:
+                self.setStyleSheet(f"""
+                    QFrame.GridCard {{
+                        background-color: rgba(32, 34, 40, {card_opacity:.2f});
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-radius: 16px;
+                    }}
+                    QFrame.GridCard:hover {{
+                        border-color: #69DB9B;
+                    }}
+                """)
+            else:
+                self.setStyleSheet(f"""
+                    QFrame.GridCard {{
+                        background-color: rgba(255, 255, 255, {card_opacity:.2f});
+                        border: 1px solid rgba(0, 0, 0, 0.06);
+                        border-radius: 16px;
+                    }}
+                    QFrame.GridCard:hover {{
+                        border-color: #2F8F5B;
+                    }}
+                """)
+        else:
+            self.setStyleSheet("")
+
         if is_dark:
             self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #F5F5F5;")
             self.lbl_tag.setStyleSheet("""
@@ -572,25 +599,42 @@ class ToolboxLauncher(BaseWindow):
                     border: 1px solid #E5E5E5;
                     border-radius: 8px;
                 """)
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.80))
+
         if hasattr(self, "tip_card"):
-            if is_dark:
-                self.tip_card.setStyleSheet("""
-                    background-color: #2A2B2C;
-                    border: 1px solid #3A3A3A;
-                    border-radius: 12px;
-                """)
+            if has_wp:
+                if is_dark:
+                    self.tip_card.setStyleSheet(f"""
+                        background-color: rgba(32, 34, 40, {card_op:.2f});
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-radius: 12px;
+                    """)
+                else:
+                    self.tip_card.setStyleSheet(f"""
+                        background-color: rgba(255, 255, 255, {card_op:.2f});
+                        border: 1px solid rgba(0, 0, 0, 0.06);
+                        border-radius: 12px;
+                    """)
             else:
-                self.tip_card.setStyleSheet("""
-                    background-color: #F5F5F5;
-                    border: 1px solid #E5E5E5;
-                    border-radius: 12px;
-                """)
+                if is_dark:
+                    self.tip_card.setStyleSheet("""
+                        background-color: #2A2B2C;
+                        border: 1px solid #3A3A3A;
+                        border-radius: 12px;
+                    """)
+                else:
+                    self.tip_card.setStyleSheet("""
+                        background-color: #F5F5F5;
+                        border: 1px solid #E5E5E5;
+                        border-radius: 12px;
+                    """)
         if hasattr(self, "tip_lbl"):
             self.tip_lbl.setStyleSheet(f"color: {'#94A3B8' if is_dark else '#4A4A4A'}; font-size: 12px;")
 
         if hasattr(self, "cards"):
             for card in self.cards.values():
-                card.apply_theme(is_dark)
+                card.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)
 
     def update_cache_display(self):
         try:
@@ -829,7 +873,10 @@ class ToolboxLauncher(BaseWindow):
 
                 # Step 3 & 4: Reset C:/ToolboxData and restore defaults
                 defaults_dir = ROOT_DIR / "defaults"
+                # Clean wallpapers cache & reset
+                cleanup_unused_wallpapers()
                 ok, msg, freed_mb = reset_all_data(defaults_dir)
+                self.reload_wallpaper()
 
                 # Step 4: 90%
                 progress_dlg.set_progress(90, "正在重置初始配置与刷新状态...", "恢复各组件 defaults 初始出厂配置")

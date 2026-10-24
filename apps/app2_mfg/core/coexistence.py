@@ -8,7 +8,6 @@ Single source of truth for proxy-DLL slot isolation between:
                possible, before the game creates its D3D12 device / NGX context);
   * Mode A  -> dashdogy / MFG-Unlocker, secondary proxy;
   * Mode C  -> OptiScaler / XeSS 2.0 / XeFG, secondary proxy;
-  * Mode D  -> DLSSG-SM86 native DLSS-G runtime, secondary proxy.
 
 Why a shared router is required
 -------------------------------
@@ -149,18 +148,30 @@ def read_pe_imports(exe_path: Optional[os.PathLike | str]) -> List[str]:
     if not exe.is_file():
         return imported
     try:
+        with open(exe, "rb") as fh:
+            hdr = fh.read(1024)
+        if not hdr.startswith(b"MZ") or len(hdr) < 0x40:
+            raise ValueError("Not a valid PE")
+        pe_offset = int.from_bytes(hdr[0x3C:0x40], byteorder="little")
+        if pe_offset <= 0 or pe_offset + 4 > len(hdr) or hdr[pe_offset:pe_offset+4] != b"PE\x00\x00":
+            raise ValueError("Invalid PE offset/signature")
         import pefile  # type: ignore
 
         pe = pefile.PE(str(exe), fast_load=True)
-        pe.parse_data_directories(
-            directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]]
-        )
-        for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []) or []:
+        try:
+            pe.parse_data_directories(
+                directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]]
+            )
+            for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []) or []:
+                try:
+                    imported.append(entry.dll.decode("utf-8", errors="ignore").lower())
+                except Exception:
+                    continue
+        finally:
             try:
-                imported.append(entry.dll.decode("utf-8", errors="ignore").lower())
+                pe.close()
             except Exception:
-                continue
-        pe.close()
+                pass
     except Exception:
         try:
             with open(exe, "rb") as fh:

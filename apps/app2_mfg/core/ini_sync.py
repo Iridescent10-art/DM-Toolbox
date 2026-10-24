@@ -523,7 +523,9 @@ class IniConfigManager:
             gpu_name = get_system_gpu_name()
             is_rtx40_50 = is_rtx_40_or_newer(gpu_name)
         except Exception:
+            gpu_name = ""
             is_rtx40_50 = True
+        is_nvidia = "nvidia" in gpu_name.lower() or "geforce" in gpu_name.lower() or "rtx" in gpu_name.lower() or "gtx" in gpu_name.lower()
 
         menu_key = str(preset.get("menu_key", "Insert")).strip()
         if menu_key in VK_KEY_MAP:
@@ -623,7 +625,7 @@ class IniConfigManager:
                 "RenderPresetForAll": "0" if is_dlss_default else str(DLSS_PRESET_MAP.get(dlss_p, 13)),
             }
             upscalers_sec = {
-                "Dx12Upscaler": "dlss"
+                "Dx12Upscaler": dx12_upscaler if dx12_upscaler in ("auto", "dlss", "xess", "fsr31") else "auto"
             }
             hooks_sec = {
                 "EarlyHooking": "false",
@@ -643,6 +645,18 @@ class IniConfigManager:
             }
             fsrfg_sec = {}
 
+        libraries_sec: Dict[str, str] = {
+            "OptiDllPath": "auto",
+            "NvngxPath": "auto",
+        }
+        sl_dlss = target / "Streamline" / "nvngx_dlss.dll"
+        local_dlss = target / "nvngx_dlss.dll"
+        if sl_dlss.exists():
+            libraries_sec["NvngxDlssPath"] = r"Streamline\nvngx_dlss.dll"
+            libraries_sec["NvngxFeaturePath"] = "Streamline"
+        elif local_dlss.exists():
+            libraries_sec["NvngxDlssPath"] = "nvngx_dlss.dll"
+
         opti_updates: Dict[str, Dict[str, str]] = {
             "FrameGen": frame_gen_sec,
             "XeFG": xefg_sec,
@@ -654,6 +668,10 @@ class IniConfigManager:
             "Upscalers": upscalers_sec,
             "DLSS": dlss_sec,
             "DLSSD": dlssd_sec,
+            "Libraries": libraries_sec,
+            "Inputs": {
+                "EnableDlssInputs": "true"
+            },
             "CAS": {
                 "Enabled": "true" if rcas_enabled else "false"
             },
@@ -664,14 +682,17 @@ class IniConfigManager:
             "Hotfix": {
                 "SkipFirstFrames": "5",
                 "CheckForUpdate": "false",
-                "CreateD3D12DeviceForLuma": "true",
-                "SimulateWaitableObject": "true"
+                "CreateD3D12DeviceForLuma": "false",
+                "SimulateWaitableObject": "false"
             },
             "Hooks": hooks_sec,
             "Spoofing": {
-                "Dxgi": "false",
-                "StreamlineSpoofing": "false",
+                "Dxgi": "false" if is_rtx40_50 else "auto",
+                "StreamlineSpoofing": "false" if (is_rtx40_50 or has_dlss5) else "auto",
                 "DxgiFactoryWrapping": "false"
+            },
+            "fakenvapi": {
+                "UseFakenvapi": "false" if is_nvidia else "auto"
             },
             "Menu": {
                 # OptiScaler refuses to create its D3D12/FG hooks when the overlay
@@ -745,7 +766,7 @@ class IniConfigManager:
                 if (xefg_max or 1) <= 1:
                     warnings.append(
                         "当前显卡的 Intel XeFG 只支持 2X（libxess_fg 报告 Max supported interpolations = 1，"
-                        "常见于非 Arc 显卡）。如需 3X/4X 原生多倍插帧，请改用【模式 D: DLSSG-SM86】或"
+                        "常见于非 Arc 显卡）。如需 3X/4X 原生多倍插帧，请改用"
                         "【模式 A: dashdogy MFG-Unlocker】，XeFG 通道无法突破该硬件上限。"
                     )
             else:
@@ -1424,120 +1445,3 @@ class IniConfigManager:
                     config["dlssg_preset"] = "Auto"
 
         return config if (config or ini3.exists() or univ_json.exists()) else None
-
-
-
-    @classmethod
-    def sync_mode_d_forward(
-        cls,
-        target_dir: Union[str, Path],
-        config: Dict[str, Any],
-        exe_name: Optional[str] = None
-    ) -> bool:
-        """
-        Forward sync: writes DLSSG-SM86 parameters to TargetExeDir/dlssg_sm86.ini
-        preserving comments, structure, and original formatting.
-        """
-        import shutil
-        target = Path(target_dir)
-        ini_path = target / "dlssg_sm86.ini"
-
-        if not ini_path.exists():
-            tpl_candidates = [
-                Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "0.4.0" / "dlssg_sm86.ini",
-                Path(__file__).resolve().parent.parent.parent.parent / "defaults" / "app2_mfg" / "dlssg_sm86_preset.json"
-            ]
-            for cand in tpl_candidates:
-                if cand.name.endswith(".ini") and cand.exists():
-                    try:
-                        shutil.copy2(cand, ini_path)
-                        break
-                    except Exception:
-                        pass
-
-        enabled = int(config.get("enabled", 1))
-        engine = str(config.get("engine", "DLSS")).strip()
-        max_f = int(config.get("max_generated_frames", 2))
-        opt = int(config.get("optimized", 2))
-        preset = str(config.get("dlssg_preset", "Auto")).strip()
-        sr_mode = str(config.get("super_resolution_mode", "Off")).strip()
-        log_lvl = int(config.get("logging_level", 1))
-
-        updates = {
-            "General": {
-                "Enabled": enabled
-            },
-            "FrameGeneration": {
-                "Engine": engine,
-                "MaxGeneratedFrames": max_f
-            },
-            "DLSSG": {
-                "Optimized": opt,
-                "Preset": preset
-            },
-            "SuperResolution": {
-                "Mode": sr_mode
-            },
-            "Logging": {
-                "Level": log_lvl,
-                "Directory": r"dlssg_sm86\logs"
-            },
-            "Runtime": {
-                "Mode": "Bundled"
-            }
-        }
-
-        return cls.write_ini_sections(ini_path, updates)
-
-    @classmethod
-    def read_mode_d_reverse(cls, target_dir: Union[str, Path]) -> Optional[Dict[str, Any]]:
-        """
-        Reverse sync: read parameters from TargetExeDir/dlssg_sm86.ini.
-        """
-        target = Path(target_dir)
-        ini_path = target / "dlssg_sm86.ini"
-        if not ini_path.exists():
-            return None
-
-        data = cls.read_ini_sections(ini_path)
-        if not data:
-            return None
-
-        config: Dict[str, Any] = {}
-        gen = data.get("General", {})
-        if "Enabled" in gen:
-            try:
-                config["enabled"] = int(gen["Enabled"])
-            except Exception:
-                pass
-
-        fg = data.get("FrameGeneration", {})
-        if "Engine" in fg:
-            config["engine"] = fg["Engine"]
-        if "MaxGeneratedFrames" in fg:
-            try:
-                config["max_generated_frames"] = int(fg["MaxGeneratedFrames"])
-            except Exception:
-                pass
-
-        dlssg = data.get("DLSSG", {})
-        if "Optimized" in dlssg:
-            try:
-                config["optimized"] = int(dlssg["Optimized"])
-            except Exception:
-                pass
-        if "Preset" in dlssg:
-            config["dlssg_preset"] = dlssg["Preset"]
-
-        sr = data.get("SuperResolution", {})
-        if "Mode" in sr:
-            config["super_resolution_mode"] = sr["Mode"]
-
-        log_sec = data.get("Logging", {})
-        if "Level" in log_sec:
-            try:
-                config["logging_level"] = int(log_sec["Level"])
-            except Exception:
-                pass
-
-        return config if config else None

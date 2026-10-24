@@ -13,7 +13,7 @@ import tempfile
 from ctypes import wintypes
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Union
-from PySide6.QtCore import Qt, QPoint, QTimer, QRectF, QPointF, QEvent, QPropertyAnimation, QEasingCurve, Signal, QObject, QSize
+from PySide6.QtCore import Qt, QPoint, QTimer, QRectF, QPointF, QEvent, QPropertyAnimation, QEasingCurve, Signal, QObject, QSize, QFileSystemWatcher, QRect
 from PySide6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QPen, QCursor, QGuiApplication, QImage, QPainterPath
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -21,6 +21,12 @@ from PySide6.QtWidgets import (
     QProgressBar, QDialog, QSizePolicy, QSpacerItem, QSizeGrip
 )
 
+from common.wallpaper_manager import (
+    load_wallpaper_config, resolve_cached_image_path,
+    render_wallpaper_background, get_acrylic_qss_styles,
+    GLOBAL_WALLPAPER_NOTIFIER, DMWallpaperDialog,
+    GLOBAL_WALLPAPER_CONFIG_PATH
+)
 from common.dm_ui_core import (
     DMBaseWindow,
     DMCardFrame,
@@ -1615,6 +1621,22 @@ class ModernDialog:
         dlg.exec()
 
 
+class BaseRootContainer(QWidget):
+    """Root container for BaseWindow with custom wallpaper support."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("CentralWidget")
+        self.setMouseTracking(True)
+
+    def paintEvent(self, event):
+        win = self.window()
+        if hasattr(win, "paint_window_background"):
+            painter = QPainter(self)
+            win.paint_window_background(painter, self.rect())
+            painter.end()
+        super().paintEvent(event)
+
+
 class BaseWindow(QMainWindow):
     """
     Standard Base Window for Toolbox.
@@ -1680,6 +1702,28 @@ class BaseWindow(QMainWindow):
             if icon_p.exists():
                 self.set_app_icon(icon_p)
 
+        self.subapp_id = "launcher"
+        self.wallpaper_pixmap = None
+        self.wallpaper_config = {}
+        self._last_wallpaper_mtime = 0
+
+        # In-process wallpaper event bus
+        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.connect(self._on_wallpaper_event)
+
+        # Cross-process wallpaper file watcher (100ms debounce)
+        self.wallpaper_file_watcher = QFileSystemWatcher(self)
+        if GLOBAL_WALLPAPER_CONFIG_PATH.parent.exists():
+            self.wallpaper_file_watcher.addPath(str(GLOBAL_WALLPAPER_CONFIG_PATH.parent))
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            self.wallpaper_file_watcher.addPath(str(GLOBAL_WALLPAPER_CONFIG_PATH))
+        self.wallpaper_file_watcher.fileChanged.connect(self._on_wallpaper_file_changed)
+        self.wallpaper_file_watcher.directoryChanged.connect(self._on_wallpaper_file_changed)
+        self._wp_debounce_timer = QTimer(self)
+        self._wp_debounce_timer.setSingleShot(True)
+        self._wp_debounce_timer.setInterval(100)
+        self._wp_debounce_timer.timeout.connect(self.reload_wallpaper)
+
+        self.reload_wallpaper()
         self.apply_theme()
         self.center_on_screen()
         apply_dm_window_frame(self, self.is_dark_mode)
@@ -1692,7 +1736,7 @@ class BaseWindow(QMainWindow):
 
     def _setup_base_ui(self, title: str):
         # Root central container
-        self.central_widget = QWidget()
+        self.central_widget = BaseRootContainer(self)
         self.central_widget.setObjectName("CentralWidget")
         self.central_widget.setMouseTracking(True)
         self.setCentralWidget(self.central_widget)
@@ -1721,6 +1765,15 @@ class BaseWindow(QMainWindow):
         tb_layout.addWidget(self.lbl_window_title)
 
         tb_layout.addStretch()
+
+        # 图2右上角自定义壁纸按钮 (位于主题切换按钮左侧)
+        self.btn_wallpaper = QPushButton("🖼️")
+        self.btn_wallpaper.setFixedSize(30, 30)
+        self.btn_wallpaper.setObjectName("WallpaperBtn")
+        self.btn_wallpaper.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_wallpaper.setToolTip("自定义壁纸与毛玻璃保护设置")
+        self.btn_wallpaper.clicked.connect(self.open_wallpaper_settings)
+        tb_layout.addWidget(self.btn_wallpaper)
 
         # 图2右上角主题切换胶囊
         self.btn_theme = QPushButton("")
@@ -1804,6 +1857,59 @@ class BaseWindow(QMainWindow):
         ss = DARK_STYLE_SHEET if self.is_dark_mode else LIGHT_STYLE_SHEET
         self.setStyleSheet(ss)
         self._apply_theme_button_style()
+
+        has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
+        card_op = float(self.wallpaper_config.get("card_opacity", 0.80))
+        styles = get_acrylic_qss_styles(self.is_dark_mode, card_op, has_wallpaper=has_wp)
+
+        if has_wp:
+            self.central_widget.setStyleSheet("""
+                QWidget#CentralWidget {
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            self.title_bar.setStyleSheet(f"""
+                QFrame#TitleBar {{
+                    {styles['titlebar']}
+                    border-top-left-radius: {0 if self.isMaximized() else 14}px;
+                    border-top-right-radius: {0 if self.isMaximized() else 14}px;
+                }}
+            """)
+        else:
+            self.central_widget.setStyleSheet("""
+                QWidget#CentralWidget {
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            tb_bg = "#2A2B2C" if self.is_dark_mode else "#FFFFFF"
+            tb_border = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
+            self.title_bar.setStyleSheet(f"""
+                QFrame#TitleBar {{
+                    background-color: {tb_bg};
+                    border-top-left-radius: {0 if self.isMaximized() else 14}px;
+                    border-top-right-radius: {0 if self.isMaximized() else 14}px;
+                    border-bottom: 1px solid {tb_border};
+                }}
+            """)
+
+        # Style btn_wallpaper
+        if hasattr(self, "btn_wallpaper"):
+            text_color = "#E8E8E8" if self.is_dark_mode else "#1A1A1A"
+            self.btn_wallpaper.setStyleSheet(f"""
+                QPushButton#WallpaperBtn {{
+                    background-color: transparent;
+                    color: {text_color};
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 15px;
+                    padding: 4px 6px;
+                }}
+                QPushButton#WallpaperBtn:hover {{
+                    background-color: {'#3A3A3A' if self.is_dark_mode else '#E5E5E5'};
+                }}
+            """)
         if hasattr(self, "btn_theme"):
             self.btn_theme.setText("")
             self.btn_theme.setIcon(theme_toggle_icon(self.is_dark_mode))
@@ -1861,13 +1967,76 @@ class BaseWindow(QMainWindow):
         set_global_theme("dark" if self.is_dark_mode else "light")
         self.apply_theme()
 
+    def _on_wallpaper_event(self, target_subapp: str):
+        self.reload_wallpaper()
+
+    def _on_wallpaper_file_changed(self, path: str):
+        self._wp_debounce_timer.start()
+
+    def open_wallpaper_settings(self):
+        dlg = DMWallpaperDialog(self, subapp_id=getattr(self, "subapp_id", "launcher"))
+        dlg.exec()
+        self.reload_wallpaper()
+
+    def reload_wallpaper(self):
+        self.wallpaper_config = load_wallpaper_config(getattr(self, "subapp_id", "launcher"))
+        if self.wallpaper_config.get("enabled", False):
+            img_path = resolve_cached_image_path(self.wallpaper_config.get("cached_image_path", ""))
+            if img_path and img_path.exists():
+                self.wallpaper_pixmap = QPixmap(str(img_path))
+            else:
+                self.wallpaper_pixmap = None
+        else:
+            self.wallpaper_pixmap = None
+
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                self._last_wallpaper_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+
+        self.apply_theme()
+        if hasattr(self, "central_widget") and self.central_widget:
+            self.central_widget.update()
+        self.update()
+
+    def paint_window_background(self, painter: QPainter, rect: QRect):
+        has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
+        if has_wp:
+            tint_dark = float(self.wallpaper_config.get("tint_opacity_dark", 0.68))
+            tint_light = float(self.wallpaper_config.get("tint_opacity_light", 0.72))
+            radius = 0 if self.isMaximized() else 8
+            render_wallpaper_background(
+                painter, rect, self.wallpaper_pixmap, self.is_dark_mode,
+                tint_dark=tint_dark, tint_light=tint_light, border_radius=radius
+            )
+        else:
+            bg_col = QColor("#292929" if self.is_dark_mode else "#F5F5F5")
+            if not self.isMaximized():
+                path = QPainterPath()
+                path.addRoundedRect(QRectF(rect), 8, 8)
+                painter.fillPath(path, bg_col)
+            else:
+                painter.fillRect(rect, bg_col)
+
     def check_external_theme_change(self):
-        """Checks if another window changed the global theme and synchronizes instantly."""
+        """Checks if another window changed the global theme or wallpaper and synchronizes instantly."""
         global_mode = get_global_theme()
         should_be_dark = (global_mode == "dark")
-        if self.is_dark_mode != should_be_dark:
+        theme_changed = (self.is_dark_mode != should_be_dark)
+        if theme_changed:
             self.is_dark_mode = should_be_dark
-            self.apply_theme()
+
+        wp_mtime = 0
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                wp_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+        wp_changed = (getattr(self, "_last_wallpaper_mtime", 0) != wp_mtime)
+
+        if theme_changed or wp_changed:
+            self.reload_wallpaper()
 
     def toggle_maximize(self):
         if self.isMaximized():

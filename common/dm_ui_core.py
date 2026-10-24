@@ -24,7 +24,8 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 
 from PySide6.QtCore import (
     Qt, QPoint, QTimer, QRectF, QPointF, QEvent,
-    QPropertyAnimation, QEasingCurve, Signal, QObject, QSize
+    QPropertyAnimation, QEasingCurve, Signal, QObject, QSize,
+    QFileSystemWatcher, QRect
 )
 from PySide6.QtGui import (
     QIcon, QFont, QPixmap, QColor, QPainter, QPen,
@@ -77,6 +78,13 @@ def _theme_toggle_icon(is_dark: bool, size: int = 32) -> QIcon:
     p.end()
     return QIcon(pm)
 
+
+from common.wallpaper_manager import (
+    load_wallpaper_config, resolve_cached_image_path,
+    render_wallpaper_background, get_acrylic_qss_styles,
+    GLOBAL_WALLPAPER_NOTIFIER, DMWallpaperDialog,
+    GLOBAL_WALLPAPER_CONFIG_PATH
+)
 
 try:
     from common.config_manager import get_global_theme, set_global_theme
@@ -425,23 +433,33 @@ class DMCardFrame(QFrame):
 
         self.apply_theme(self.is_dark)
 
-    def apply_theme(self, is_dark: bool):
+    def apply_theme(self, is_dark: bool, wallpaper_active: bool = False, card_opacity: float = 0.80):
         self.is_dark = is_dark
-        bg = "#2A2B2C" if is_dark else "#FFFFFF"
-        border = "#3A3A3A" if is_dark else "#E5E5E5"
+        if wallpaper_active:
+            styles = get_acrylic_qss_styles(is_dark, card_opacity, has_wallpaper=True)
+            self.setStyleSheet(f"""
+                QFrame#DMCardFrame {{
+                    {styles['card']}
+                }}
+                QFrame#DMCardFrame:hover {{
+                    {styles['card_hover']}
+                }}
+            """)
+        else:
+            bg = "#2A2B2C" if is_dark else "#FFFFFF"
+            border = "#3A3A3A" if is_dark else "#E5E5E5"
+            self.setStyleSheet(f"""
+                QFrame#DMCardFrame {{
+                    background-color: {bg};
+                    border: 1px solid {border};
+                    border-radius: 14px;
+                }}
+                QFrame#DMCardFrame:hover {{
+                    border: 1px solid {'#3E9E69' if is_dark else '#2F8F5B'};
+                }}
+            """)
         title_c = "#E8E8E8" if is_dark else "#1A1A1A"
         sub_c = "#A0A0A0" if is_dark else "#8A8A8A"
-
-        self.setStyleSheet(f"""
-            QFrame#DMCardFrame {{
-                background-color: {bg};
-                border: 1px solid {border};
-                border-radius: 14px;
-            }}
-            QFrame#DMCardFrame:hover {{
-                border: 1px solid {'#3E9E69' if is_dark else '#2F8F5B'};
-            }}
-        """)
         if hasattr(self, "lbl_title"):
             self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {title_c}; border: none; background: transparent;")
         if hasattr(self, "lbl_sub"):
@@ -571,6 +589,25 @@ class DMCaptionButton(QPushButton):
 # =========================================================================
 # 标准窗口基类 (DMBaseWindow)
 # =========================================================================
+class DMRootContainer(QWidget):
+    """
+    DM 通用根容器组件。
+    支持底层壁纸 (AspectFill) 与深浅色保护遮罩 (Theme Tint Layer) 硬件加速渲染。
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("RootContainer")
+        self.setMouseTracking(True)
+
+    def paintEvent(self, event):
+        win = self.window()
+        if hasattr(win, "paint_window_background"):
+            painter = QPainter(self)
+            win.paint_window_background(painter, self.rect())
+            painter.end()
+        super().paintEvent(event)
+
+
 class DMBaseWindow(QMainWindow):
     """
     DM 通用标准窗口基类。
@@ -629,6 +666,28 @@ class DMBaseWindow(QMainWindow):
             if icon_p.exists():
                 self.set_app_icon(icon_p)
 
+        self.subapp_id = "main"
+        self.wallpaper_pixmap = None
+        self.wallpaper_config = {}
+        self._last_wallpaper_mtime = 0
+
+        # In-process wallpaper event
+        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.connect(self._on_wallpaper_event)
+
+        # Cross-process wallpaper file watcher (100ms debounce)
+        self.wallpaper_file_watcher = QFileSystemWatcher(self)
+        if GLOBAL_WALLPAPER_CONFIG_PATH.parent.exists():
+            self.wallpaper_file_watcher.addPath(str(GLOBAL_WALLPAPER_CONFIG_PATH.parent))
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            self.wallpaper_file_watcher.addPath(str(GLOBAL_WALLPAPER_CONFIG_PATH))
+        self.wallpaper_file_watcher.fileChanged.connect(self._on_wallpaper_file_changed)
+        self.wallpaper_file_watcher.directoryChanged.connect(self._on_wallpaper_file_changed)
+        self._wp_debounce_timer = QTimer(self)
+        self._wp_debounce_timer.setSingleShot(True)
+        self._wp_debounce_timer.setInterval(100)
+        self._wp_debounce_timer.timeout.connect(self.reload_wallpaper)
+
+        self.reload_wallpaper()
         self.apply_theme()
         self.center_on_screen()
 
@@ -643,7 +702,7 @@ class DMBaseWindow(QMainWindow):
 
     def _setup_base_ui(self, title: str):
         # 根容器
-        self.central_widget = QWidget()
+        self.central_widget = DMRootContainer(self)
         self.central_widget.setObjectName("RootContainer")
         self.central_widget.setMouseTracking(True)
         self.setCentralWidget(self.central_widget)
@@ -672,6 +731,15 @@ class DMBaseWindow(QMainWindow):
         tb_layout.addWidget(self.lbl_window_title)
 
         tb_layout.addStretch()
+
+        # 图2右上角自定义壁纸按钮 (位于主题切换按钮左侧)
+        self.btn_wallpaper = QPushButton("🖼️")
+        self.btn_wallpaper.setFixedSize(30, 30)
+        self.btn_wallpaper.setObjectName("WallpaperBtn")
+        self.btn_wallpaper.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_wallpaper.setToolTip("自定义壁纸与毛玻璃设置")
+        self.btn_wallpaper.clicked.connect(self.open_wallpaper_settings)
+        tb_layout.addWidget(self.btn_wallpaper)
 
         # 图2右上角主题切换胶囊
         self.btn_theme = QPushButton("")
@@ -729,11 +797,74 @@ class DMBaseWindow(QMainWindow):
         self.is_dark_mode = (new_theme == "dark")
         self.apply_theme()
 
+    def _on_wallpaper_event(self, target_subapp: str):
+        self.reload_wallpaper()
+
+    def _on_wallpaper_file_changed(self, path: str):
+        self._wp_debounce_timer.start()
+
+    def open_wallpaper_settings(self):
+        dlg = DMWallpaperDialog(self, subapp_id=getattr(self, "subapp_id", "main"))
+        dlg.exec()
+        self.reload_wallpaper()
+
+    def reload_wallpaper(self):
+        self.wallpaper_config = load_wallpaper_config(getattr(self, "subapp_id", "main"))
+        if self.wallpaper_config.get("enabled", False):
+            img_path = resolve_cached_image_path(self.wallpaper_config.get("cached_image_path", ""))
+            if img_path and img_path.exists():
+                self.wallpaper_pixmap = QPixmap(str(img_path))
+            else:
+                self.wallpaper_pixmap = None
+        else:
+            self.wallpaper_pixmap = None
+
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                self._last_wallpaper_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+
+        self.apply_theme()
+        if hasattr(self, "central_widget") and self.central_widget:
+            self.central_widget.update()
+        self.update()
+
+    def paint_window_background(self, painter: QPainter, rect: QRect):
+        has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
+        if has_wp:
+            tint_dark = float(self.wallpaper_config.get("tint_opacity_dark", 0.68))
+            tint_light = float(self.wallpaper_config.get("tint_opacity_light", 0.72))
+            radius = 0 if self.isMaximized() else 8
+            render_wallpaper_background(
+                painter, rect, self.wallpaper_pixmap, self.is_dark_mode,
+                tint_dark=tint_dark, tint_light=tint_light, border_radius=radius
+            )
+        else:
+            bg_col = QColor("#292929" if self.is_dark_mode else "#F5F5F5")
+            if not self.isMaximized():
+                path = QPainterPath()
+                path.addRoundedRect(QRectF(rect), 8, 8)
+                painter.fillPath(path, bg_col)
+            else:
+                painter.fillRect(rect, bg_col)
+
     def check_external_theme_change(self):
         target_is_dark = (get_global_theme() == "dark")
-        if self.is_dark_mode != target_is_dark:
+        theme_changed = (self.is_dark_mode != target_is_dark)
+        if theme_changed:
             self.is_dark_mode = target_is_dark
-            self.apply_theme()
+
+        wp_mtime = 0
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                wp_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+        wp_changed = (getattr(self, "_last_wallpaper_mtime", 0) != wp_mtime)
+
+        if theme_changed or wp_changed:
+            self.reload_wallpaper()
 
     def apply_theme(self):
         bg = "#292929" if self.is_dark_mode else "#F5F5F5"
@@ -765,34 +896,72 @@ class DMBaseWindow(QMainWindow):
         scrollbar_qss = SCROLLBAR_DARK_QSS if self.is_dark_mode else SCROLLBAR_LIGHT_QSS
         self.setStyleSheet(scrollbar_qss)
 
-        # 1. 根外框样式 (根据最大化状态自适应圆角与边框)
-        if self.isMaximized():
-            self.central_widget.setStyleSheet(f"""
-                QWidget#RootContainer {{
-                    background-color: {bg};
+        has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
+        card_op = float(self.wallpaper_config.get("card_opacity", 0.80))
+        styles = get_acrylic_qss_styles(self.is_dark_mode, card_op, has_wallpaper=has_wp)
+
+        if has_wp:
+            self.central_widget.setStyleSheet("""
+                QWidget#RootContainer {
+                    background-color: transparent;
                     border: none;
-                    border-radius: 0px;
+                }
+            """)
+            self.title_bar.setStyleSheet(f"""
+                QFrame#TitleBar {{
+                    {styles['titlebar']}
+                    border-top-left-radius: {0 if self.isMaximized() else 14}px;
+                    border-top-right-radius: {0 if self.isMaximized() else 14}px;
                 }}
             """)
         else:
-            self.central_widget.setStyleSheet(f"""
-                QWidget#RootContainer {{
-                    background-color: {bg};
-                    border: none;
-                    border-radius: 8px;
+            # 1. 根外框样式 (根据最大化状态自适应圆角与边框)
+            if self.isMaximized():
+                self.central_widget.setStyleSheet(f"""
+                    QWidget#RootContainer {{
+                        background-color: {bg};
+                        border: none;
+                        border-radius: 0px;
+                    }}
+                """)
+            else:
+                self.central_widget.setStyleSheet(f"""
+                    QWidget#RootContainer {{
+                        background-color: {bg};
+                        border: none;
+                        border-radius: 8px;
+                    }}
+                """)
+
+            # 2. 标题栏
+            self.title_bar.setStyleSheet(f"""
+                QFrame#TitleBar {{
+                    background-color: {tb_bg};
+                    border-top-left-radius: {0 if self.isMaximized() else 14}px;
+                    border-top-right-radius: {0 if self.isMaximized() else 14}px;
+                    border-bottom: 1px solid {tb_border};
                 }}
             """)
 
-        # 2. 标题栏
-        self.title_bar.setStyleSheet(f"""
-            QFrame#TitleBar {{
-                background-color: {tb_bg};
-                border-top-left-radius: {0 if self.isMaximized() else 14}px;
-                border-top-right-radius: {0 if self.isMaximized() else 14}px;
-                border-bottom: 1px solid {tb_border};
-            }}
-        """)
-        self.lbl_window_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {text_color}; border: none; background: transparent;")
+        # 2.5 自定义壁纸按钮样式
+        if hasattr(self, "btn_wallpaper"):
+            self.btn_wallpaper.setStyleSheet(f"""
+                QPushButton#WallpaperBtn {{
+                    background-color: transparent;
+                    color: {text_color};
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 15px;
+                    padding: 4px 6px;
+                }}
+                QPushButton#WallpaperBtn:hover {{
+                    background-color: {'#3A3A3A' if self.is_dark_mode else '#E5E5E5'};
+                }}
+            """)
+
+        # Refresh all child DMCardFrames
+        for card in self.findChildren(DMCardFrame):
+            card.apply_theme(self.is_dark_mode, wallpaper_active=has_wp, card_opacity=card_op)
 
         # 3. 主题胶囊按钮
         self.btn_theme.setText("")

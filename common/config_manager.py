@@ -40,6 +40,7 @@ def ensure_toolbox_root():
         for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr", "app6_dlss5"]:
             (CACHE_ROOT / app).mkdir(parents=True, exist_ok=True)
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
+        (CACHE_ROOT / "wallpapers").mkdir(parents=True, exist_ok=True)
 
         # Seamlessly migrate data from legacy C:/ToolboxData if it exists
         legacy = Path("C:/ToolboxData")
@@ -205,6 +206,7 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
         for app in ["app1_hardware", "app2_mfg", "app3_autohdr", "app4_dlss", "app5_jxr", "app6_dlss5"]:
             (CACHE_ROOT / app).mkdir(parents=True, exist_ok=True)
             (CONFIG_ROOT / app).mkdir(parents=True, exist_ok=True)
+        (CACHE_ROOT / "wallpapers").mkdir(parents=True, exist_ok=True)
 
         # Restore from defaults/
         if defaults_base_dir and Path(defaults_base_dir).exists():
@@ -465,3 +467,11 @@ def detect_vram_overcommit() -> Optional[str]:
         return describe_vram_overcommit(get_physical_vram_gb(), get_spoofed_vram_gb())
     except Exception:
         return None
+
+
+def get_wallpaper_cache_size_mb() -> float:
+    """Returns size of %APPDATA%/ToolboxMaster/cache/wallpapers/ in MB."""
+    wp_dir = CACHE_ROOT / "wallpapers"
+    if not wp_dir.exists():
+        return 0.0
+    return round(get_dir_size_bytes(wp_dir) / (1024 * 1024), 2)

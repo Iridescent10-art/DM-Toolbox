@@ -11,8 +11,7 @@ import time
 class BackendType(str, Enum):
     STANDALONE = "dashdogy"          # Standalone Proxy DLL (MFGUnlocker.dll)
     RESHADE_ADDON = "mavismmg"       # ReShade Addon (renodx-mfgunlock.addon64)
-    DLSSG_SM86 = "dlssg_sm86"        # Mode C: DLSSG for SM86/SM75 Native DLSS-G (RTX 20/30 series)
-    OPTISCALER_FSR = "optiscaler"    # Mode D: OptiScaler / FSR 3.1 Bridge (for 20/30 series & universal)
+    OPTISCALER_FSR = "optiscaler"    # Mode B: OptiScaler / FSR 3.1 Bridge (for 20/30 series & universal)
     SMART_AUTO = "smart_auto"        # Auto detect best backend
     RHI = "rhi"                      # ReShade HDR Installer (RankFTW/RHI)
 

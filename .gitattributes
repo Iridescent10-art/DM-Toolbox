@@ -4,4 +4,3 @@
 /apps/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx50.dll filter=lfs diff=lfs merge=lfs -text
 /defaults/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx20_30_40.dll filter=lfs diff=lfs merge=lfs -text
 /defaults/app6_dlss5/assets/runtimes/nvngx_dlssnr_rtx50.dll filter=lfs diff=lfs merge=lfs -text
-/apps/app2_mfg/embedded_components/dlssg_sm86/0.4.0/dlssg_sm86/sr/sr_kernels.dll filter=lfs diff=lfs merge=lfs -text

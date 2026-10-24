@@ -19,7 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal, QThread
 from PySide6.QtGui import QIcon, QFont, QPixmap, QColor, QCursor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -55,7 +55,10 @@ from apps.app2_mfg.gui_qt import ModernRHIGuideDialog
 # Import DLSS 5 Injector Engine
 from apps.app6_dlss5.engine.injector import (
     DLSS5Injector, check_game_dlss5_status,
-    scan_plugin_source_assets, get_plugin_source_dir
+    scan_plugin_source_assets, get_plugin_source_dir,
+    DLSS5_PROXY_SLOTS, DEFAULT_PROXY_SLOT,
+    detect_game_render_api, ALL_DLSS5_PROXY_NAMES,
+    DLSS5DelayedInjector
 )
 from common.config_manager import get_real_gpu_info
 
@@ -68,7 +71,37 @@ def _soft_wrap_path(text: str) -> str:
     return text.replace("\\", "\\\u200b")
 
 
+
+class DLSS5MonitorWorker(QThread):
+    sig_status = Signal(str, str)
+    sig_finished = Signal(bool, str)
+
+    def __init__(self, exe_name: str, dll_path: str, parent=None):
+        super().__init__(parent)
+        self.exe_name = exe_name
+        self.dll_path = dll_path
+        self._stop_requested = False
+
+    def stop(self):
+        self._stop_requested = True
+
+    def run(self):
+        def log_cb(msg):
+            self.sig_status.emit(msg, "#0284c7")
+
+        ok, msg = DLSS5DelayedInjector.monitor_and_inject(
+            exe_name=self.exe_name,
+            dll_path=self.dll_path,
+            timeout_sec=300,
+            settle_delay=3.5,
+            stop_check=lambda: self._stop_requested,
+            log_callback=log_cb
+        )
+        self.sig_finished.emit(ok, msg)
+
+
 class DLSS5MainWindow(DMBaseWindow):
+
     """
     Main Application Window for DLSS 5 Standalone One-Click Injection.
     """
@@ -89,6 +122,7 @@ class DLSS5MainWindow(DMBaseWindow):
         self.games_list: List[GameInfo] = []
         self.selected_game: Optional[GameInfo] = None
         self.active_source_dir: Path = get_plugin_source_dir()
+        self.monitor_worker: Optional[DLSS5MonitorWorker] = None
 
         # Build UI layout
         self._init_ui()
@@ -179,7 +213,7 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_head.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.Bold))
         lbl_head.setWordWrap(True)
 
-        lbl_sub = QLabel("搭载 RenoDX DLSS 5 v11.9 旗舰版 (renodx-dlss5-v11.9.addon64) · 共用二号软件游戏库与 RHI 底座 · 自动兼容模式 A/B/C/D 多帧生成共存")
+        lbl_sub = QLabel("搭载 ShortFuse 原生底座 (模式 A 默认) / Lecram v12 扩展底座 (模式 B 可选) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
         lbl_sub.setObjectName("dlss5_sub_title")
         lbl_sub.setFont(QFont("Microsoft YaHei UI", 9))
         lbl_sub.setWordWrap(True)
@@ -327,13 +361,35 @@ class DLSS5MainWindow(DMBaseWindow):
         card_rhi_layout.addLayout(rhi_head)
 
         lbl_rhi_desc = QLabel(
-            "💡 提示：本一键注入包已内置 ReShade 6.8 完整 Add-on 底座 (dxgi.dll)，通常直接点击下方【一键注入 DLSS 5】即可；"
+            "💡 提示：本一键注入包内置 ReShade 6.8 完整 Add-on 底座，通常点击【一键注入 DLSS 5】即可；"
             "若游戏需要其他渲染 API (如 Vulkan) 或想手动管理着色器，可通过 RHI 程序为游戏安装 ReShade 底座。"
         )
         lbl_rhi_desc.setFont(QFont("Microsoft YaHei UI", 9))
         lbl_rhi_desc.setWordWrap(True)
         lbl_rhi_desc.setStyleSheet("color: gray;")
         card_rhi_layout.addWidget(lbl_rhi_desc)
+
+        # -------------------------------------------------------------
+        # Proxy Slot & Anti-Cheat Bypass Selector Row
+        # -------------------------------------------------------------
+        lbl_proxy_title = QLabel("🛡️ 渲染底座代理槽位与防拦截模式 (自适应 / 终末地 ACE 防封):")
+        lbl_proxy_title.setFont(QFont("Microsoft YaHei UI", 9, QFont.Weight.Bold))
+        card_rhi_layout.addWidget(lbl_proxy_title)
+
+        self.combo_proxy_slot = QComboBox()
+        self.combo_proxy_slot.setFixedHeight(34)
+        self.combo_proxy_slot.setFont(QFont("Microsoft YaHei UI", 9))
+        for key, info in DLSS5_PROXY_SLOTS.items():
+            self.combo_proxy_slot.addItem(info["title"], key)
+        self.combo_proxy_slot.setCurrentIndex(0)
+        self.combo_proxy_slot.currentIndexChanged.connect(self._on_proxy_selection_changed)
+        card_rhi_layout.addWidget(self.combo_proxy_slot)
+
+        self.lbl_proxy_hint = QLabel()
+        self.lbl_proxy_hint.setFont(QFont("Microsoft YaHei UI", 8))
+        self.lbl_proxy_hint.setWordWrap(True)
+        self._update_proxy_hint("auto")
+        card_rhi_layout.addWidget(self.lbl_proxy_hint)
 
         self.content_layout.addWidget(self.card_rhi)
 
@@ -383,6 +439,34 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_portable_hint.setStyleSheet("color: #059669;")
         lbl_portable_hint.setWordWrap(True)
         card_plugin_layout.addWidget(lbl_portable_hint)
+
+        # -------------------------------------------------------------
+        # 2.2 DLSS 5 注入底座模式选择 (模式 A / 模式 B)
+        # -------------------------------------------------------------
+        lbl_mode_block_title = QLabel("🛠️ DLSS 5 扩展插件底座模式 (模式 A / 模式 B):")
+        lbl_mode_block_title.setFont(QFont("Microsoft YaHei UI", 9, QFont.Weight.Bold))
+        card_plugin_layout.addWidget(lbl_mode_block_title)
+
+        self.combo_dlss5_mode = QComboBox()
+        self.combo_dlss5_mode.setFixedHeight(36)
+        self.combo_dlss5_mode.setFont(QFont("Microsoft YaHei UI", 9))
+        self.combo_dlss5_mode.addItem(
+            "🚀 模式 A (默认推荐) — renodx-dlss.addon64 [ShortFuse 官方原生底座 · 极速稳定]",
+            "MODE_A"
+        )
+        self.combo_dlss5_mode.addItem(
+            "⚡ 模式 B (可选项目) — Lecram-v12.addon64 [Lecram v12 旗舰扩展底座 · 深度参数定制 · 快捷键 F12]",
+            "MODE_B"
+        )
+        self.combo_dlss5_mode.setCurrentIndex(0)
+        self.combo_dlss5_mode.currentIndexChanged.connect(self._on_mode_selection_changed)
+        card_plugin_layout.addWidget(self.combo_dlss5_mode)
+
+        self.lbl_mode_hint = QLabel()
+        self.lbl_mode_hint.setFont(QFont("Microsoft YaHei UI", 8))
+        self.lbl_mode_hint.setWordWrap(True)
+        self._update_mode_hint("MODE_A")
+        card_plugin_layout.addWidget(self.lbl_mode_hint)
 
         # Architecture model selection radios
         lbl_model_tag = QLabel("⚡ 神经重构模型版本 (nvngx_dlssnr.dll):")
@@ -689,6 +773,7 @@ class DLSS5MainWindow(DMBaseWindow):
         self.btn_copy_exe.setEnabled(True)
         self.lbl_game_path.setText(_soft_wrap_path(f"游戏主程序: {self.selected_game.exe_path}"))
         self.lbl_target_dir.setText(_soft_wrap_path(f"注入目标目录: {self.selected_game.target_dir}"))
+        self._update_inject_button_text()
 
     def _open_game_dir_action(self):
         if self.selected_game and os.path.exists(self.selected_game.target_dir):
@@ -702,9 +787,216 @@ class DLSS5MainWindow(DMBaseWindow):
             QApplication.clipboard().setText(self.selected_game.exe_path)
             self.set_status("已复制主程序完整路径到剪贴板！")
 
+    def _update_mode_hint(self, mode: str):
+        """Updates the dynamic mode hint text and style for Mode A and Mode B."""
+        if mode == "MODE_B":
+            self.lbl_mode_hint.setText("当前已选模式 B (可选)：使用 Lecram-v12.addon64，游戏内按 F12 可调 UI 遮罩、滤镜与 Model A/B/C。")
+            self.lbl_mode_hint.setStyleSheet("""
+                QLabel {
+                    color: #0284c7;
+                    background: rgba(2, 132, 199, 0.08);
+                    border: 1px solid rgba(2, 132, 199, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+        else:
+            self.lbl_mode_hint.setText("当前已选模式 A (默认)：使用 ShortFuse 原版 renodx-dlss.addon64，体积轻量、兼容性最佳。")
+            self.lbl_mode_hint.setStyleSheet("""
+                QLabel {
+                    color: #059669;
+                    background: rgba(16, 185, 129, 0.08);
+                    border: 1px solid rgba(16, 185, 129, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+
+    def _on_mode_selection_changed(self, idx: int):
+        """Triggered when user manually switches mode combo box."""
+        mode = self.combo_dlss5_mode.itemData(idx) or "MODE_A"
+        self._update_mode_hint(mode)
+        self._refresh_plugin_assets()
+
+    def _sync_mode_selector(self, mode: str):
+        """
+        Synchronizes mode combo box without triggering re-entrant writes.
+        Defaults to MODE_A if mode is unrecognized.
+        """
+        target_idx = 1 if mode == "MODE_B" else 0
+        if hasattr(self, "combo_dlss5_mode"):
+            if self.combo_dlss5_mode.currentIndex() != target_idx:
+                self.combo_dlss5_mode.blockSignals(True)
+                self.combo_dlss5_mode.setCurrentIndex(target_idx)
+                self.combo_dlss5_mode.blockSignals(False)
+            self._update_mode_hint(mode if mode in ("MODE_A", "MODE_B") else "MODE_A")
+
+    def _update_proxy_hint(self, proxy_key: str):
+        """Updates dynamic proxy slot hint label based on selected slot and detected game."""
+        if not hasattr(self, "lbl_proxy_hint"):
+            return
+        rec_text = ""
+        if self.selected_game and hasattr(self.selected_game, "target_dir"):
+            rec_proxy, rec_reason, _ = detect_game_render_api(self.selected_game.target_dir)
+            rec_text = f"\n【实机智能探测】{rec_reason}"
+
+        if proxy_key == "auto":
+            hint_msg = (
+                "当前模式：🚀 智能推荐。系统将根据目标游戏引擎（Unity / Unreal / 自研）与反作弊系统自适应匹配最佳底座代理。\n"
+                "• 普通单机/DX12大作 -> 自动采用 dxgi.dll；\n"
+                "• Unity/ACE二游 (如终末地) -> 自动推荐 d3d12.dll，彻底免去外部注入并杜绝 1051 拦截；\n"
+                "• 已装 OptiScaler 跨架构多帧生成 -> 自动链式调用 ReShade64.dll，零系统图形 DLL 落地。"
+            )
+            if rec_text:
+                hint_msg += rec_text
+            self.lbl_proxy_hint.setText(hint_msg)
+            self.lbl_proxy_hint.setStyleSheet("""
+                QLabel {
+                    color: #059669;
+                    background: rgba(16, 185, 129, 0.08);
+                    border: 1px solid rgba(16, 185, 129, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+        elif proxy_key == "d3d11.dll":
+            self.lbl_proxy_hint.setText(
+                "🛡️ d3d11.dll：强制通过 DirectX 11 接口挂载 ReShade。适用于《明日方舟：终末地》等 Unity/ACE 反作弊二游，"
+                "可完美绕过 ACE 对 dxgi.dll 的非法拦截，并彻底消除 d3d12.dll 导致的 D3D11On12 崩溃！"
+            )
+            self.lbl_proxy_hint.setStyleSheet("""
+                QLabel {
+                    color: #0284c7;
+                    background: rgba(2, 132, 199, 0.08);
+                    border: 1px solid rgba(2, 132, 199, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+        elif proxy_key == "d3d12.dll":
+            self.lbl_proxy_hint.setText(
+                "⚡ d3d12.dll [终末地 ACE 防拦截首选 · 进程隔离双擎加固]：\n"
+                "• 独创【进程隔离双擎机制】：自动搭载顶层 ProcessFilter 防护，彻底忽略 PlatformProcess.exe 与 Qt 辅助进程，彻底杜绝辅助进程报错与游戏卡死闪退！\n"
+                "• 游戏主程序 (Endfield.exe) 内部原生载入 ReShade64，免外部内存注入，彻底规避错误代码 5！\n"
+                "• 点击【🚀 一键注入 DLSS 5】后，直接打开鹰角启动器点【开始游戏】，进入画面按 Home / F12 即可畅享 DLSS 5！"
+            )
+            self.lbl_proxy_hint.setStyleSheet("""
+                QLabel {
+                    color: #059669;
+                    background: rgba(16, 185, 129, 0.08);
+                    border: 1px solid rgba(16, 185, 129, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+        elif proxy_key == "ReShade64.dll":
+            self.lbl_proxy_hint.setText(
+                "🛡️ ReShade64.dll [零系统图形DLL落地 · 延时动态注入模式]：\n"
+                "• 磁盘不落地敏感图形 DLL，由工具箱在窗口建立后延时动态注入。\n"
+                "• ⚠️ 注意：因腾讯 ACE 内核驱动会拦截外部内存操作导致“分配内存失败 (错误代码: 5)”，《终末地》请直接改用上方【⚡ d3d12.dll】原生槽位！"
+            )
+            self.lbl_proxy_hint.setStyleSheet("""
+                QLabel {
+                    color: #7c3aed;
+                    background: rgba(124, 58, 237, 0.08);
+                    border: 1px solid rgba(124, 58, 237, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+        else:  # dxgi.dll
+            self.lbl_proxy_hint.setText(
+                "🟢 dxgi.dll：官方标准通用劫持挂载。适用于绝大多数单机 DirectX 11 / DirectX 12 3A 大作，兼容性最佳。"
+            )
+            self.lbl_proxy_hint.setStyleSheet("""
+                QLabel {
+                    color: #059669;
+                    background: rgba(16, 185, 129, 0.08);
+                    border: 1px solid rgba(16, 185, 129, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+
+    def _on_proxy_selection_changed(self, idx: int):
+        """Triggered when user manually switches proxy slot combo box."""
+        proxy_key = self.combo_proxy_slot.itemData(idx) or "auto"
+        self._update_proxy_hint(proxy_key)
+        self._update_inject_button_text()
+
+    def _update_inject_button_text(self):
+        """Updates the inject button text and appearance depending on monitor state and proxy slot."""
+        if not hasattr(self, "btn_inject"):
+            return
+        if self.monitor_worker and self.monitor_worker.isRunning():
+            self.btn_inject.setText("🛑 正在监听启动 (点击取消)")
+            self.btn_inject.setStyleSheet("""
+                QPushButton {
+                    background-color: #d97706;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 0 24px;
+                }
+                QPushButton:hover {
+                    background-color: #b45309;
+                }
+                QPushButton:pressed {
+                    background-color: #92400e;
+                }
+            """)
+        else:
+            cur_proxy = self.combo_proxy_slot.currentData() if hasattr(self, "combo_proxy_slot") else "auto"
+            is_delay_mode = False
+            if cur_proxy == "ReShade64.dll":
+                is_delay_mode = True
+            elif cur_proxy == "auto" and self.selected_game:
+                rec_proxy, _, _ = detect_game_render_api(self.selected_game.target_dir)
+                if rec_proxy == "ReShade64.dll":
+                    is_delay_mode = True
+
+            if is_delay_mode:
+                self.btn_inject.setText("🚀 一键注入并开启启动监听")
+            else:
+                self.btn_inject.setText("🚀 一键注入 DLSS 5 插件")
+            self.btn_inject.setStyleSheet("""
+                QPushButton {
+                    background-color: #10b981;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 0 24px;
+                }
+                QPushButton:hover {
+                    background-color: #059669;
+                }
+                QPushButton:pressed {
+                    background-color: #047857;
+                }
+            """)
+
+    def _sync_proxy_selector(self, proxy_key: str):
+        """Synchronizes proxy selector combo box without triggering re-entrant writes."""
+        if not hasattr(self, "combo_proxy_slot"):
+            return
+        target_idx = 0
+        for i in range(self.combo_proxy_slot.count()):
+            if self.combo_proxy_slot.itemData(i) == proxy_key:
+                target_idx = i
+                break
+        if self.combo_proxy_slot.currentIndex() != target_idx:
+            self.combo_proxy_slot.blockSignals(True)
+            self.combo_proxy_slot.setCurrentIndex(target_idx)
+            self.combo_proxy_slot.blockSignals(False)
+        self._update_proxy_hint(proxy_key)
+
     def _refresh_plugin_assets(self):
-        """Scans plugin source directory and updates UI."""
-        assets = scan_plugin_source_assets(self.active_source_dir)
+        """
+        2.3 插件源目录资产清单动态刷新 (update_assets_info)
+        Scans plugin source directory and updates UI with dual-mode asset status.
+        """
+        cur_mode = self.combo_dlss5_mode.currentData() if hasattr(self, "combo_dlss5_mode") else "MODE_A"
+        assets = scan_plugin_source_assets(self.active_source_dir, mode=cur_mode)
         is_local = "app6_dlss5" in str(assets["source_dir"]) or "整合包" in str(assets["source_dir"])
         tag = "  [📦 整合包内置便携资产 · 全机免配置]" if is_local else ""
         self.edit_src_dir.setText(f"{assets['source_dir']}{tag}")
@@ -713,26 +1005,34 @@ class DLSS5MainWindow(DMBaseWindow):
         if assets["dxgi_path"]:
             details.append(f"• 渲染底座: dxgi.dll ({assets['dxgi_size_mb']} MB · ReShade 6.8 64-bit)")
         else:
-            details.append("• 渲染底座: ❌ 缺失 dxgi.dll")
+            details.append("• 渲染底座: <span style='color: #ef4444;'>❌ 缺失 dxgi.dll</span>")
 
-        if assets["addon_path"]:
-            is_v119 = "11.9" in assets["addon_name"].lower()
-            tag = " · v11.9 旗舰版 默认" if is_v119 else ""
-            details.append(f"• 扩展插件: {assets['addon_name']} ({assets['addon_size_mb']} MB{tag})")
+        # Mode A addon status
+        if assets.get("mode_a_path"):
+            act_tag = " [当前激活]" if cur_mode == "MODE_A" else ""
+            details.append(f"• 模式 A 底座: renodx-dlss.addon64 ({assets['mode_a_size_mb']} MB · ShortFuse 官方版 [默认注入]{act_tag})")
         else:
-            details.append("• 扩展插件: ❌ 缺失 *.addon64")
+            details.append("• 模式 A 底座: <span style='color: #ef4444;'>❌ 缺失 renodx-dlss.addon64</span>")
+
+        # Mode B addon status
+        if assets.get("mode_b_path"):
+            act_tag = " [当前激活]" if cur_mode == "MODE_B" else ""
+            details.append(f"• 模式 B 底座: Lecram-v12.addon64 ({assets['mode_b_size_mb']} MB · Lecram v12 扩展版 [可选项目]{act_tag})")
+        else:
+            details.append("• 模式 B 底座: <span style='color: #ef4444;'>❌ 缺失 Lecram-v12.addon64</span>")
 
         if assets["nr_50_path"]:
             details.append(f"• RTX 50 模型: nvngx_dlssnr.dll ({assets['nr_50_size_mb']} MB)")
         else:
-            details.append("• RTX 50 模型: ❌ 未检测到")
+            details.append("• RTX 50 模型: <span style='color: #ef4444;'>❌ 未检测到</span>")
 
         if assets["nr_20_30_40_path"]:
             details.append(f"• RTX 20/30/40 模型: nvngx_dlssnr.dll ({assets['nr_20_30_40_size_mb']} MB)")
         else:
-            details.append("• RTX 20/30/40 模型: ❌ 未检测到")
+            details.append("• RTX 20/30/40 模型: <span style='color: #ef4444;'>❌ 未检测到</span>")
 
-        self.lbl_src_details.setText("\n".join(details))
+        self.lbl_src_details.setText("<br>".join(details))
+        self.lbl_src_details.setTextFormat(Qt.TextFormat.RichText)
 
     def _browse_source_dir_action(self):
         """Allows user to select a custom plugin assets folder."""
@@ -794,28 +1094,49 @@ class DLSS5MainWindow(DMBaseWindow):
             self.lbl_stat_hook.setText("• 运行挂钩阶段: ⚪ 未就绪")
             if hasattr(self, "btn_apply_hook"):
                 self.btn_apply_hook.setEnabled(False)
+            self._sync_mode_selector("MODE_A")
             return
 
         stat = check_game_dlss5_status(self.selected_game.target_dir)
 
-        if stat["is_injected"]:
-            self.lbl_main_status_badge.setText("🟢 已注入 DLSS 5")
-            self.lbl_main_status_badge.setStyleSheet("color: #10b981; font-weight: bold;")
+        # 3.3 Main status badge & sync mode selector
+        badge_text = stat.get("mode_status_display", "⚪ 未安装 DLSS 5 插件")
+        self.lbl_main_status_badge.setText(badge_text)
+
+        detected_mode = stat.get("detected_mode")
+        if detected_mode == "MODE_B":
+            self.lbl_main_status_badge.setStyleSheet("color: #0284c7; font-weight: bold;")
+            self._sync_mode_selector("MODE_B")
+        elif detected_mode == "MODE_A":
+            if stat.get("is_legacy"):
+                self.lbl_main_status_badge.setStyleSheet("color: #f59e0b; font-weight: bold;")
+            else:
+                self.lbl_main_status_badge.setStyleSheet("color: #10b981; font-weight: bold;")
+            self._sync_mode_selector("MODE_A")
         else:
-            self.lbl_main_status_badge.setText("⚪ 未注入")
             self.lbl_main_status_badge.setStyleSheet("color: #64748b;")
+            self._sync_mode_selector("MODE_A")
 
         if stat["has_reshade"]:
-            self.lbl_stat_reshade.setText("• ReShade 渲染底座: 🟢 已就绪 (dxgi.dll)")
+            active_p = stat.get("active_proxy") or "dxgi.dll"
+            self.lbl_stat_reshade.setText(f"• ReShade 渲染底座: 🟢 已就绪 ({active_p})")
             self.lbl_stat_reshade.setStyleSheet("color: #10b981;")
         else:
             self.lbl_stat_reshade.setText("• ReShade 渲染底座: ⚪ 未检测到")
             self.lbl_stat_reshade.setStyleSheet("color: #64748b;")
 
+        cur_proxy_sel = self.combo_proxy_slot.currentData() if hasattr(self, "combo_proxy_slot") else "auto"
+        if cur_proxy_sel == "auto":
+            self._update_proxy_hint("auto")
+
         if stat["has_addon"]:
             names = ", ".join(stat["addon_names"])
-            self.lbl_stat_addon.setText(f"• DLSS 5 扩展插件: 🟢 已就绪 ({names})")
-            self.lbl_stat_addon.setStyleSheet("color: #10b981;")
+            if detected_mode == "MODE_B":
+                self.lbl_stat_addon.setText(f"• DLSS 5 扩展插件: 🔵 已就绪 ({names} · 模式 B)")
+                self.lbl_stat_addon.setStyleSheet("color: #0284c7;")
+            else:
+                self.lbl_stat_addon.setText(f"• DLSS 5 扩展插件: 🟢 已就绪 ({names} · 模式 A)")
+                self.lbl_stat_addon.setStyleSheet("color: #10b981;")
         else:
             self.lbl_stat_addon.setText("• DLSS 5 扩展插件: ⚪ 未检测到")
             self.lbl_stat_addon.setStyleSheet("color: #64748b;")
@@ -894,27 +1215,90 @@ class DLSS5MainWindow(DMBaseWindow):
             arch_choice = "rtx50"
 
         chosen_hook = self.combo_hook_point.currentData() if hasattr(self, "combo_hook_point") else "0"
+        chosen_mode = self.combo_dlss5_mode.currentData() if hasattr(self, "combo_dlss5_mode") else "MODE_A"
+        if not chosen_mode:
+            chosen_mode = "MODE_A"
+        chosen_proxy = self.combo_proxy_slot.currentData() if hasattr(self, "combo_proxy_slot") else "auto"
+        if not chosen_proxy:
+            chosen_proxy = "auto"
 
         self.set_status("正在将 DLSS 5 插件及模型部署至游戏目录...")
         QApplication.processEvents()
+
+        # If already monitoring, user clicked cancel
+        if self.monitor_worker and self.monitor_worker.isRunning():
+            self.monitor_worker.stop()
+            self.monitor_worker.wait(2000)
+            self.monitor_worker = None
+            self.set_status("已停止游戏启动监听。")
+            self._update_inject_button_text()
+            return
 
         ok, msg = DLSS5Injector.inject(
             target_dir=self.selected_game.target_dir,
             source_dir=str(self.active_source_dir),
             arch_choice=arch_choice,
-            hook_point=chosen_hook
+            hook_point=chosen_hook,
+            mode=chosen_mode,
+            proxy_choice=chosen_proxy
         )
 
         self._update_status_card()
-        self.set_status("注入完成" if ok else "注入失败")
-
-        if ok:
-            ModernDialog.success(self, "注入成功", msg)
-        else:
+        if not ok:
+            self.set_status("注入失败")
             ModernDialog.error(self, "注入遇到问题", msg)
+            return
+
+        mode_tag = "模式 A: renodx-dlss.addon64" if chosen_mode == "MODE_A" else "模式 B: Lecram-v12.addon64"
+
+        # Check if we should activate delayed injection monitor
+        stat = check_game_dlss5_status(self.selected_game.target_dir)
+        actual_proxy = stat.get("active_proxy") or chosen_proxy
+        is_delayed_proxy = (actual_proxy.lower() == "reshade64.dll")
+
+        if is_delayed_proxy:
+            reshade_path = str(Path(self.selected_game.target_dir) / "ReShade64.dll")
+            self.monitor_worker = DLSS5MonitorWorker(self.selected_game.exe_name, reshade_path, parent=self)
+            self.monitor_worker.sig_status.connect(lambda text_msg, color: self.set_status(text_msg))
+            self.monitor_worker.sig_finished.connect(self._on_delayed_injection_finished)
+            self.monitor_worker.start()
+            self._update_inject_button_text()
+
+            self.set_status(f"文件已就绪！正在监听 {self.selected_game.exe_name} 启动... 请从官方启动器开始游戏")
+            ModernDialog.info(
+                self,
+                "启动监听已激活",
+                f"✅ DLSS 5 底座与模型已成功部署至游戏目录！\n\n"
+                f"🛡️ 【免落地延时挂载已就绪】\n"
+                f"• 游戏目录未放置任何敏感系统代理 DLL，已 100% 避开启动器与 ACE 反作弊的前置扫描；\n"
+                f"• 请直接打开【鹰角启动器】点击【开始游戏】！\n\n"
+                f"本工具将在检测到游戏窗口初始化完成后，自动将 ReShade64.dll 延时注入进主进程，期间请保持本工具在后台运行。"
+            )
+        else:
+            self.set_status(f"注入成功！已部署 [{mode_tag}]")
+            ModernDialog.success(self, "注入成功", msg)
+
+
+    def _on_delayed_injection_finished(self, ok: bool, msg: str):
+        """Callback when delayed injection monitor completes or times out."""
+        self.monitor_worker = None
+        self._update_inject_button_text()
+        self._update_status_card()
+        if ok:
+            self.set_status("🎉 延时注入完成！游戏内按 Home / F12 即可畅享神经重构！")
+            ModernDialog.success(self, "DLSS 5 延时注入成功", msg)
+        else:
+            self.set_status("启动监听结束")
+            ModernDialog.warning(self, "启动监听提示", msg)
 
     def _restore_action(self):
         """Executes DLSS 5 one-click restore/uninstall."""
+        if self.monitor_worker and self.monitor_worker.isRunning():
+            self.monitor_worker.stop()
+            self.monitor_worker.wait(2000)
+            self.monitor_worker = None
+            self._update_inject_button_text()
+
         if not self.selected_game:
             ModernDialog.warning(self, "未选择游戏", "请先在上方下拉框中选择要还原的目标游戏！")
             return
@@ -941,8 +1325,17 @@ class DLSS5MainWindow(DMBaseWindow):
         QApplication.processEvents()
 
         ok, msg = DLSS5Injector.restore(self.selected_game.target_dir)
+        # Phase 3.4 & Phase 4: Reset mode selector to default MODE_A
+        self._sync_mode_selector("MODE_A")
+        self._sync_proxy_selector("auto")
         self._update_status_card()
+        self._refresh_plugin_assets()
         self.set_status("还原完成" if ok else "还原遇到问题")
+
+        if ok:
+            ModernDialog.info(self, "卸载与还原完成", msg)
+        else:
+            ModernDialog.warning(self, "还原遇到问题", msg)
 
         if ok:
             ModernDialog.info(self, "卸载与还原完成", msg)

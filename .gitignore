@@ -21,3 +21,8 @@ apps/app6_dlss5/assets/tools/
 .idea/
 *.suo
 *.user
+
+# App 5 JXR Runtime
+apps/app5_jxr/settings.json
+apps/app5_jxr/logs/
+apps/app5_jxr/输出/

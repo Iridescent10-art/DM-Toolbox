@@ -13,7 +13,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://microsoft.com)
 [![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
 [![Qt](https://img.shields.io/badge/GUI-PySide6%20%2F%20Fluent%20Design-orange.svg)](https://www.qt.io)
-[![Release](https://img.shields.io/badge/Release-v1.3.24-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
+[![Release](https://img.shields.io/badge/Release-v1.3.26-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
 
 </div>
 
@@ -170,7 +170,6 @@
 
 DM-Toolbox 的诞生与演进离不开全球开源社区与图形学极客们的无私奉献。在此特别向本项目所引用、集成或借鉴的上游优秀开源项目及核心作者表达崇高的敬意与诚挚的感谢：
 
-- **[dlssg_for_sm86](https://github.com/sdli1995/dlssg_for_sm86)** (by sdli1995) - 专为 NVIDIA RTX 20 (SM75) 与 RTX 30 (SM86) 显卡打造的原生 DLSS-G 帧生成与 INT8 超分辨率硬件加速运行库。
 - **[OptiScaler](https://github.com/cdozdil/OptiScaler)** (by cdozdil) - 卓越的跨显卡架构超分辨率与帧生成转译框架，为全卡畅玩提供底层驱动级可能。
 - **[MFG-Unlocker](https://github.com/dashdogy)** (by dashdogy) - 极具创新的 DLSS 多帧生成解除与链式代理核心。
 - **[RenoDX](https://github.com/clshortfuse/renodx)** (by clshortfuse / mavismmg) - 深度光流调度与高级帧生成优化插件。

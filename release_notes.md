@@ -1,3 +1,35 @@
+# 🎉 DM-Toolbox v1.3.26 · 全新自定义壁纸与毛玻璃可读性保护系统 / 终末地 ACE 防拦截加固 / 12线程极速打包
+
+> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
+
+### 🌟 v1.3.26 核心更新与优化
+
+1. **全新自定义壁纸系统与三层毛玻璃可读性保护管线**
+   - **严格遵守绿色便携存储红线**：程序运行目录 0 写入，配置与缓存 100% 解耦存放于 `%APPDATA%/ToolboxMaster/`。
+   - **三层视觉渲染管线**：
+     - **底层壁纸绘制层**：`AspectFill` 等比缩放居中裁剪，主流分辨率预缩放（最高 2560×1440）与预高斯模糊缓存（PIL 硬件优化），窗口拖拽与缩放 0 掉帧；
+     - **中层主题保护遮罩层**：深色模式遮罩 `rgba(18, 18, 22, 0.68)`、卡片底色 `rgba(32, 34, 40, 0.80)`、微光边框 `1px solid rgba(255, 255, 255, 0.08)`；浅色模式遮罩 `rgba(242, 244, 248, 0.72)`、卡片底色 `rgba(255, 255, 255, 0.80)`、细腻边框 `1px solid rgba(0, 0, 0, 0.06)`，彻底解决复杂背景下小字说明、版本号与状态标签的可读性问题；
+     - **顶层交互保真层**：绿色主按钮（`#69db9b`）、状态标签与标题保持 100% 不透明高保真展示。
+   - **标题栏统一入口与全功能设置面板 (DMWallpaperDialog)**：
+     - 标题栏深浅切换按钮左侧新增 `🖼️`（自定义壁纸）入口；
+     - 支持直接选择导入 `PNG / JPG / WEBP / BMP`，并集成 Windows 原生 WIC 模块直接支持 `.jxr` HDR 截图导入并自动映射为 SDR 壁纸；
+     - 提供背景模糊度（0~40px）、深色遮罩浓度（20%~95%）、浅色遮罩浓度（20%~95%）、卡片透明度（50%~100%）四维滑块与实时预览；
+     - 支持三种生效范围切换：全局统一壁纸 / 仅主程序生效 / 允许各子软件独立设置壁纸；
+     - 支持一键恢复纯色默认主题。
+   - **源文件删除强容错**：导入壁纸后即使手动删除桌面上的原始图片，软件依然正常从 AppData 缓存加载与重模糊，零报错零崩溃。
+   - **全部 6 个子软件接入与跨窗口/跨进程实时热更新**：主工具箱与全硬件配置大师、DLSS多帧生成补丁、Auto HDR 管理器、超分与插帧指示器、JXR转换器、DLSS 5 插件一键注入全部无缝支持壁纸与毛玻璃，文件修改防抖同步（100ms）。
+   - **既有功能联动**：“💾 缓存占用”自动包含壁纸缓存统计；“🧹 还原与清理”一键清理未引用壁纸历史缓存并重置出厂配置。
+
+2. **《明日方舟：终末地》与 ACE 反作弊环境 DLSS 5 挂载加固**
+   - 彻底清除 OptiScaler 代理冲突（避免 NTDLL 堆损坏 `0xC0000374`），纯净挂载最新 ReShade 6.8；
+   - 注入配置硬编码禁用 OpenGL 拦截（`[INSTALL] HookOpenGL=0`），彻底杜绝由于 `cri_ware_unity.dll` 导入 OpenGL 引发 NVIDIA 驱动 `nvoglv64.dll` 崩溃闪退。
+
+3. **Inno Setup 打包流水线 12 核心 CPU 多线程全开加速**
+   - 启用 Inno Setup 原生多线程块并行压缩指令 `LZMANumBlockThreads={cpu_count}` 与 64 位独立压缩进程 `LZMAUseSeparateProcess=yes`；
+   - 榨干全部 CPU 逻辑核心算力，彻底解决单线程打包耗时漫长的问题，构建速度大幅提升数倍。
+
+---
+
 # 🎉 DM-Toolbox v1.3.20 · DLSS 5 默认挂钩点调整为「之后」(Upscaled) / 彻底根治 4K+多帧生成 GPU 驱动挂起 (0x887A0006)
 
 > **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强、JXR HDR 转换器、DLSS 5 神经重构与 DLSS 实时监测综合工具箱**
@@ -100,7 +132,7 @@ enodx-dlss*.addon64 的误伤，增加目标目录存在性动态校验与自动
 1. **彻底修复多帧生成（Mode A 3x / Mode B / Mode C / Mode D）与 DLSS 5 (RenoDX) 同时注入进入游戏闪退 (`0x887A0006 DXGI_ERROR_DEVICE_HUNG`)**
    - **深挖 GPU 崩溃根因**：根据实机崩溃转储诊断，在 Present 呈现阶段挂钩（`NRHookPoint=2` 且 `NRPresentAlways=1`）时，DLSS 5 错误劫持了由多帧生成器（DLSS-G 插帧队列 `nv.sl.dlss_g.cmdQ.pacer`）合成的插值帧。由于插值帧在管线中缺乏 G-buffer 深度与历史矢量缓冲，导致 D3D12 命令列表死锁挂起引发显卡驱动崩溃；
    - **协同渲染管线重构**：全面改写注入引擎与预设配置，将 DLSS 5 挂钩点出厂默认及协同规则锁定为 `NRHookPoint=0` (Upscaled / 超分之后)。渲染管线严格遵循 `游戏渲染 -> DLSS 超分 -> DLSS 5 神经重构 -> 多帧生成 (2x/3x/4x) -> 画面呈现` 的时序解耦执行，DLSS 5 绝不触碰多帧生成的起搏队列；
-   - **全模式协同防崩保证**：无论用户开启模式 A (通用多帧 3x/4x)、模式 B (Ada FG 解锁)、模式 C (XeSS 2.0 / FSR 3.1) 还是模式 D (DLSSG-SM86)，只要检测到与 DLSS 5 共存，工具箱自动锁定安全的 Upscaled 挂钩点并禁用 Present 强开，彻底根治 0x887A0006 设备悬挂。
+   - **全模式协同防崩保证**：无论用户开启模式 A (通用多帧 3x/4x)、模式 B (Ada FG 解锁)、模式 C (XeSS 2.0 / FSR 3.1) ，只要检测到与 DLSS 5 共存，工具箱自动锁定安全的 Upscaled 挂钩点并禁用 Present 强开，彻底根治 0x887A0006 设备悬挂。
 
 2. **彻底解决 DLSS 5「匹配游戏」分辨率变为全部分辨率（4K 3840x2160）导致 15.2 ms 超高耗时与掉帧的问题**
    - **根因分析**：在 Present 挂钩点下，画面已完成全屏呈现缩放，RenoDX 无法捕获原始 DLSS 缩放输入尺寸，从而兜底按照 4K 交换链全屏尺寸执行神经重构，导致重构耗时暴涨至 15.2 ms 并造成显存枯竭；
@@ -217,10 +249,6 @@ enodx-dlss*.addon64 的误伤，增加目标目录存在性动态校验与自动
    - 根因是 **App1 把 12GB 显卡伪装成 32GB 显存**：游戏按 32GB 预算分配纹理，实际超过 12GB 后驱动挂起（TDR），与 DLSS 5 / XeFG 本身无关；
    - 现在 DLSS 5 注入与模式 C 注入完成后都会做显存伪装预检，发现「伪装显存 > 物理显存」时直接给出警告，并提示到 App1 把显存改回「保持原始」或一键还原官方配置。
 
-9. **模式 D（DLSSG-SM86）多帧诊断：为什么有时只有 2X**
-   - 模式 D 的 `[FrameGeneration] MaxGeneratedFrames` 只是**运行库上报的上限**，实际生成帧数由游戏的 `sl.dlss_g.dll` 通过 `DLSSG.MultiFrameCount` 请求；游戏菜单只给 2X 或插件是旧代（无 `MultiFrameCount`）时，运行库就只做 2X，任何 INI 都改不了这个请求；
-   - 注入模式 D 后，工具箱会自动读取游戏的 `sl.dlss_g.dll` 判断其 MFG 能力（是否有 `MultiFrameCount` / `numFramesToGenerate`），并回显上次 `dlssg_sm86\logs` 里的 `MultiFrameCountMax`，直接给出“上限已写入 / 仍受游戏请求限制”的结论；
-   - 需要强制 3X/4X 时请用 **模式 A（dashdogy 强制倍率）** 或 **模式 C 的 XeFG + MFG-Unlocker**；模式 D 定位是“原生、尊重游戏请求”，不会强推倍率（强推会导致交换链后备缓冲不足、DLSS-G 直接关闭）。
 
 10. **DLSS 5 界面排版修复 + 专属图标**
    - 旧版窗口内容的最小宽度被几处**未换行的长文本**撑到约 1660px（副标题、架构单选、说明块、完整游戏路径），980px 窗口下右侧被直接裁掉；
@@ -274,9 +302,6 @@ enodx-dlss*.addon64 的误伤，增加目标目录存在性动态校验与自动
    - **模式 A (Standalone)**: 直连 [dashdogy/MFG-Unlocker](https://github.com/dashdogy/MFG-Unlocker) (v1.6.1)
 
    - **模式 B (ReShade Addon)**: 直连 [mavismmg/MFGAdaUnlock-RenoDx](https://github.com/mavismmg/MFGAdaUnlock-RenoDx) (1.4.5)
-
-   - **模式 C (DLSSG-SM86 原生插帧)**: 直连 [sdli1995/dlssg_for_sm86](https://github.com/sdli1995/dlssg_for_sm86) (v0.4.0)
-
    - **模式 D (OptiScaler 跨卡转译)**: 直连 [optiscaler/OptiScaler](https://github.com/optiscaler/OptiScaler) (Nightly / Stable 双通道)
 
    - **ReShade HDR (RHI)**: 直连 [RankFTW/RHI](https://github.com/RankFTW/RHI) (RHI-2.8.7)
@@ -302,9 +327,6 @@ enodx-dlss*.addon64 的误伤，增加目标目录存在性动态校验与自动
 
 
 3. **插帧引擎模式顺位调优 (C/D 对调)**
-
-   - **模式 C**：定为 **DLSSG-SM86 原生插帧**（RTX 20/30 系专享原生 DLSS-G + INT8 超分，无转译开销）；
-
    - **模式 D**：定为 **OptiScaler 全显卡跨架构转译**（FSR 3.1 / XeFG 跨卡桥接，支持全品牌显卡）。
 
 
@@ -319,75 +341,6 @@ enodx-dlss*.addon64 的误伤，增加目标目录存在性动态校验与自动
 
 ---
 
-
-
-# 🎉 DM-Toolbox v1.3.5 · 深度集成 DLSSG-SM86 原生插帧 (RTX 20/30 系专享 6X 原生 DLSS-G 与 INT8 超分加速)
-
-
-
-> **一站式全能硬件深度定制、游戏多帧生成补丁、Auto HDR 画质增强与 DLSS 实时监测综合工具箱**
-
-
-
-### 🌟 v1.3.5 核心更新与优化
-
-
-
-1. **深度集成 DLSSG-SM86 原生插帧 (模式 C · 告别跨卡转译开销)**
-
-   - 全面引入开源硬核项目 [sdli1995/dlssg_for_sm86](https://github.com/sdli1995/dlssg_for_sm86) (v0.4.0)；
-
-   - 专为 **NVIDIA RTX 20 系列 (Turing 架构 · SM75)** 与 **RTX 30 系列 (Ampere 架构 · SM86)** 显卡定制，彻底绕过架构硬件锁；
-
-   - 无需经过 FSR 3.1 或 XeFG 跨卡转译桥接，直接在 Turing/Ampere 架构上运行官方 DLSS-G (v310.9.16) 原生运行库与定制加速内核。
-
-
-
-2. **最高 6X 动态多倍插帧与 FG Lite 轻量化加速**
-
-   - 原生支持 **2X / 3X / 4X / 6X** 多倍帧生成上限设置（默认 4X 出厂推荐，最高支持 DLSS 4.5 规格的 6X 极限插帧）；
-
-   - 提供 4 级渲染一致性优化档位：
-
-     - **档位 2 (出厂推荐)**：轻量加速内核，在真实 4K 场景下与原厂画面达到 PSNR 44-53dB 极高保真度；
-
-     - **档位 1 (逐位一致)**：画面输出与官方原厂逐位 (Bit-Identical) 完全一致；
-
-     - **档位 0 (原厂内核)**：完全原厂计算内核，不做额外加速；
-
-     - **档位 3 (极速激进)**：最大幅度压榨 GPU 吞吐，大幅降低每帧插帧计算延迟；
-
-   - 支持 **FG Lite (Preset C)**：轻量候选采样混合，相比标准插帧可**减少 32%~54% 的每帧 GPU 计算耗时**，大幅缓解低配卡显卡瓶颈。
-
-
-
-3. **RTX 20/30 DLSS INT8 超分辨率硬件加速**
-
-   - 针对 RTX 20/30 架构深度优化：一键开启 `[SuperResolution] Mode=On`；
-
-   - 在游戏开启 DLSS 性能档 (Preset L) 或超级性能档 (Preset M) 时，自动将推理调度切换至定制高效 INT8 内核，GPU 耗时进一步降低 5%~24%。
-
-
-
-4. **Smart-Auto 智能卡种自适应与 DLL 槽位隔离**
-
-   - 智能推荐算法全面升级：检测到当前显卡为 RTX 20 系或 RTX 30 系时，优先自动推荐并选中 **模式 C (DLSSG-SM86 原生插帧)**；
-
-   - 完备的 DLL 槽位隔离与状态清理：DLSS-G 采用 `version.dll` 独立代理，DLSS 5 (`app6_dlss5`) 采用 `dxgi.dll` 协同运行，实现两大核心丝滑共存、互不干扰；
-
-   - 完美适配 6 种备用代理动态库（`winmm.dll`、`dbghelp.dll`、`dinput8.dll`、`dxgi.dll`、`d3d12.dll`），杜绝启动拦截与注入失败。
-
-
-
-5. **游戏内外 INI 双向实时同步与 DLSS 5 控制台联动**
-
-   - 完整支持桌面端与游戏内 `dlssg_sm86.ini` 的正向写入与反向读取；
-
-   - `app6_dlss5` 联动控制面板新增模式 C 专属配置页，支持实时切换一致性档位、FG Lite 预设及 INT8 超分加速。
-
-
-
----
 
 
 

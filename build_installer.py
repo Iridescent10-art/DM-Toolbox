@@ -247,7 +247,7 @@ def step3_validate_runtime():
             "import common.ui_theme;"
             "import common.config_manager;"
             "import launcher.main;"
-            "import apps.app2_mfg.gui_qt;"
+            "import common.wallpaper_manager; import apps.app2_mfg.gui_qt;"
             "import pefile; import ordlookup;"
                         "print('VERIFIED_OK');"
         )
@@ -261,7 +261,8 @@ def step3_validate_runtime():
 
 
 def step4_build_inno_installer():
-    print("[4/5] 正在配置 Inno Setup 安装包制作脚本...")
+    cpu_count = os.cpu_count() or 8
+    print(f"[4/5] 正在配置 Inno Setup 安装包制作脚本 (启用全部 {cpu_count} 核心多线程极速压缩)...")
     SETUP_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     iss_file = ROOT_DIR / "dist" / "DMBOX_Setup.iss"
     icon_path = ROOT_DIR / "common" / "assets" / "app_icon.ico"
@@ -288,6 +289,8 @@ OutputBaseFilename=DM-BOX
 SetupIconFile={str(icon_path)}
 Compression=lzma2/ultra64
 SolidCompression=yes
+LZMAUseSeparateProcess=yes
+LZMANumBlockThreads={cpu_count}
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible

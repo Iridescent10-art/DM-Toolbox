@@ -68,8 +68,6 @@ from core.optiscaler_config import (
     get_reshade_preset_summary, DEFAULT_RESHADE_PRESET,
     load_mode_a_preset, save_mode_a_preset,
     get_mode_a_preset_summary, DEFAULT_MODE_A_PRESET,
-    load_dlssg_sm86_preset, save_dlssg_sm86_preset,
-    get_dlssg_sm86_preset_summary, DEFAULT_DLSSG_SM86_PRESET
 )
 
 class WorkerSignals(QObject):
@@ -353,29 +351,6 @@ class ModernTranslationGuideDialog(QDialog):
                 <li><b>进入游戏开启插帧</b>：<br>
                 启动游戏后，屏幕顶部会出现 ReShade 灰色横幅，按下键盘 {badge_home} 呼出面板，在【Add-ons】选项卡中可以看到 <code>RenoDX MFG Unlock</code> 已正常挂载生效！此时在游戏设置中打开【DLSS 帧生成】即可！</li>
             </ol>
-        </div>
-        """
-        return self._create_browser(html, is_dark)
-
-    def _create_dlssg_sm86_tab(self, is_dark: bool) -> QWidget:
-        th_bg = '#2A2B2C' if is_dark else '#E5E5E5'
-        td_border = '#3A3A3A' if is_dark else '#D4D4D4'
-        badge_opt = '<span style="background-color: #2F8F5B; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【dlssg_sm86.ini】</span>'
-        html = f"""
-        <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #3E9E69; margin-top: 0;">⚡ 模式 D · DLSSG-SM86 原生插帧（RTX 20/30 系专享）</h3>
-            <p><b>适用显卡</b>：NVIDIA GeForce RTX 20 系列 (Turing / SM75) 与 RTX 30 系列 (Ampere / SM86)。</p>
-            <p><b>核心黑科技</b>：基于开源硬核项目 <code>sdli1995/dlssg_for_sm86</code>，绕过官方架构硬件门槛，直接在 20/30 卡上原生运行 DLSS-G 官方运行库与专属加速内核，<b>彻底告别 FSR 3.1 跨卡转译的画面撕裂与性能损耗！</b></p>
-            <p><b>最高 6X 多倍插帧</b>：原生支持 2X / 3X / 4X / 6X 动态多倍插帧（出厂推荐 4X 上限，极致丝滑）。</p>
-            <p><b>4 级渲染一致性档位</b>：
-                <br>• <b>档位 2 (出厂推荐)</b>：轻量加速内核，真实 4K PSNR 达 44-53dB 极高保真度；
-                <br>• <b>档位 1 (逐位一致)</b>：与官方原厂渲染结果逐位 (Bit-Identical) 完全一致；
-                <br>• <b>档位 0 (原厂内核)</b>：完全原厂计算内核，不做任何额外加速；
-                <br>• <b>档位 3 (极速加速)</b>：最大化压榨 GPU 吞吐，显著降低每帧插帧计算延迟。
-            </p>
-            <p><b>FG Lite (Preset C) 轻量插帧</b>：轻量候选采样混合，相比标准插帧可<b>减少 32%~54% 的每帧 GPU 计算耗时</b>，尤其适合中低端 RTX 20/30 显卡缓解瓶颈。</p>
-            <p><b>RTX 20/30 INT8 超分加速</b>：开启后，游戏在 DLSS 性能/超性能档位下自动切换至 INT8 高效内核，GPU 耗时进一步降低 5%~24%！</p>
-            <p><b>开启方式</b>：修补完成后进入游戏系统的【画质 / 图像设置】，直接开启<b>【DLSS 帧生成】</b>开关即刻生效！参数可通过工具箱【参数】按钮随时调整并自动同步至 {badge_opt}。</p>
         </div>
         """
         return self._create_browser(html, is_dark)
@@ -805,8 +780,6 @@ class OptiScalerPresetDialog(QDialog):
                 raw_mode = "B"
             elif "optiscaler" in cb_str or "fsr" in cb_str or "xess" in cb_str:
                 raw_mode = "C"
-            elif "dlssg" in cb_str or "sm86" in cb_str:
-                raw_mode = "D"
 
         if not raw_mode and self.game:
             if self.game.patched_backend:
@@ -817,21 +790,17 @@ class OptiScalerPresetDialog(QDialog):
                     raw_mode = "B"
                 elif "optiscaler" in pb or "fsr" in pb or "xess" in pb:
                     raw_mode = "C"
-                elif "dlssg" in pb or "sm86" in pb:
-                    raw_mode = "D"
             elif self.game.target_dir:
                 td = Path(self.game.target_dir)
                 if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
                     raw_mode = "C"
-                elif (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
-                    raw_mode = "D"
                 elif (td / "renodx-mfgunlock.addon64").exists() or (td / "ReShade.ini").exists():
                     raw_mode = "B"
                 elif (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists():
                     raw_mode = "A"
 
         mode_upper = str(raw_mode or "A").upper().strip()
-        if "C" in mode_upper or "OPTISCALER" in mode_upper or "XESS" in mode_upper or "FSR" in mode_upper or "D" in mode_upper or "DLSSG" in mode_upper:
+        if "C" in mode_upper or "OPTISCALER" in mode_upper or "XESS" in mode_upper or "FSR" in mode_upper :
             target_idx = 1
         else:
             target_idx = 0
@@ -1786,205 +1755,6 @@ class OptiScalerPresetDialog(QDialog):
         layout.addStretch()
         return tab
 
-    def _build_mode_d_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(12)
-
-        # Section 1: Core DLSS-G SM86 Settings
-        core_card = QFrame()
-        core_card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 10px;
-            }}
-            QLabel {{
-                border: none;
-                background: transparent;
-            }}
-        """)
-        cc_layout = QVBoxLayout(core_card)
-        cc_layout.setContentsMargins(14, 12, 14, 12)
-        cc_layout.setSpacing(10)
-
-        lbl_sec = QLabel("⚡ 模式 D · DLSSG-SM86 原生插帧 (RTX 20/30 系专享) 核心设定")
-        lbl_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#7ED9A2' if is_dark else '#2F8F5B'};")
-        cc_layout.addWidget(lbl_sec)
-
-        # Row 1: Multiplier Ceiling
-        h_mult = QHBoxLayout()
-        h_mult.setContentsMargins(0, 0, 0, 0)
-        lbl_mult = QLabel("插帧倍率上限:")
-        lbl_mult.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_mult.setFixedWidth(150)
-        h_mult.addWidget(lbl_mult)
-
-        self.combo_d_mult = QComboBox()
-        self.combo_d_mult.setMinimumHeight(36)
-        self.combo_d_mult.setMinimumWidth(280)
-        self.combo_d_mult.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_mult.addItem("3X 三倍插帧 (最高 3X · 出厂推荐)", 2)
-        self.combo_d_mult.addItem("2X 双倍插帧 (最高 2X)", 1)
-        self.combo_d_mult.addItem("4X 四倍插帧 (最高 4X)", 3)
-        self.combo_d_mult.addItem("6X 六倍插帧 (最高 6X · DLSS 4.5 极限)", 5)
-        self.combo_d_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_mult.addWidget(self.combo_d_mult, 1)
-        cc_layout.addLayout(h_mult)
-
-        # Row 2: Optimized Consistency Tier
-        h_opt = QHBoxLayout()
-        h_opt.setContentsMargins(0, 0, 0, 0)
-        lbl_opt = QLabel("一致性优化档位:")
-        lbl_opt.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_opt.setFixedWidth(150)
-        h_opt.addWidget(lbl_opt)
-
-        self.combo_d_opt = QComboBox()
-        self.combo_d_opt.setMinimumHeight(36)
-        self.combo_d_opt.setMinimumWidth(280)
-        self.combo_d_opt.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_opt.addItem("档位 2: 有损轻量加速 (出厂推荐 · PSNR 44-53dB 极高保真)", 2)
-        self.combo_d_opt.addItem("档位 1: 逐位一致加速 (画面输出与官方原厂逐位完全一致)", 1)
-        self.combo_d_opt.addItem("档位 0: 原厂内核 (不做加速 · 最保守)", 0)
-        self.combo_d_opt.addItem("档位 3: 极速激进加速 (最大幅度降低插帧计算开销)", 3)
-        self.combo_d_opt.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_opt.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_opt.addWidget(self.combo_d_opt, 1)
-        cc_layout.addLayout(h_opt)
-
-        # Row 3: DLSS-G Preset
-        h_preset = QHBoxLayout()
-        h_preset.setContentsMargins(0, 0, 0, 0)
-        lbl_preset = QLabel("DLSS-G 渲染预设:")
-        lbl_preset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_preset.setFixedWidth(150)
-        h_preset.addWidget(lbl_preset)
-
-        self.combo_d_preset = QComboBox()
-        self.combo_d_preset.setMinimumHeight(36)
-        self.combo_d_preset.setMinimumWidth(280)
-        self.combo_d_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_preset.addItem("Auto (跟随游戏/驱动 · 默认推荐)", "Auto")
-        self.combo_d_preset.addItem("C (FG Lite 轻量插帧 · GPU 耗时降低 32-54%) [推荐]", "C")
-        self.combo_d_preset.addItem("B (强制开启 UI 重构 · 需游戏支持)", "B")
-        self.combo_d_preset.addItem("A (强制关闭 UI 重构)", "A")
-        self.combo_d_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_preset.addWidget(self.combo_d_preset, 1)
-        cc_layout.addLayout(h_preset)
-
-        # Row 4: Engine
-        h_eng = QHBoxLayout()
-        h_eng.setContentsMargins(0, 0, 0, 0)
-        lbl_eng = QLabel("插帧核心引擎:")
-        lbl_eng.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_eng.setFixedWidth(150)
-        h_eng.addWidget(lbl_eng)
-
-        self.combo_d_engine = QComboBox()
-        self.combo_d_engine.setMinimumHeight(36)
-        self.combo_d_engine.setMinimumWidth(280)
-        self.combo_d_engine.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_engine.addItem("DLSS (NVIDIA DLSS-G 原生模型 · SM86/SM75 加速内核) [推荐]", "DLSS")
-        self.combo_d_engine.addItem("XeSS (Intel XeSS-FG 引擎 · 固定 2X 插帧)", "XeSS")
-        self.combo_d_engine.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_engine.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_eng.addWidget(self.combo_d_engine, 1)
-        cc_layout.addLayout(h_eng)
-
-        layout.addWidget(core_card)
-
-        # Section 2: Advanced & Hardware Acceleration
-        adv_card = QFrame()
-        adv_card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 10px;
-            }}
-            QLabel {{
-                border: none;
-                background: transparent;
-            }}
-        """)
-        ac_layout = QVBoxLayout(adv_card)
-        ac_layout.setContentsMargins(14, 12, 14, 12)
-        ac_layout.setSpacing(10)
-
-        lbl_adv = QLabel("🚀 硬件级超分加速与代理通道设定")
-        lbl_adv.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#7ED9A2' if is_dark else '#2F8F5B'};")
-        ac_layout.addWidget(lbl_adv)
-
-        # Row 5: Super Resolution Mode (INT8)
-        h_sr = QHBoxLayout()
-        h_sr.setContentsMargins(0, 0, 0, 0)
-        lbl_sr = QLabel("RTX 20/30 INT8 超分加速:")
-        lbl_sr.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_sr.setFixedWidth(150)
-        h_sr.addWidget(lbl_sr)
-
-        self.combo_d_sr = QComboBox()
-        self.combo_d_sr.setMinimumHeight(36)
-        self.combo_d_sr.setMinimumWidth(280)
-        self.combo_d_sr.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_sr.addItem("On (启用 RTX 20/30 INT8 硬件加速 · 性能档提速 5%~24% · 默认推荐)", "On")
-        self.combo_d_sr.addItem("Off (原生超分直通)", "Off")
-        self.combo_d_sr.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_sr.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_sr.addWidget(self.combo_d_sr, 1)
-        ac_layout.addLayout(h_sr)
-
-        # Row 6: Proxy DLL Selector
-        h_proxy = QHBoxLayout()
-        h_proxy.setContentsMargins(0, 0, 0, 0)
-        lbl_proxy = QLabel("注入代理动态库:")
-        lbl_proxy.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_proxy.setFixedWidth(150)
-        h_proxy.addWidget(lbl_proxy)
-
-        self.combo_d_proxy = QComboBox()
-        self.combo_d_proxy.setMinimumHeight(36)
-        self.combo_d_proxy.setMinimumWidth(280)
-        self.combo_d_proxy.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_proxy.addItem("version.dll (默认推荐 · 系统首选劫持)", "version.dll")
-        self.combo_d_proxy.addItem("winmm.dll (备选代理 1 · 多媒体库代理)", "winmm.dll")
-        self.combo_d_proxy.addItem("dbghelp.dll (备选代理 2 · 调试帮助库)", "dbghelp.dll")
-        self.combo_d_proxy.addItem("dinput8.dll (备选代理 3 · 输入设备库)", "dinput8.dll")
-        self.combo_d_proxy.addItem("dxgi.dll (图形管线代理 · 慎用)", "dxgi.dll")
-        self.combo_d_proxy.addItem("d3d12.dll (D3D12 直挂代理 · 慎用)", "d3d12.dll")
-        self.combo_d_proxy.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_proxy.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_proxy.addWidget(self.combo_d_proxy, 1)
-        ac_layout.addLayout(h_proxy)
-
-        # Row 7: Logging Level
-        h_log = QHBoxLayout()
-        h_log.setContentsMargins(0, 0, 0, 0)
-        lbl_log = QLabel("调试日志级别:")
-        lbl_log.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
-        lbl_log.setFixedWidth(150)
-        h_log.addWidget(lbl_log)
-
-        self.combo_d_log = QComboBox()
-        self.combo_d_log.setMinimumHeight(36)
-        self.combo_d_log.setMinimumWidth(280)
-        self.combo_d_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_d_log.addItem("1: 仅记录错误 (推荐)", 1)
-        self.combo_d_log.addItem("0: 关闭日志输出", 0)
-        self.combo_d_log.addItem("2: 记录配置与硬件信息", 2)
-        self.combo_d_log.addItem("3: 全量内核与跟踪日志 (调试)", 3)
-        self.combo_d_log.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
-        self.combo_d_log.view().setTextElideMode(Qt.TextElideMode.ElideNone)
-        h_log.addWidget(self.combo_d_log, 1)
-        ac_layout.addLayout(h_log)
-
-        layout.addWidget(adv_card)
-        layout.addStretch()
-        return tab
-
     def _combo_qss(self, bg: str, border: str, text: str) -> str:
         arrow_color = '#94a3b8' if self.is_dark else '#64748b'
         try:
@@ -2174,48 +1944,7 @@ class OptiScalerPresetDialog(QDialog):
 
         self._on_fg_out_changed()
 
-        # Mode D UI Sync
-        self.preset_d = load_dlssg_sm86_preset()
-        if self.game and getattr(self.game, "target_dir", None):
-            disk_d = IniConfigManager.read_mode_d_reverse(self.game.target_dir)
-            if disk_d:
-                self.preset_d.update(disk_d)
 
-        if hasattr(self, "combo_d_mult"):
-            max_f = int(self.preset_d.get("max_generated_frames", 2))
-            idx_d_mult = self.combo_d_mult.findData(max_f)
-            if idx_d_mult >= 0:
-                self.combo_d_mult.setCurrentIndex(idx_d_mult)
-
-            opt = int(self.preset_d.get("optimized", 2))
-            idx_d_opt = self.combo_d_opt.findData(opt)
-            if idx_d_opt >= 0:
-                self.combo_d_opt.setCurrentIndex(idx_d_opt)
-
-            preset_str = str(self.preset_d.get("dlssg_preset", "Auto"))
-            idx_d_preset = self.combo_d_preset.findData(preset_str)
-            if idx_d_preset >= 0:
-                self.combo_d_preset.setCurrentIndex(idx_d_preset)
-
-            eng_str = str(self.preset_d.get("engine", "DLSS"))
-            idx_d_eng = self.combo_d_engine.findData(eng_str)
-            if idx_d_eng >= 0:
-                self.combo_d_engine.setCurrentIndex(idx_d_eng)
-
-            sr_str = str(self.preset_d.get("super_resolution_mode", "On"))
-            idx_d_sr = self.combo_d_sr.findData(sr_str)
-            if idx_d_sr >= 0:
-                self.combo_d_sr.setCurrentIndex(idx_d_sr)
-
-            proxy_str = str(self.preset_d.get("proxy_dll", "version.dll")).lower()
-            idx_d_proxy = self.combo_d_proxy.findData(proxy_str)
-            if idx_d_proxy >= 0:
-                self.combo_d_proxy.setCurrentIndex(idx_d_proxy)
-
-            log_lvl = int(self.preset_d.get("logging_level", 1))
-            idx_d_log = self.combo_d_log.findData(log_lvl)
-            if idx_d_log >= 0:
-                self.combo_d_log.setCurrentIndex(idx_d_log)
 
     def _on_fg_out_changed(self):
         cur_out = self.combo_fg_out.currentData()
@@ -2266,7 +1995,6 @@ class OptiScalerPresetDialog(QDialog):
         self.preset_a = dict(DEFAULT_MODE_A_PRESET)
         self.preset_b = dict(DEFAULT_RESHADE_PRESET)
         self.preset_c = dict(DEFAULT_OPTISCALER_PRESET)
-        self.preset_d = dict(DEFAULT_DLSSG_SM86_PRESET)
         self._sync_values_to_ui()
 
     def _save_and_accept(self):
@@ -2308,16 +2036,7 @@ class OptiScalerPresetDialog(QDialog):
                 self.preset_c["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
             save_optiscaler_preset(self.preset_c)
 
-        # 3. Update Mode D dictionary if UI exists
-        if hasattr(self, "combo_d_mult"):
-            self.preset_d["max_generated_frames"] = self.combo_d_mult.currentData()
-            self.preset_d["optimized"] = self.combo_d_opt.currentData()
-            self.preset_d["dlssg_preset"] = self.combo_d_preset.currentData()
-            self.preset_d["engine"] = self.combo_d_engine.currentData()
-            self.preset_d["super_resolution_mode"] = self.combo_d_sr.currentData()
-            self.preset_d["proxy_dll"] = self.combo_d_proxy.currentData()
-            self.preset_d["logging_level"] = self.combo_d_log.currentData()
-            save_dlssg_sm86_preset(self.preset_d)
+
 
         # 4. Forward synchronization to target game directory
         if self.game and self.game.target_dir:
@@ -2940,6 +2659,12 @@ class ModernMFGGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         from common.ui_theme import install_combo_arrows
+        from common.wallpaper_manager import (
+            load_wallpaper_config, resolve_cached_image_path,
+            render_wallpaper_background, get_acrylic_qss_styles,
+            GLOBAL_WALLPAPER_NOTIFIER, DMWallpaperDialog,
+            GLOBAL_WALLPAPER_CONFIG_PATH
+        )
         install_combo_arrows(QApplication.instance())
         self.setWindowTitle("DM工具箱 - DLSS多帧生成补丁")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint)
@@ -3026,6 +2751,11 @@ class ModernMFGGUI(QMainWindow):
         self.use_bink: bool = False
         self.is_dark_mode: bool = (get_global_theme() == "dark")
         self.drag_position = QPoint()
+        self.subapp_id = "app2_mfg"
+        self.wallpaper_pixmap = None
+        self.wallpaper_config = {}
+        self._last_wallpaper_mtime = 0
+        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.connect(lambda _: self.reload_wallpaper())
 
         # Bi-directional INI synchronization engine (Stage 4)
         self._ini_watcher = QFileSystemWatcher(self)
@@ -3052,12 +2782,23 @@ class ModernMFGGUI(QMainWindow):
         self.theme_sync_timer.start()
 
     def check_external_theme_change(self):
-        """检查全局主题文件是否被其他子软件或主程序切换"""
+        """检查全局主题文件或壁纸是否被其他子软件或主程序切换"""
         global_mode = get_global_theme()
         should_be_dark = (global_mode == "dark")
-        if self.is_dark_mode != should_be_dark:
+        theme_changed = (self.is_dark_mode != should_be_dark)
+        if theme_changed:
             self.is_dark_mode = should_be_dark
-            self._apply_theme()
+
+        wp_mtime = 0
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                wp_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+        wp_changed = (getattr(self, "_last_wallpaper_mtime", 0) != wp_mtime)
+
+        if theme_changed or wp_changed:
+            self.reload_wallpaper()
 
     def get_asset_path(self, filename: str) -> str:
         """Resolve asset path, checking PyInstaller _MEIPASS first, then local assets."""
@@ -3106,6 +2847,29 @@ class ModernMFGGUI(QMainWindow):
         self.setStyleSheet(theme_str)
         if self.centralWidget():
             self.centralWidget().setStyleSheet(theme_str)
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        if self.centralWidget():
+            if has_wp:
+                self.centralWidget().setStyleSheet("background-color: transparent; border: none;")
+            else:
+                self.centralWidget().setStyleSheet(theme_str)
+
+        if hasattr(self, "btn_wallpaper"):
+            text_color = "#E8E8E8" if self.is_dark_mode else "#1A1A1A"
+            self.btn_wallpaper.setStyleSheet(f"""
+                QPushButton#WallpaperBtn {{
+                    background-color: transparent;
+                    color: {text_color};
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 15px;
+                    padding: 4px 6px;
+                }}
+                QPushButton#WallpaperBtn:hover {{
+                    background-color: {'#3A3A3A' if self.is_dark_mode else '#E5E5E5'};
+                }}
+            """)
+
         if hasattr(self, "btn_theme_toggle"):
             self.btn_theme_toggle.setText("")
             self.btn_theme_toggle.setIcon(theme_toggle_icon(self.is_dark_mode))
@@ -3151,6 +2915,52 @@ class ModernMFGGUI(QMainWindow):
         # Apply DWM hardware rounded corners and theme border
         apply_dm_window_frame(self, self.is_dark_mode)
 
+    def open_wallpaper_settings(self):
+        dlg = DMWallpaperDialog(self, subapp_id="app2_mfg")
+        dlg.exec()
+        self.reload_wallpaper()
+
+    def reload_wallpaper(self):
+        self.wallpaper_config = load_wallpaper_config("app2_mfg")
+        if self.wallpaper_config.get("enabled", False):
+            img_path = resolve_cached_image_path(self.wallpaper_config.get("cached_image_path", ""))
+            if img_path and img_path.exists():
+                self.wallpaper_pixmap = QPixmap(str(img_path))
+            else:
+                self.wallpaper_pixmap = None
+        else:
+            self.wallpaper_pixmap = None
+
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                self._last_wallpaper_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+        self._apply_theme()
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
+        if has_wp:
+            tint_dark = float(self.wallpaper_config.get("tint_opacity_dark", 0.68))
+            tint_light = float(self.wallpaper_config.get("tint_opacity_light", 0.72))
+            radius = 0 if self.isMaximized() else 8
+            render_wallpaper_background(
+                painter, self.rect(), self.wallpaper_pixmap, self.is_dark_mode,
+                tint_dark=tint_dark, tint_light=tint_light, border_radius=radius
+            )
+        else:
+            bg_col = QColor("#292929" if self.is_dark_mode else "#F5F5F5")
+            if not self.isMaximized():
+                path = QPainterPath()
+                path.addRoundedRect(QRectF(self.rect()), 8, 8)
+                painter.fillPath(path, bg_col)
+            else:
+                painter.fillRect(self.rect(), bg_col)
+        painter.end()
+        super().paintEvent(event)
+
     def toggle_theme(self):
         self.is_dark_mode = not self.is_dark_mode
         set_global_theme("dark" if self.is_dark_mode else "light")
@@ -3191,6 +3001,14 @@ class ModernMFGGUI(QMainWindow):
         tb_layout.addStretch()
 
         # Theme switch button (图2样式)
+        self.btn_wallpaper = QPushButton("🖼️")
+        self.btn_wallpaper.setFixedSize(30, 30)
+        self.btn_wallpaper.setObjectName("WallpaperBtn")
+        self.btn_wallpaper.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_wallpaper.setToolTip("自定义壁纸与毛玻璃设置")
+        self.btn_wallpaper.clicked.connect(self.open_wallpaper_settings)
+        tb_layout.addWidget(self.btn_wallpaper)
+
         self.btn_theme_toggle = QPushButton("")
         self.btn_theme_toggle.setFixedSize(30, 30)
         self.btn_theme_toggle.setIcon(theme_toggle_icon(self.is_dark_mode))
@@ -4254,7 +4072,7 @@ class ModernMFGGUI(QMainWindow):
     def on_show_guide_click(self):
         backend = self.combo_backend.currentData()
         backend_str = backend.value if hasattr(backend, "value") else str(backend)
-        if backend_str in [BackendType.OPTISCALER_FSR.value, "optiscaler", BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
+        if backend_str in [BackendType.OPTISCALER_FSR.value, "optiscaler"]:
             initial_tab = 1
         else:
             initial_tab = 0
@@ -4697,7 +4515,6 @@ class ModernMFGGUI(QMainWindow):
         reg = self.updater.load_registry()
         dash_tag = reg.get(BackendType.STANDALONE.value, {}).get("latest_tag", "未下载")
         mavis_tag = reg.get(BackendType.RESHADE_ADDON.value, {}).get("latest_tag", "未下载")
-        dlssg_tag = reg.get(BackendType.DLSSG_SM86.value, {}).get("latest_tag", "未下载")
         opti_tag = reg.get(BackendType.OPTISCALER_FSR.value, {}).get("latest_tag", "未下载")
         rhi_tag = reg.get(BackendType.RHI.value, {}).get("latest_tag")
         rhi_found, rhi_path = self.rhi.is_installed_or_cached()
@@ -4706,7 +4523,7 @@ class ModernMFGGUI(QMainWindow):
         rhi_str = f"已就绪 ({os.path.basename(rhi_path)})" if rhi_found else "未下载"
         size_mb = self.updater.get_cache_size_bytes() / (1024 * 1024)
 
-        self.lbl_cache_summary.setText(f"本地缓存: Standalone [{dash_tag}] | ReShade [{mavis_tag}] | DLSSG-SM86 [{dlssg_tag}] | OptiScaler [{opti_tag}] | RHI [{rhi_tag}] (占用: {size_mb:.2f} MB)")
+        self.lbl_cache_summary.setText(f"本地缓存: Standalone [{dash_tag}] | ReShade [{mavis_tag}] | OptiScaler [{opti_tag}] | RHI [{rhi_tag}] (占用: {size_mb:.2f} MB)")
         self.lbl_side_ver.setText(f"当前版本: {dash_tag}")
 
         cache_dir_display = str(self.updater.cache_dir)
@@ -4716,7 +4533,6 @@ class ModernMFGGUI(QMainWindow):
             f"• 模式 A · dashdogy/MFG-Unlocker (Standalone): {dash_tag}\n"
             f"• 模式 B · optiscaler/OptiScaler (XeSS 2.0 / FSR 3.1): {opti_tag}\n"
             f"• ReShade 底座运行库: {mavis_tag}\n"
-            f"• 历史 DLSSG-SM86: {dlssg_tag}\n"
             f"• RankFTW/RHI 模组工具: {rhi_tag} ({rhi_str})"
         )
 

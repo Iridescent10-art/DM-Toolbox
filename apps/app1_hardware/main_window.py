@@ -41,6 +41,12 @@ from common.config_manager import (
 )
 from common.ui_theme import CaptionButton, CaptionButtonType, ModernProgressDialog, theme_toggle_icon
 from common.dm_ui_core import DMSizeGrip, apply_dm_window_frame
+from common.wallpaper_manager import (
+    load_wallpaper_config, resolve_cached_image_path,
+    render_wallpaper_background, get_acrylic_qss_styles,
+    GLOBAL_WALLPAPER_NOTIFIER, DMWallpaperDialog,
+    GLOBAL_WALLPAPER_CONFIG_PATH
+)
 from ctypes import wintypes
 
 CONFIG_FILE = str(init_app_config("app1_hardware", "config.json", default_template_path=Path(BASE_DIR) / "config.json"))
@@ -2583,7 +2589,13 @@ class MainWindow(QMainWindow):
         self.is_dark_mode = (get_global_theme() == "dark")
         self._syncing = False
         self._drag_pos = None
+        self.subapp_id = "app1_hardware"
+        self.wallpaper_pixmap = None
+        self.wallpaper_config = {}
+        self._last_wallpaper_mtime = 0
+        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.connect(lambda _: self.reload_wallpaper())
         self.init_ui()
+        self.reload_wallpaper()
 
         # 实时监听全局主题切换，实现多软件毫秒级无感同步
         self.theme_sync_timer = QTimer(self)
@@ -2591,15 +2603,72 @@ class MainWindow(QMainWindow):
         self.theme_sync_timer.timeout.connect(self.check_external_theme_change)
         self.theme_sync_timer.start()
 
+    def open_wallpaper_settings(self):
+        dlg = DMWallpaperDialog(self, subapp_id="app1_hardware")
+        dlg.exec()
+        self.reload_wallpaper()
+
+    def reload_wallpaper(self):
+        self.wallpaper_config = load_wallpaper_config("app1_hardware")
+        if self.wallpaper_config.get("enabled", False):
+            img_path = resolve_cached_image_path(self.wallpaper_config.get("cached_image_path", ""))
+            if img_path and img_path.exists():
+                self.wallpaper_pixmap = QPixmap(str(img_path))
+            else:
+                self.wallpaper_pixmap = None
+        else:
+            self.wallpaper_pixmap = None
+
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                self._last_wallpaper_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+        self.apply_theme()
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
+        if has_wp:
+            tint_dark = float(self.wallpaper_config.get("tint_opacity_dark", 0.68))
+            tint_light = float(self.wallpaper_config.get("tint_opacity_light", 0.72))
+            radius = 0 if self.isMaximized() else 8
+            render_wallpaper_background(
+                painter, self.rect(), self.wallpaper_pixmap, self.is_dark_mode,
+                tint_dark=tint_dark, tint_light=tint_light, border_radius=radius
+            )
+        else:
+            bg_col = QColor("#292929" if self.is_dark_mode else "#F5F5F5")
+            if not self.isMaximized():
+                path = QPainterPath()
+                path.addRoundedRect(QRectF(self.rect()), 8, 8)
+                painter.fillPath(path, bg_col)
+            else:
+                painter.fillRect(self.rect(), bg_col)
+        painter.end()
+        super().paintEvent(event)
+
     def check_external_theme_change(self):
         """检查全局主题文件是否被其他子软件或主程序切换"""
         global_mode = get_global_theme()
         should_be_dark = (global_mode == "dark")
-        if self.is_dark_mode != should_be_dark:
+        theme_changed = (self.is_dark_mode != should_be_dark)
+        if theme_changed:
             self.is_dark_mode = should_be_dark
             self.config["theme"] = global_mode
             save_config(self.config)
-            self.apply_theme()
+
+        wp_mtime = 0
+        if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            try:
+                wp_mtime = GLOBAL_WALLPAPER_CONFIG_PATH.stat().st_mtime
+            except Exception:
+                pass
+        wp_changed = (getattr(self, "_last_wallpaper_mtime", 0) != wp_mtime)
+
+        if theme_changed or wp_changed:
+            self.reload_wallpaper()
 
     def init_ui(self):
         self.setWindowTitle("DM工具箱 - 硬件与系统配置大师")
@@ -2681,6 +2750,29 @@ class MainWindow(QMainWindow):
             from common.ui_theme import combo_arrow_qss
             app.setStyleSheet(sheet + combo_arrow_qss(self.is_dark_mode))
         self.setStyleSheet(sheet)
+
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        if hasattr(self, "central_widget") and self.central_widget:
+            if has_wp:
+                self.central_widget.setStyleSheet("QWidget#CentralWidget { background-color: transparent; border: none; }")
+            else:
+                self.central_widget.setStyleSheet("")
+
+        if hasattr(self, "btn_wallpaper"):
+            text_color = "#E8E8E8" if self.is_dark_mode else "#1A1A1A"
+            self.btn_wallpaper.setStyleSheet(f"""
+                QPushButton#WallpaperBtn {{
+                    background-color: transparent;
+                    color: {text_color};
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 15px;
+                    padding: 4px 6px;
+                }}
+                QPushButton#WallpaperBtn:hover {{
+                    background-color: {'#3A3A3A' if self.is_dark_mode else '#E5E5E5'};
+                }}
+            """)
 
         if hasattr(self, "btn_theme"):
             self.btn_theme.setText("")
@@ -3052,6 +3144,15 @@ class MainWindow(QMainWindow):
         status_banner.setObjectName("StatusBanner")
         topbar.addWidget(status_banner)
         topbar.addStretch()
+
+        # 自定义壁纸按钮
+        self.btn_wallpaper = QPushButton("🖼️")
+        self.btn_wallpaper.setFixedSize(30, 30)
+        self.btn_wallpaper.setObjectName("WallpaperBtn")
+        self.btn_wallpaper.setCursor(Qt.PointingHandCursor)
+        self.btn_wallpaper.setToolTip("自定义壁纸与毛玻璃设置")
+        self.btn_wallpaper.clicked.connect(self.open_wallpaper_settings)
+        topbar.addWidget(self.btn_wallpaper)
 
         # 主题切换按钮 (白天 / 黑夜模式)
         self.btn_theme = QPushButton()
