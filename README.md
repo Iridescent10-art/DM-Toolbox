@@ -13,7 +13,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://microsoft.com)
 [![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
 [![Qt](https://img.shields.io/badge/GUI-PySide6%20%2F%20Fluent%20Design-orange.svg)](https://www.qt.io)
-[![Release](https://img.shields.io/badge/Release-v1.3.30-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
+[![Release](https://img.shields.io/badge/Release-v2.0.0-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
 
 </div>
 
@@ -57,7 +57,10 @@
 
 - **帧率倍增黑科技**：为全架构显卡（RTX 20/30/40/50 系、GTX、AMD Radeon、Intel Arc）解除 DLSS-G / FSR3 / XeSS 插帧限制。
 - **全新三核心插帧架构 (20/30 系原生首选 · 40/50 系原生解锁 · 全显卡跨卡转译)**：
-  - **🔥 模式 C (dlssg_for_sm86 原生插帧 · RTX 20/30 系首选推荐)**：专为 NVIDIA Turing (RTX 20XX / TITAN RTX) 与 Ampere (RTX 30XX / RTX A系列) 深度研发的原生 DLSS-G 插帧核心！通过底层截获 `NVSDK_NGX_D3D12_EvaluateFeature` 并精准调用官方插帧内核，不挂钩 `IDXGISwapChain::Present`，天生具备与 DLSS 5（ReShade 6.8）零冲突共存基因。支持 2X 原生插帧与 0/1/2/3 级流水线优化，彻底根治 20/30 系卡在传统方案下的闪退与卡顿问题。
+  - **🔥 模式 C (dlssg_for_sm86 原生插帧 · RTX 20/30 系首选推荐)**：专为 NVIDIA Turing (RTX 20XX / TITAN RTX) 与 Ampere (RTX 30XX / RTX A系列) 深度研发的原生 DLSS-G 插帧核心！通过底层截获 `NVSDK_NGX_D3D12_EvaluateFeature` 并精准调用官方插帧内核，不挂钩 `IDXGISwapChain::Present`，天生具备与 DLSS 5（ReShade 6.8）零冲突共存基因。
+    - **出厂默认黄金参数**：默认配置为 **3X 三倍帧率**（`MaxGeneratedFrames=2`，生成 2 帧，高刷电竞推荐 165Hz~240Hz）、**硬件流水线优化等级 2**（轻量硬件加速，平衡画质与极低延迟）、**DLSS-G 预设模型 Model C**（FG Lite 极速多帧，单帧节省 32%~54% GPU 算力开销）、**插帧内核 DLSS**（强制调用官方 DLSS-G 渲染管线），以及 **超分辨率托管模式 Off**（与 DLSS 5 神经重构完美双轨协同共存）。
+    - **极简三件套安全注入**：严格只向游戏根目录注入 `version.dll`（单代理槽位）、`dlssg_sm86.ini` 与专属 `dlssg_sm86\` 内核目录，绝不污染系统环境。当游戏未加载 `version.dll` 时，支持从 `alternatives\` 单项无损热替换为 `winmm.dll`、`dbghelp.dll` 等代理，恪守“换，不是加”原则。
+    - **GPU 智能硬件锁**：检测到 RTX 20/30 显卡时，UI 自动锁定默认注入方案为模式 C，未修补游戏自动首选推荐模式 C，杜绝误选与误操作。
   - **模式 A (dashdogy 原生多帧解锁器 · RTX 40/50 系列推荐)**：集成官方最新 Release **`v1.6.1`**，原生支持 NVIDIA RTX 40 / 50 全系列显卡！无底层 ReShade 钩子锁死风险，采用标准 Proxy 代理槽位（动态自适应 `winmm.dll` / `version.dll` 注入），支持 2X / 3X / 4X / 6X 以及 Dynamic 多倍率插帧，游戏内按 **`Backspace`**（退格键）即刻呼出控制面板实时调校。
   - **模式 B (OptiScaler 跨架构转译 · 全显卡通用插帧)**：集成官方最新 **`nightly-20261023`** (OptiScaler v10.0.0-pre1) 完整运行库，跨架构将游戏内原生 DLSS 3 桥接至 Intel XeFG 2.0 (2X/3X/4X 官方插帧) 与 AMD FSR 3.1 算力管线。支持全显卡架构（N卡 / A卡 / Intel卡 / GTX 系列），游戏内默认按 **`Insert`** 键呼出专属控制面板。
   - **智能优选 (架构与环境自适应)**：
@@ -172,6 +175,7 @@
 
 DM-Toolbox 的诞生与演进离不开全球开源社区与图形学极客们的无私奉献。在此特别向本项目所引用、集成或借鉴的上游优秀开源项目及核心作者表达崇高的敬意与诚挚的感谢：
 
+- **[dlssg_for_sm86](https://github.com/sdli1995/dlssg_for_sm86)** (by sdli1995) - 极其优秀的专为 Turing / Ampere (RTX 20/30 系列) 显卡打造的原生 DLSS-G 插帧移植核心，通过高能效 SM75/SM86 本地加速内核与 FG Lite 架构，为老卡赋予官方级原生插帧新生。
 - **[OptiScaler](https://github.com/cdozdil/OptiScaler)** (by cdozdil) - 卓越的跨显卡架构超分辨率与帧生成转译框架，为全卡畅玩提供底层驱动级可能。
 - **[MFG-Unlocker](https://github.com/dashdogy)** (by dashdogy) - 极具创新的 DLSS 多帧生成解除与链式代理核心。
 - **[RenoDX](https://github.com/clshortfuse/renodx)** (by clshortfuse / mavismmg) - 深度光流调度与高级帧生成优化插件。

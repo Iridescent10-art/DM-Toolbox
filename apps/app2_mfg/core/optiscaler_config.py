@@ -339,10 +339,11 @@ DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "engine": "DLSS",                  # "DLSS" (默认 NVIDIA 原生模型) / "XeSS" (Intel XeSS-FG 引擎)
     "max_generated_frames": 2,         # 1=最高2X, 2=最高3X(出厂推荐), 3=最高4X, 5=最高6X
     "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=轻量加速(默认), 3=极速加速
-    "dlssg_preset": "Auto",            # "Auto"(默认), "A", "B", "C"(FG Lite 轻量插帧)
+    "dlssg_preset": "C",               # "Auto", "A", "B", "C"(FG Lite 轻量插帧 · 出厂推荐)
     "super_resolution_mode": "Off",    # "Off"(默认，与 DLSS 5 完美共存), "On"(RTX 20/30 INT8 超分加速)
     "proxy_dll": "version.dll",        # "version.dll"(默认), "winmm.dll", "dbghelp.dll", "dinput8.dll"
-    "logging_level": 1                 # 0=关闭, 1=错误, 2=配置, 3=跟踪
+    "logging_level": 1,                # 0=关闭, 1=错误, 2=配置, 3=跟踪
+    "preset_schema_version": 2
 }
 
 def load_dlssg_sm86_preset() -> Dict[str, Any]:
@@ -357,6 +358,24 @@ def load_dlssg_sm86_preset() -> Dict[str, Any]:
                     preset.update(data)
         except Exception:
             pass
+
+    # v2.0.0 默认升级迁移：3X 三倍帧率(max_generated_frames=2), 优化等级2, DLSS-G Model C, DLSS 内核, 超分 Off
+    if int(preset.get("preset_schema_version", 0) or 0) < 2:
+        preset["engine"] = "DLSS"
+        preset["max_generated_frames"] = 2
+        preset["optimized"] = 2
+        preset["dlssg_preset"] = "C"
+        preset["super_resolution_mode"] = "Off"
+        preset["proxy_dll"] = "version.dll"
+        preset["logging_level"] = 1
+        preset["preset_schema_version"] = 2
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
     return preset
 
 def save_dlssg_sm86_preset(preset: Dict[str, Any]) -> bool:
@@ -366,6 +385,7 @@ def save_dlssg_sm86_preset(preset: Dict[str, Any]) -> bool:
         cfg_file.parent.mkdir(parents=True, exist_ok=True)
         merged = dict(DEFAULT_DLSSG_SM86_PRESET)
         merged.update(preset)
+        merged["preset_schema_version"] = 2
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(merged, f, indent=2, ensure_ascii=False)
         return True

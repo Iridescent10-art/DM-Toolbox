@@ -87,8 +87,8 @@ DEFAULT_WALLPAPER_CONFIG = {
     "sync_mode": "unified",  # "unified" | "main_only" | "per_app"
     "source_hash": "1d529e28b4d9",
     "source_path": "默认壁纸",
-    "cached_image_path": "%APPDATA%/ToolboxMaster/cache/wallpapers/bg_1d529e28b4d9_blur2.png",
-    "blur_radius": 2,
+    "cached_image_path": "%APPDATA%/ToolboxMaster/cache/wallpapers/bg_1d529e28b4d9_blur0.png",
+    "blur_radius": 0,
     "tint_opacity_dark": 0.20,
     "tint_opacity_light": 0.20,
     "card_opacity": 0.50,

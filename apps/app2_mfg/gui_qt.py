@@ -1951,9 +1951,10 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_sm86_mult.setMinimumHeight(36)
         self.combo_sm86_mult.setMinimumWidth(280)
         self.combo_sm86_mult.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_sm86_mult.addItem("2X 双倍帧率 (标准平滑 · 生成 1 帧 · 推荐 60Hz~144Hz) [默认推荐]", 2)
-        self.combo_sm86_mult.addItem("3X 三倍帧率 (高刷电竞 · 生成 2 帧 · 推荐 165Hz~240Hz)", 3)
-        self.combo_sm86_mult.addItem("4X 四倍帧率 (超高刷极速 · 生成 3 帧 · 推荐 240Hz+)", 4)
+        self.combo_sm86_mult.addItem("3X 三倍帧率 (高刷电竞 · 生成 2 帧 · 推荐 165Hz~240Hz) [出厂推荐]", 2)
+        self.combo_sm86_mult.addItem("2X 双倍帧率 (标准平滑 · 生成 1 帧 · 推荐 60Hz~144Hz)", 1)
+        self.combo_sm86_mult.addItem("4X 四倍帧率 (超高刷极速 · 生成 3 帧 · 推荐 240Hz+)", 3)
+        self.combo_sm86_mult.addItem("6X 六倍帧率 (极致高刷 · 生成 5 帧 · DLSS 4.5+)", 5)
         self.combo_sm86_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_sm86_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_mult.addWidget(self.combo_sm86_mult, 1)
@@ -1990,9 +1991,9 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_sm86_preset.setMinimumHeight(36)
         self.combo_sm86_preset.setMinimumWidth(280)
         self.combo_sm86_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_sm86_preset.addItem("Auto (跟随游戏或驱动默认设置) [推荐]", "Auto")
+        self.combo_sm86_preset.addItem("Model C (FG Lite 极速多帧 · 推荐跟随 nvapp) [默认推荐]", "C")
+        self.combo_sm86_preset.addItem("Auto (跟随游戏或驱动默认设置)", "Auto")
         self.combo_sm86_preset.addItem("Default (官方原生标准帧生成模型)", "Default")
-        self.combo_sm86_preset.addItem("Model C (FG Lite 极速多帧 · 推荐跟随 nvapp)", "C")
         self.combo_sm86_preset.addItem("Model B (完整 UI 重构 · 原生标准默认)", "B")
         self.combo_sm86_preset.addItem("Model A (早期模型 · 关闭 UI 重构)", "A")
         self.combo_sm86_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
@@ -2011,8 +2012,8 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_sm86_engine.setMinimumHeight(36)
         self.combo_sm86_engine.setMinimumWidth(280)
         self.combo_sm86_engine.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_sm86_engine.addItem("Auto (全自动智能调度 · 优先 DLSS 原生内核) [默认推荐]", "Auto")
-        self.combo_sm86_engine.addItem("DLSS (强制调用 NVIDIA DLSS-G 官方帧生成内核)", "DLSS")
+        self.combo_sm86_engine.addItem("DLSS (强制调用 NVIDIA DLSS-G 官方帧生成内核) [默认推荐]", "DLSS")
+        self.combo_sm86_engine.addItem("Auto (全自动智能调度 · 优先 DLSS 原生内核)", "Auto")
         self.combo_sm86_engine.addItem("XeSS (桥接至 Intel XeSSFG 帧生成内核)", "XeSS")
         self.combo_sm86_engine.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_sm86_engine.view().setTextElideMode(Qt.TextElideMode.ElideNone)
@@ -2265,12 +2266,12 @@ class OptiScalerPresetDialog(QDialog):
             if idx_so >= 0:
                 self.combo_sm86_opt.setCurrentIndex(idx_so)
 
-            sm86_preset = str(self.preset_sm86.get("dlssg_preset", "Default"))
+            sm86_preset = str(self.preset_sm86.get("dlssg_preset", "C"))
             idx_sp = self.combo_sm86_preset.findData(sm86_preset)
             if idx_sp >= 0:
                 self.combo_sm86_preset.setCurrentIndex(idx_sp)
 
-            sm86_eng = str(self.preset_sm86.get("engine", "Auto"))
+            sm86_eng = str(self.preset_sm86.get("engine", "DLSS"))
             idx_se = self.combo_sm86_engine.findData(sm86_eng)
             if idx_se >= 0:
                 self.combo_sm86_engine.setCurrentIndex(idx_se)
@@ -3816,10 +3817,18 @@ class ModernMFGGUI(QMainWindow):
         self.combo_backend.addItem("🚀 模式 A: dashdogy 原生多帧解锁器 (Universal · RTX 40/50 系首选)", BackendType.STANDALONE)
         self.combo_backend.addItem("⚡ 模式 B: OptiScaler 跨卡帧生成 (XeSS 2.0 / FSR 3.1 · 全显卡跨架构)", BackendType.OPTISCALER_FSR)
         self.combo_backend.addItem("🔥 模式 C: dlssg_for_sm86 原生插帧 (RTX 20/30 系首选 · 完美共存 DLSS 5)", BackendType.DLSSG_SM86)
+        
+        # RTX 20/30 架构默认自动锁定为模式 C
+        gpu_name = get_system_gpu_name()
+        if is_rtx_20_or_30_series(gpu_name):
+            idx_c = self.combo_backend.findData(BackendType.DLSSG_SM86)
+            if idx_c >= 0:
+                self.combo_backend.setCurrentIndex(idx_c)
+
         self.combo_backend.currentIndexChanged.connect(self._on_backend_dropdown_changed)
         c2.addWidget(self.combo_backend)
 
-        self.lbl_backend_desc = QLabel("推荐机制: RTX 20/30/40/50 默认选用模式 A 原生解锁；非 NVIDIA 显卡或跨架构转译需求选用模式 B")
+        self.lbl_backend_desc = QLabel("推荐机制: RTX 20/30 默认首选模式 C (dlssg_for_sm86 原生插帧)；RTX 40/50 选用模式 A (原生通用解锁)；非 NVIDIA 显卡或跨架构选用模式 B")
         self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #64748b; line-height: 1.3;")
         self.lbl_backend_desc.setWordWrap(True)
         c2.addWidget(self.lbl_backend_desc)
@@ -5622,12 +5631,21 @@ class ModernMFGGUI(QMainWindow):
             if "optiscaler" in b_str:
                 self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 B (OptiScaler 跨卡转译)")
                 self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 B 跨卡帧生成 (OptiScaler 全显卡架构)")
+                idx_b = self.combo_backend.findData(BackendType.OPTISCALER_FSR)
+                if idx_b >= 0:
+                    self.combo_backend.setCurrentIndex(idx_b)
             elif "dashdogy" in b_str or "standalone" in b_str:
                 self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 A (dashdogy 原生通用解锁)")
                 self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 A 原生多帧解锁 (Universal RTX 全系)")
+                idx_a = self.combo_backend.findData(BackendType.STANDALONE)
+                if idx_a >= 0:
+                    self.combo_backend.setCurrentIndex(idx_a)
             elif "dlssg_sm86" in b_str or "sm86" in b_str:
                 self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 C (dlssg_for_sm86 原生多帧)")
                 self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 C 原生多帧生成 (RTX 20/30 深度适配)")
+                idx_c = self.combo_backend.findData(BackendType.DLSSG_SM86)
+                if idx_c >= 0:
+                    self.combo_backend.setCurrentIndex(idx_c)
             else:
                 game.is_patched = False
                 game.patched_backend = None
@@ -5635,7 +5653,14 @@ class ModernMFGGUI(QMainWindow):
                 self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，推荐应用模式 C (dlssg_for_sm86 原生多帧)")
         else:
             self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 未修补")
-            self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，可随时应用修补")
+            gpu_name = get_system_gpu_name()
+            if is_rtx_20_or_30_series(gpu_name):
+                idx_c = self.combo_backend.findData(BackendType.DLSSG_SM86)
+                if idx_c >= 0:
+                    self.combo_backend.setCurrentIndex(idx_c)
+                self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，推荐应用模式 C (dlssg_for_sm86 原生插帧)")
+            else:
+                self.top_alert.setText(f"● 目标: {game.name} | 环境已就绪，可随时应用修补")
 
         # Update bi-directional file watcher to target this game and perform initial reverse sync
         self._update_ini_watcher_target()
@@ -5852,6 +5877,9 @@ class ModernMFGGUI(QMainWindow):
 
             gpu_name = get_system_gpu_name()
             is_rtx20_30 = is_rtx_20_or_30_series(gpu_name)
+            if is_rtx20_30 and (backend == BackendType.SMART_AUTO or backend_str == "smart_auto"):
+                backend = BackendType.DLSSG_SM86
+                backend_str = BackendType.DLSSG_SM86.value
             if is_rtx20_30 and (backend == BackendType.STANDALONE or backend_str == "dashdogy"):
                 if self.selected_game and os.path.exists(os.path.join(self.selected_game.target_dir, "bink2w64.dll")):
                     self.use_bink = True
@@ -5870,14 +5898,35 @@ class ModernMFGGUI(QMainWindow):
                     pass
 
                 if is_rtx20_30:
-                    msg += (
-                        "\n\n⚡ 【RTX 20/30 系列专属优化已就绪】\n"
-                        "• 已自动配置 Ampere/Turing 架构流控补偿 (Rtx30FlipMetering)；\n"
-                        "• 若游戏目录含 bink2w64.dll 已自动采用 Bink2 链式挂载 (0ms 秒级挂载)；\n"
-                        "• 本配置与 DLSS 5 (dxgi.dll) 完美双轨共存，互不干扰！"
-                    )
+                    if actual_backend in [BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
+                        msg += (
+                            "\n\n⚡ 【RTX 20/30 系列专属模式 C 原生插帧已就绪】\n"
+                            "• 已部署专为 Turing/Ampere 定制的高性能 SM75/SM86 插帧内核；\n"
+                            "• 采用独立代理 (version.dll) 极简三件套注入，与 DLSS 5 (dxgi.dll) 零冲突完美共存；\n"
+                            "• 默认目标帧率上限 3X (生成 2 帧)，硬件优化等级 2，FG Lite (Model C) 极速低延迟！"
+                        )
+                    else:
+                        msg += (
+                            "\n\n⚡ 【RTX 20/30 系列专属优化已就绪】\n"
+                            "• 已自动配置 Ampere/Turing 架构流控补偿 (Rtx30FlipMetering)；\n"
+                            "• 若游戏目录含 bink2w64.dll 已自动采用 Bink2 链式挂载 (0ms 秒级挂载)；\n"
+                            "• 本配置与 DLSS 5 (dxgi.dll) 完美双轨共存，互不干扰！"
+                        )
                 progress_dlg.finish(True, "补丁应用成功！", msg, auto_close_delay_ms=0)
-                if is_rtx20_30 and (backend == BackendType.STANDALONE or backend_str == "dashdogy"):
+                if is_rtx20_30 and (actual_backend in [BackendType.DLSSG_SM86.value, "dlssg_sm86"]):
+                    try:
+                        ModernDialog.info(
+                            self,
+                            "RTX 20/30 系列模式 C 注入就绪",
+                            f"检测到当前运行在 NVIDIA RTX 20/30 系列显卡 ({gpu_name})：\n\n"
+                            "1. 已默认选用【模式 C · dlssg_for_sm86 原生插帧】方案；\n"
+                            "2. 注入三件套：独立代理 (version.dll)、dlssg_sm86.ini 与专属内核目录；\n"
+                            "3. 默认 3X 三倍帧率 (生成 2 帧)，FG Lite Model C 优化，与 DLSS 5 (dxgi.dll) 完美共存！",
+                            self.is_dark_mode
+                        )
+                    except Exception:
+                        pass
+                elif is_rtx20_30 and (backend == BackendType.STANDALONE or backend_str == "dashdogy"):
                     try:
                         ModernDialog.info(
                             self,
@@ -5885,7 +5934,7 @@ class ModernMFGGUI(QMainWindow):
                             f"检测到当前运行在 NVIDIA RTX 20/30 系列显卡 ({gpu_name})：\n\n"
                             "1. 已为您自动应用 Ampere/Turing 架构流控补偿与显卡伪装配置；\n"
                             "2. 若游戏包含 bink2w64.dll，已自动启用 Bink2 链式挂载，实现 0ms 启动抢先接管，并与 DLSS 5 (dxgi.dll) 完美共存！\n"
-                            "3. 进入游戏后若遇到原生开关未开启，可在游戏内按 Backspace 键调节，或随时在工具箱中一键切换为【模式 B · OptiScaler 跨卡转译】运行。",
+                            "3. 进入游戏后若遇到原生开关未开启，可在游戏内按 Backspace 键调节，或随时在工具箱中一键切换为【模式 C · dlssg_for_sm86 原生插帧】运行。",
                             self.is_dark_mode
                         )
                     except Exception:
