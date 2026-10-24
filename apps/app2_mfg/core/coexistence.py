@@ -99,6 +99,15 @@ def is_dashdogy_binary(path: os.PathLike | str) -> bool:
     return bool(data) and (b"MFGUnlocker" in data or b"RTX40MFG" in data or b"RTXMFG" in data)
 
 
+def is_dlssg_sm86_binary(path: os.PathLike | str) -> bool:
+    """True for a dlssg_for_sm86 proxy binary."""
+    data = _read_signature_bytes(Path(path))
+    if not data:
+        return False
+    lower = data.lower()
+    return (b"dlssg" in lower and b"sm86" in lower) or b"dlssg_sm86" in lower
+
+
 def classify_slot(target_dir: os.PathLike | str, slot: str) -> str:
     """Classify one proxy slot: reshade / optiscaler / dashdogy / foreign / missing."""
     path = Path(target_dir) / slot
@@ -110,6 +119,8 @@ def classify_slot(target_dir: os.PathLike | str, slot: str) -> str:
         return "optiscaler"
     if is_dashdogy_binary(path):
         return "dashdogy"
+    if is_dlssg_sm86_binary(path):
+        return "dlssg_sm86"
     return "foreign"
 
 
@@ -130,6 +141,14 @@ def detect_dashdogy_slot(target_dir: os.PathLike | str) -> Optional[str]:
     """Return the proxy slot currently hosting dashdogy / MFG-Unlocker, if any."""
     for slot in OPTISCALER_SLOTS:
         if classify_slot(target_dir, slot) == "dashdogy":
+            return slot
+    return None
+
+
+def detect_dlssg_sm86_slot(target_dir: os.PathLike | str) -> Optional[str]:
+    """Return the proxy slot currently hosting dlssg_for_sm86, if any."""
+    for slot in OPTISCALER_SLOTS:
+        if classify_slot(target_dir, slot) == "dlssg_sm86":
             return slot
     return None
 
@@ -216,12 +235,12 @@ def pick_fg_proxy_slot(
     imported = read_pe_imports(exe_path or guess_game_executable(td))
 
     for slot in FG_PROXY_SLOTS:
-        if slot in imported and classify_slot(td, slot) in ("missing", "optiscaler", "dashdogy"):
+        if slot in imported and classify_slot(td, slot) in ("missing", "optiscaler", "dashdogy", "dlssg_sm86"):
             return slot
     # No import-table hit (packed launcher / dynamic load): version.dll is the
     # safest default, every D3D12 title imports the version API.
     for slot in ("version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"):
-        if classify_slot(td, slot) in ("missing", "optiscaler", "dashdogy"):
+        if classify_slot(td, slot) in ("missing", "optiscaler", "dashdogy", "dlssg_sm86"):
             return slot
     return "version.dll"
 
@@ -372,6 +391,7 @@ def coexistence_snapshot(target_dir: os.PathLike | str) -> Dict[str, object]:
         "dxgi_host": slots.get("dxgi.dll", "missing"),
         "optiscaler_slot": detect_optiscaler_slot(td),
         "dashdogy_slot": detect_dashdogy_slot(td),
+        "dlssg_sm86_slot": detect_dlssg_sm86_slot(td),
         "secondary_reshade": [n for n in SECONDARY_RESHADE_FILES if (td / n).exists()],
         "fakenvapi": [n for n in FAKENVAPI_FILES if (td / n).exists()],
         "slots": slots,

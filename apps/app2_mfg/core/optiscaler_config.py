@@ -331,3 +331,66 @@ def apply_preset_to_ini(ini_path: str, preset: Optional[Dict[str, Any]] = None) 
 
     target_dir = p.parent
     return IniConfigManager.sync_mode_c_forward(target_dir, preset)
+
+# ----------------- Mode C / DLSSG for SM86/SM75 Native DLSS-G Preset -----------------
+
+DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
+    "enabled": 1,                      # 1=开启插帧, 0=关闭
+    "engine": "DLSS",                  # "DLSS" (默认 NVIDIA 原生模型) / "XeSS" (Intel XeSS-FG 引擎)
+    "max_generated_frames": 2,         # 1=最高2X, 2=最高3X(出厂推荐), 3=最高4X, 5=最高6X
+    "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=轻量加速(默认), 3=极速加速
+    "dlssg_preset": "Auto",            # "Auto"(默认), "A", "B", "C"(FG Lite 轻量插帧)
+    "super_resolution_mode": "Off",    # "Off"(默认，与 DLSS 5 完美共存), "On"(RTX 20/30 INT8 超分加速)
+    "proxy_dll": "version.dll",        # "version.dll"(默认), "winmm.dll", "dbghelp.dll", "dinput8.dll"
+    "logging_level": 1                 # 0=关闭, 1=错误, 2=配置, 3=跟踪
+}
+
+def load_dlssg_sm86_preset() -> Dict[str, Any]:
+    """Load user's saved DLSSG SM86 preset, or return defaults if absent."""
+    cfg_file = get_preset_config_file("dlssg_sm86_preset.json")
+    preset = dict(DEFAULT_DLSSG_SM86_PRESET)
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    preset.update(data)
+        except Exception:
+            pass
+    return preset
+
+def save_dlssg_sm86_preset(preset: Dict[str, Any]) -> bool:
+    """Save user's DLSSG SM86 preset to persistent storage."""
+    cfg_file = get_preset_config_file("dlssg_sm86_preset.json")
+    try:
+        cfg_file.parent.mkdir(parents=True, exist_ok=True)
+        merged = dict(DEFAULT_DLSSG_SM86_PRESET)
+        merged.update(preset)
+        with open(cfg_file, "w", encoding="utf-8") as f:
+            json.dump(merged, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+def get_dlssg_sm86_preset_summary(config: Optional[Dict[str, Any]] = None) -> str:
+    """Format a human-readable one-line summary of dlssg_sm86 preset in Chinese."""
+    if config is None:
+        config = load_dlssg_sm86_preset()
+
+    eng = config.get("engine", "DLSS")
+    max_f = int(config.get("max_generated_frames", 2))
+    mult_map = {1: "2X", 2: "3X (推荐)", 3: "4X", 5: "6X (DLSS 4.5)"}
+    mult_str = mult_map.get(max_f, f"{max_f+1}X")
+
+    opt = int(config.get("optimized", 2))
+    opt_map = {0: "原厂内核", 1: "逐位一致", 2: "轻量加速(默认)", 3: "极速加速"}
+    opt_str = opt_map.get(opt, f"档位{opt}")
+
+    preset = config.get("dlssg_preset", "Auto")
+    sr_mode = config.get("super_resolution_mode", "Off")
+    sr_str = " | INT8超分加速" if sr_mode == "On" else ""
+
+    proxy = config.get("proxy_dll", "version.dll")
+
+    return f"dlssg_for_sm86 [{eng} 原生插帧 {mult_str}] | {opt_str} | 预设 {preset}{sr_str} | 代理: {proxy}"
+

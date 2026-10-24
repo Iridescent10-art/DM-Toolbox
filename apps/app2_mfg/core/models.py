@@ -12,6 +12,7 @@ class BackendType(str, Enum):
     STANDALONE = "dashdogy"          # Standalone Proxy DLL (MFGUnlocker.dll)
     RESHADE_ADDON = "mavismmg"       # ReShade Addon (renodx-mfgunlock.addon64)
     OPTISCALER_FSR = "optiscaler"    # Mode B: OptiScaler / FSR 3.1 Bridge (for 20/30 series & universal)
+    DLSSG_SM86 = "dlssg_sm86"        # Mode C: dlssg_for_sm86 native frame gen (首选推荐: RTX 20/30 系列)
     SMART_AUTO = "smart_auto"        # Auto detect best backend
     RHI = "rhi"                      # ReShade HDR Installer (RankFTW/RHI)
 

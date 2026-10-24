@@ -197,43 +197,22 @@ def is_dlss5_present(target_dir: Union[str, Path]) -> bool:
 
 
 def is_mode_c_present(target_dir: Union[str, Path]) -> bool:
-
-    """
-
-    Check if Mode C (OptiScaler / XeSS 2.0 / XeFG frame generation) is present in target directory.
-
-    Detected via presence of OptiScaler.ini or libxess_fg.dll.
-
-    """
-
+    """Check if Mode B (OptiScaler / XeSS 2.0 / XeFG) is present."""
     if not target_dir:
-
         return False
-
     td = Path(target_dir)
-
     if not td.exists() or not td.is_dir():
-
         return False
+    return (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists() or (td / "libxess_fg.dll").exists()
 
-    return (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists()
-
-
-
-
-
-    # Purge legacy backend from manifest if present
-    manifest_p = td / ".mfg_patch_manifest.json"
-    if manifest_p.exists():
-        try:
-            import json
-            with open(manifest_p, "r", encoding="utf-8") as mf:
-                mdata = json.load(mf)
-            if mdata.get("active_backend") in ("mavismmg", "dlssg_sm86"):
-                safe_remove_file(manifest_p)
-                actions_taken.append("清理并重置旧版遗留后端配置 (.mfg_patch_manifest.json)")
-        except Exception:
-            pass
+def is_dlssg_sm86_present(target_dir: Union[str, Path]) -> bool:
+    """Check if dlssg_for_sm86 is present in target directory."""
+    if not target_dir:
+        return False
+    td = Path(target_dir)
+    if not td.exists() or not td.is_dir():
+        return False
+    return (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists()
 
 def is_dashdogy_dll_file(path: str) -> bool:
 
@@ -760,7 +739,8 @@ def CleanGameDirectoryState(
 
     ]
 
-    if mode not in ("B", "C"):
+    # If target is Mode A or Mode C, purge OptiScaler files
+    if mode in ("A", "STANDALONE", "C", "D", "DLSSG_SM86", "SM86") or mode == "":
         imported_pe_dlls = get_game_statically_imported_dlls(td)
         has_ffx_loader = (td / "amd_fidelityfx_loader_dx12.dll").exists()
         for cfg in mode_c_configs:
@@ -793,18 +773,24 @@ def CleanGameDirectoryState(
 
 
 
-    # Clean legacy dlssg_sm86 files if present:
-    dlssg_sm86_dir = td / "dlssg_sm86"
-    dlssg_sm86_ini = td / "dlssg_sm86.ini"
-    if dlssg_sm86_ini.exists():
-        safe_remove_file(dlssg_sm86_ini)
-        actions_taken.append("清理遗留配置文件: dlssg_sm86.ini")
-    if dlssg_sm86_dir.exists() and dlssg_sm86_dir.is_dir():
-        try:
-            shutil.rmtree(dlssg_sm86_dir, ignore_errors=True)
-            actions_taken.append("清理遗留 dlssg_sm86 目录")
-        except Exception:
-            pass
+    # Mode C (dlssg_for_sm86) isolation:
+    # Purge dlssg_sm86 files when NOT switching to Mode C
+    is_mode_c_target = mode in ("C", "D", "DLSSG_SM86", "SM86")
+    if not is_mode_c_target:
+        dlssg_sm86_dir = td / "dlssg_sm86"
+        dlssg_sm86_ini = td / "dlssg_sm86.ini"
+        dlssg_sm86_log = td / "dlssg_sm86.log"
+        if dlssg_sm86_ini.exists():
+            safe_remove_file(dlssg_sm86_ini)
+            actions_taken.append("清理非模式 C 配置文件: dlssg_sm86.ini")
+        if dlssg_sm86_log.exists():
+            safe_remove_file(dlssg_sm86_log)
+        if dlssg_sm86_dir.exists() and dlssg_sm86_dir.is_dir():
+            try:
+                shutil.rmtree(dlssg_sm86_dir, ignore_errors=True)
+                actions_taken.append("清理非模式 C dlssg_sm86 目录")
+            except Exception:
+                pass
 
     # (F) DLSS 5 Addon & Runtime Protection / Removal:
 

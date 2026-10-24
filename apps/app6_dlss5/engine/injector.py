@@ -2280,6 +2280,15 @@ class DLSS5Injector:
 
             # Always apply selected hook point (defaults to 0: Upscaled mode)
             sync_dlss5_hook_point(td, hook_point=hook_point)
+            if (td / "dlssg_sm86.ini").exists():
+                try:
+                    from apps.app2_mfg.core.ini_sync import IniConfigManager
+                    from apps.app2_mfg.core.optiscaler_config import load_dlssg_sm86_preset
+                    sm86_p = IniConfigManager.read_dlssg_sm86_reverse(td) or load_dlssg_sm86_preset()
+                    sm86_p["super_resolution_mode"] = "Off"
+                    IniConfigManager.sync_dlssg_sm86_forward(td, sm86_p)
+                except Exception:
+                    pass
             if has_mfg and (td / "OptiScaler.ini").exists():
                 try:
                     from apps.app2_mfg.core.ini_sync import IniConfigManager
@@ -2340,13 +2349,20 @@ class DLSS5Injector:
 
         coex_lines = ""
         if has_mode_c:
-            slot_text = coex_slot or "未检测到（请重新注入模式 C）"
+            slot_text = coex_slot or "未检测到（请重新注入模式 B）"
             coex_lines = (
                 f"\n🛡️ 【与多帧生成共存】已自动完成双通道隔离：\n"
                 f"  • dxgi.dll 锁定为 DLSS 5 的 ReShade 底座，OptiScaler 插帧代理已迁移至 {slot_text}；\n"
                 f"  • DLSS 5 挂钩点默认为 Present(2) 呈现挂钩；\n"
                 f"  • 已清理 fakenvapi 与重复 ReShade 实例（二者会破坏 DLSS 5 的 NVAPI 查询导致闪退）；\n"
                 f"  • 进游戏同时开启【DLSS 超分辨率】与【DLSS 帧生成】即可同时获得神经重构 + XeSS 多倍插帧。\n"
+            )
+        if (td / "dlssg_sm86.ini").exists():
+            coex_lines += (
+                f"\n🛡️ 【与 dlssg_for_sm86 原生插帧共存】已自动完成无缝协同：\n"
+                f"  • dxgi.dll 锁定为 DLSS 5 的 ReShade 6.8 渲染底座，dlssg_for_sm86 代理运行于独立通道；\n"
+                f"  • dlssg_sm86 超分已自动设为 Off（让位给 DLSS 5 神经网络全权重构）；\n"
+                f"  • 原生 DLSS-G 插帧与 DLSS 5 神经重构双通道并行运作，零冲突流畅畅玩！\n"
             )
 
         # Auto-heal any native game dependencies at injection finish as well

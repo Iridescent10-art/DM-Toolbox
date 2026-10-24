@@ -48,6 +48,9 @@ UPSTREAM_REPOS = {
         "https://api.github.com/repos/optiscaler/OptiScaler-nightly/releases?per_page=1",
         "https://api.github.com/repos/optiscaler/OptiScaler/releases/latest"
     ],
+    BackendType.DLSSG_SM86: [
+        "https://api.github.com/repos/sdli1995/dlssg_for_sm86/releases/latest"
+    ],
     BackendType.RHI: [
         "https://api.github.com/repos/RankFTW/RHI/releases/latest"
     ]
@@ -350,6 +353,14 @@ class ComponentUpdater:
                 "file_patterns": ["OptiScaler.dll"],
 
                 "default_name": "OptiScaler.dll"
+
+            },
+
+            BackendType.DLSSG_SM86.value: {
+
+                "file_patterns": ["version.dll", "dlssg_sm86.ini", "*.dll"],
+
+                "default_name": "version.dll"
 
             },
 
@@ -1293,6 +1304,10 @@ class ComponentUpdater:
 
                             return str(ef)
 
+                        elif backend_key == BackendType.DLSSG_SM86.value and (ef.name.lower() in ("version.dll", "dlssg_sm86.ini") or ef.suffix.lower() == ".dll"):
+
+                            return str(ef)
+
 
 
         return None
@@ -1302,6 +1317,20 @@ class ComponentUpdater:
     def get_latest_cached_dir(self, backend: BackendType) -> Optional[str]:
 
         """Returns the folder containing the cached backend assets."""
+
+        b_key = backend.value if hasattr(backend, "value") else str(backend)
+
+        if b_key in (BackendType.DLSSG_SM86.value, "dlssg_sm86"):
+
+            emb = self._find_embedded_dir()
+            if emb:
+                cand = emb / "dlssg_sm86" / "v0.4.0"
+                if cand.exists():
+                    return str(cand)
+
+            if emb.exists():
+
+                return str(emb)
 
         f = self.get_latest_cached_file(backend)
 

@@ -706,7 +706,7 @@ class GameScanner:
                 with open(manifest_path, "r", encoding="utf-8") as f:
                     mdata = json.load(f)
                     b_val = mdata.get("active_backend")
-                    if b_val in ("mavismmg", "dlssg_sm86"):
+                    if b_val in ("mavismmg",):
                         is_patched = False
                         patched_backend = None
                     else:
@@ -921,7 +921,7 @@ class GameScanner:
                 with open(manifest_path, "r", encoding="utf-8") as f:
                     mdata = json.load(f)
                     b_val = mdata.get("active_backend")
-                    if b_val in ("mavismmg", "dlssg_sm86"):
+                    if b_val in ("mavismmg",):
                         is_patched = False
                         patched_backend = None
                     else:

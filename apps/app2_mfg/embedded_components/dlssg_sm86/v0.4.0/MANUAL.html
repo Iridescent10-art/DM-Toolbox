@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DLSSG 安装手册</title>
+<style>
+/* The step-by-step installation manual for people new to mods.  It ships at the release package root and is opened
+   straight from disk, so it is one self-contained file: system fonts, no network, no images.  One reading column,
+   numbered steps (they are a real sequence), file names as mono chips, tinted boxes only for what can go wrong.
+   docs/INSTALL.md is the complete reference; this page covers installing, the switches a player touches and reporting.
+   MANUAL.en.html is the English edition: same layout, colour tokens and anchors - change both together. */
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --ink: #17202a;
+  --muted: #586473;
+  --line: #d6dce3;
+  --accent: #2c5c9c;
+  --accent-ink: #ffffff;
+  --code-bg: #e8edf2;
+  --tip-bg: #e9f1fb; --tip-line: #b8cfee; --tip-ink: #1d416e;
+  --warn-bg: #fff3df; --warn-line: #efcb8c; --warn-ink: #6e4300;
+  --stop-bg: #fcebea; --stop-line: #efb6b2; --stop-ink: #8a1f1b;
+  --chip-all: #dde7f4; --chip-all-ink: #23497c;
+  --chip-30: #e3efe4; --chip-30-ink: #255c2b;
+  --chip-40: #efe6f5; --chip-40-ink: #5b2e7a;
+  --font-body: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --surface: #19202a; --ink: #e3e8ee; --muted: #9ba7b5; --line: #2b3541;
+    --accent: #86ade6; --accent-ink: #0f1620; --code-bg: #222c37;
+    --tip-bg: #14243a; --tip-line: #2c4a70; --tip-ink: #a9c8f0;
+    --warn-bg: #2c2314; --warn-line: #5c4620; --warn-ink: #f1c97c;
+    --stop-bg: #2e1719; --stop-line: #5d2a2c; --stop-ink: #f2a9a4;
+    --chip-all: #1f3150; --chip-all-ink: #b3cdf2;
+    --chip-30: #1d3321; --chip-30-ink: #a9dbb0;
+    --chip-40: #2f2140; --chip-40-ink: #d9bdf0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #19202a; --ink: #e3e8ee; --muted: #9ba7b5; --line: #2b3541;
+  --accent: #86ade6; --accent-ink: #0f1620; --code-bg: #222c37;
+  --tip-bg: #14243a; --tip-line: #2c4a70; --tip-ink: #a9c8f0;
+  --warn-bg: #2c2314; --warn-line: #5c4620; --warn-ink: #f1c97c;
+  --stop-bg: #2e1719; --stop-line: #5d2a2c; --stop-ink: #f2a9a4;
+  --chip-all: #1f3150; --chip-all-ink: #b3cdf2;
+  --chip-30: #1d3321; --chip-30-ink: #a9dbb0;
+  --chip-40: #2f2140; --chip-40-ink: #d9bdf0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-text-size-adjust: 100%;
+}
+.page { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; display: grid; gap: 2.25rem; }
+@media (max-width: 480px) { .page { padding: 1.5rem 1rem 3rem; gap: 1.75rem; } }
+header { display: grid; gap: .6rem; }
+.eyebrow { font-size: .8rem; letter-spacing: .08em; color: var(--muted); }
+h1 { font-family: var(--font-display); font-size: clamp(1.7rem, 4.5vw, 2.3rem); line-height: 1.25; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 40rem; }
+.build { font-size: .85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+.build code { font-size: .8rem; }
+h2 { font-family: var(--font-display); font-size: 1.35rem; line-height: 1.35; margin: 0; text-wrap: balance; }
+h3 { font-size: 1.05rem; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+p { margin: 0; }
+section { display: grid; gap: .9rem; min-width: 0; }
+.step { padding-top: 1.75rem; border-top: 1px solid var(--line); }
+.step-head { display: flex; align-items: baseline; gap: .8rem; }
+.num {
+  flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); font-family: var(--font-display); font-weight: 700; font-size: 1rem;
+  font-variant-numeric: tabular-nums; transform: translateY(.15rem);
+}
+ol, ul { margin: 0; padding-left: 1.4rem; display: grid; gap: .45rem; }
+li { padding-left: .15rem; }
+li > ul, li > ol { margin-top: .4rem; }
+code, kbd, .file {
+  font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); border-radius: 4px; padding: .08em .35em;
+  overflow-wrap: anywhere;
+}
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface); }
+.box { border: 1px solid; border-radius: 8px; padding: .85rem 1rem; display: grid; gap: .45rem; min-width: 0; }
+.box .label { font-weight: 700; font-size: .9rem; letter-spacing: .04em; }
+.tip { background: var(--tip-bg); border-color: var(--tip-line); color: var(--tip-ink); }
+.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+.stop { background: var(--stop-bg); border-color: var(--stop-line); color: var(--stop-ink); }
+.box code, .box kbd { color: var(--ink); }
+.chip { display: inline-block; font-size: .78rem; font-weight: 600; line-height: 1.5; padding: .05rem .55rem; border-radius: 999px; white-space: nowrap; }
+.chip.all { background: var(--chip-all); color: var(--chip-all-ink); }
+.chip.c30 { background: var(--chip-30); color: var(--chip-30-ink); }
+.chip.c40 { background: var(--chip-40); color: var(--chip-40-ink); }
+nav { display: grid; gap: .6rem; }
+a { color: var(--accent); text-underline-offset: .2em; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scroll { overflow-x: auto; min-width: 0; }
+pre {
+  margin: 0; font-family: var(--font-mono); font-size: .85rem; line-height: 1.6; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; white-space: pre; color: var(--ink);
+}
+pre .hl { color: var(--accent); font-weight: 700; }
+pre .dim { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: .55rem .7rem; border: 1px solid var(--line); }
+th { font-weight: 700; background: var(--code-bg); }
+td code { white-space: nowrap; }
+.copy-wrap { display: grid; gap: .5rem; }
+.copy-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+button.copy {
+  font: inherit; font-size: .9rem; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  border-radius: 6px; padding: .3rem .9rem;
+}
+.copy-state { font-size: .85rem; color: var(--muted); }
+footer { font-size: .85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 1.25rem; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="eyebrow">安装手册 · 第一次用也能照着做</div>
+  <h1>DLSSG 安装手册</h1>
+  <p class="lede">本项目让 RTX 20 / 30 显卡也能开 DLSS 帧生成，RTX 40 / 50 默认换用本项目的帧生成内核；RTX 30 / 20 还可以打开本项目的 INT8 超分内核。照着下面的步骤一步一步做就行，每一步都写了去哪里点、点什么。</p>
+  <div class="build"><span><b>中文</b> · <a href="MANUAL.en.html" lang="en">English</a></span><span>适用于 DLSSG 0.4.0 发布包</span><span>全部设置的完整说明：<code>docs\INSTALL.md</code></span></div>
+</header>
+
+<section class="box stop" aria-label="先看这三条">
+  <div class="label">先看这三条</div>
+  <ol>
+    <li>只支持 <b>NVIDIA RTX 20 / 30 / 40 / 50</b> 系列显卡。GTX 显卡、AMD 和 Intel 显卡都不能用。帧生成只支持 DirectX 12 的游戏。</li>
+    <li><b>带反作弊的联网游戏一律不要装</b>，例如三角洲行动、永劫无间、漫威争锋、使命召唤、GTA5，有封号风险。</li>
+    <li>每次复制了文件、改了设置，都要<b>完全退出游戏再重新打开</b>才会生效。</li>
+  </ol>
+</section>
+
+<nav aria-label="步骤目录">
+  <h2>步骤</h2>
+  <ol>
+    <li><a href="#prepare">准备：打开「硬件加速 GPU 计划」</a></li>
+    <li><a href="#unzip">解压发布包</a></li>
+    <li><a href="#find">找到游戏的 EXE 文件夹</a></li>
+    <li><a href="#copy">复制文件</a></li>
+    <li><a href="#check">确认装上了</a></li>
+    <li><a href="#use">开始使用</a></li>
+    <li><a href="#report">遇到问题怎么反馈</a></li>
+  </ol>
+  <p>另外：<a href="#ini">怎么改设置文件</a> · <a href="#upgrade">升级</a> · <a href="#uninstall">卸载</a> · <a href="#faq">常见问题</a>（包括游戏不认 <code>version.dll</code> 时怎么办）</p>
+</nav>
+
+<section class="step" id="prepare">
+  <div class="step-head"><span class="num">1</span><h2>准备：打开「硬件加速 GPU 计划」</h2></div>
+  <p>帧生成要求 Windows 的「硬件加速 GPU 计划」是打开的。它关着的话，所有游戏的帧生成选项都打不开。</p>
+  <ol>
+    <li>点开始菜单，输入 <b>图形设置</b>，打开搜到的那一项（Windows 11 里这一页叫「显示卡」）。</li>
+    <li>找到 <b>硬件加速 GPU 计划</b>，把开关打开。Windows 11 要先点「更改默认图形设置」（有的版本叫「高级图形设置」）才能看到它。</li>
+    <li>如果是刚打开的，<b>重启电脑</b>。本来就是开着的就不用管。</li>
+  </ol>
+  <p>另外两件事：</p>
+  <ul>
+    <li>显卡驱动尽量更新到最新版（在 NVIDIA App 或 GeForce Experience 里更新）。</li>
+    <li>这个游戏如果装过别的改 DLSS 或帧生成的 MOD（例如 OptiScaler、DLSS Enabler、其它版本的 dlssg-to-fsr3），先按那个 MOD 的说明卸载掉。</li>
+  </ul>
+</section>
+
+<section class="step" id="unzip">
+  <div class="step-head"><span class="num">2</span><h2>解压发布包</h2></div>
+  <ol>
+    <li>右键发布包的 zip 文件，选 <b>全部解压缩</b>，再点「解压缩」。用 7-Zip、WinRAR、Bandizip 解压也可以。</li>
+    <li>一定要先解压，不要在压缩包里直接拖文件。</li>
+  </ol>
+  <p>解压出来的文件夹里，只有下面标出来的 3 样要复制到游戏里，其它的先不用管：</p>
+  <div class="scroll"><pre>解压出来的文件夹\
+├─ <span class="hl">version.dll</span>
+├─ <span class="hl">dlssg_sm86.ini</span>
+├─ <span class="hl">dlssg_sm86\</span>             <span class="dim">（整个文件夹）</span>
+├─ alternatives\            <span class="dim">游戏不认 version.dll 时才用，见「常见问题」</span>
+├─ MANUAL.html              <span class="dim">你正在看的这份安装手册</span>
+├─ README.md                <span class="dim">版本说明，可以用记事本打开</span>
+└─ docs\ 和其它几个文件     <span class="dim">不用管</span></pre></div>
+</section>
+
+<section class="step" id="find">
+  <div class="step-head"><span class="num">3</span><h2>找到游戏的 EXE 文件夹</h2></div>
+  <p>文件要放在<b>游戏真正运行的那个 EXE 旁边</b>。很多游戏的安装目录里只有启动器，真正的 EXE 在更深的文件夹里，放错了地方就不会生效。</p>
+  <h3>最稳的找法（所有游戏都适用）</h3>
+  <ol>
+    <li>正常启动游戏，进到主菜单。</li>
+    <li>按 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd> 打开任务管理器，点「详细信息」。</li>
+    <li>找到游戏的进程（名字一般和游戏名相近，CPU 和内存占用最高的那个通常就是），右键，选 <b>打开文件所在的位置</b>。</li>
+    <li>弹出来的这个文件夹就是要放文件的地方。先别关这个窗口，然后完全退出游戏。</li>
+  </ol>
+  <h3>几个常见游戏</h3>
+  <p>在 Steam 库里右键游戏 →「管理」→「浏览本地文件」，再往里进到下面这一层：</p>
+  <div class="scroll"><table>
+    <thead><tr><th>游戏</th><th>EXE 所在的文件夹</th></tr></thead>
+    <tbody>
+      <tr><td>巫师 3：狂猎</td><td><code>The Witcher 3\bin\x64_dx12</code></td></tr>
+      <tr><td>赛博朋克 2077</td><td><code>Cyberpunk 2077\bin\x64</code></td></tr>
+      <tr><td>黑神话：悟空</td><td><code>BlackMythWukong\b1\Binaries\Win64</code></td></tr>
+      <tr><td>霍格沃茨之遗</td><td><code>Hogwarts Legacy\Phoenix\Binaries\Win64</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>虚幻引擎做的游戏，大多在 <code>游戏名\Binaries\Win64</code> 这一层。</p>
+</section>
+
+<section class="step" id="copy">
+  <div class="step-head"><span class="num">4</span><h2>复制文件</h2></div>
+  <ol>
+    <li>先看一眼游戏文件夹里有没有这几个文件：<code>version.dll</code>、<code>winmm.dll</code>、<code>dbghelp.dll</code>、<code>dinput8.dll</code>、<code>dxgi.dll</code>、<code>d3d12.dll</code>。
+      <ul>
+        <li>一个都没有：直接做下一步。</li>
+        <li>有，而且是你以前装本项目时放进去的：做下一步，把旧的删掉。</li>
+        <li>有，但不知道是什么（多半是别的 MOD）：在桌面新建一个文件夹，叫「游戏备份」，把这些文件<b>剪切</b>进去，卸载本项目时再放回来。</li>
+      </ul>
+    </li>
+    <li>以前装过本项目（任何版本）的：先把游戏文件夹里旧的 <code>version.dll</code>、<code>winmm.dll</code>、<code>dbghelp.dll</code>、<code>dinput8.dll</code>、<code>dlssg_sm86.ini</code> 和 <code>dlssg_sm86</code> 文件夹都删掉（旧版本会放四个 DLL，现在只用一个）。旧的 <code>dlssg_sm86.ini</code> 改过设置的话，先记下改了什么，装好后在新的里面重新改。</li>
+    <li>回到解压出来的文件夹，按住 <kbd>Ctrl</kbd> 依次点选这 3 样：<code>version.dll</code>、<code>dlssg_sm86.ini</code>、<code>dlssg_sm86</code> 文件夹，然后按 <kbd>Ctrl</kbd> + <kbd>C</kbd>。</li>
+    <li>切到游戏文件夹，按 <kbd>Ctrl</kbd> + <kbd>V</kbd>。如果提示「替换或跳过文件」，选 <b>替换目标中的文件</b>。</li>
+  </ol>
+  <p>复制好以后，游戏文件夹里应该是这样：</p>
+  <div class="scroll"><pre>游戏 EXE 所在的文件夹\
+├─ <span class="dim">（游戏自己的 EXE 和其它文件，不要动）</span>
+├─ <span class="hl">version.dll</span>
+├─ <span class="hl">dlssg_sm86.ini</span>
+└─ <span class="hl">dlssg_sm86\</span>
+   ├─ backend\
+   ├─ kernels\
+   ├─ runtime\
+   └─ sr\</pre></div>
+  <div class="box tip">
+    <div class="label">一次只放一个 DLL</div>
+    <p>本项目靠 <code>version.dll</code> 这一个文件挂进游戏。绝大多数游戏用它就行；个别游戏不认它时，换成 <code>alternatives</code> 里的另一个（见<a href="#faq-dll">换一个 DLL 试</a>），但任何时候游戏文件夹里只放一个。三样东西也必须放在一起：只复制 DLL、不复制 <code>dlssg_sm86</code> 文件夹，什么都不会发生。</p>
+  </div>
+</section>
+
+<section class="step" id="check">
+  <div class="step-head"><span class="num">5</span><h2>确认装上了</h2></div>
+  <ol>
+    <li><b>RTX 20 / 30</b>：启动游戏，打开图形设置。原来是灰的或者没有的「DLSS 帧生成」现在能打开了，就说明装上了。</li>
+    <li><b>RTX 40 / 50</b>（帧生成本来就能开），或者想确认得更清楚：
+      <ol>
+        <li>按<a href="#ini">怎么改设置文件</a>，把 <code>[Logging]</code> 下面的 <code>Level=1</code> 改成 <code>Level=2</code>，保存。</li>
+        <li>启动游戏，打开帧生成玩一两分钟，完全退出游戏。</li>
+        <li>打开游戏文件夹里的 <code>dlssg_sm86\logs</code>。里面有 <code>loader_一串数字.jsonl</code> 这样的文件，就说明装上了。</li>
+      </ol>
+    </li>
+  </ol>
+  <div class="box tip">
+    <div class="label">logs 是空的很正常</div>
+    <p>出厂设置 <code>Level=1</code> 只在出错时写日志，所以没改成 <code>2</code> 之前，<code>dlssg_sm86\logs</code> 是空的，或者根本没有这个文件夹，都是正常的。确认完可以改回 <code>1</code>，也可以一直用 <code>2</code>（日志会多一些）。</p>
+  </div>
+  <p><code>Level=2</code> 下开了帧生成，<code>logs</code> 里还是没有 <code>loader_</code> 开头的文件：说明没装上。先确认放对了文件夹，再按<a href="#faq-dll">换一个 DLL 试</a>做。</p>
+</section>
+
+<section class="step" id="use">
+  <div class="step-head"><span class="num">6</span><h2>开始使用</h2></div>
+
+  <h3>6.1 帧生成 <span class="chip all">所有 RTX 显卡</span></h3>
+  <ol>
+    <li>在游戏的图形设置里打开 <b>DLSS 帧生成</b>（有的游戏叫 DLSS Frame Generation 或「DLSS 多帧生成」）。倍数（2X / 3X / 4X）在游戏里选，游戏给什么就能选什么。</li>
+    <li>出厂最多 4X。游戏菜单里有 6X 或「动态」多帧生成，又想用 6X 的话：按<a href="#ini">怎么改设置文件</a>，把 <code>[FrameGeneration]</code> 下面的 <code>MaxGeneratedFrames=3</code> 改成 <code>5</code>。游戏自带的帧生成组件只支持 4X 的话，改了也还是 4X。</li>
+    <li>帧生成要有足够的基础帧率才好看：关掉帧生成时帧率太低的话，开了以后容易有拖影、边缘破碎，倍数越高越明显。这时先降低画质，把基础帧率提上来。</li>
+  </ol>
+  <div class="box warn">
+    <div class="label">RTX 40 / 50 注意</div>
+    <p>第一次打开帧生成时画面会卡住几秒，这是驱动在编译本项目的内核，以后就不会了；更新驱动后第一次还会再卡一次。这是正常的。</p>
+    <p>游戏里能选的倍数由游戏决定，本项目不改（例如 RTX 40 上很多游戏只给 2X）。想换回 NVIDIA 官方的帧生成内核：在 <code>[Compatibility]</code> 下面加一行 <code>AccelerateNewerGpus=0</code>。</p>
+  </div>
+
+  <h3>6.2 超分 INT8 <span class="chip c30">只限 RTX 30 / 20</span></h3>
+  <p>出厂是关着的（<code>[SuperResolution]</code> 下面是 <code>Mode=Off</code>）。RTX 40 / 50 跳过这一节：本项目在 40 / 50 上不改超分，改成 <code>On</code> 也不起作用。</p>
+  <ol>
+    <li>按<a href="#ini">怎么改设置文件</a>，把 <code>[SuperResolution]</code> 下面的 <code>Mode=Off</code> 改成 <code>Mode=On</code>，保存。</li>
+    <li>在游戏的图形设置里，把 DLSS 超分辨率（有的游戏叫「DLSS 超级分辨率」或「超分辨率模式」）设成 <b>性能</b> 或 <b>超级性能</b>。多数游戏里只有这两档会用到本项目的 INT8 超分，「质量」「平衡」「DLAA」照常是 NVIDIA 自己的。</li>
+    <li>游戏里如果有 <b>DLSS 光线重建</b>，要关掉：它开着时游戏不用超分，这一项不起作用。</li>
+    <li>用 NVIDIA App 的话：如果在 NVIDIA App 里给这个游戏设置过 DLSS 覆盖（模型预设），先关掉，或者选「最新」。</li>
+  </ol>
+  <div class="box warn">
+    <div class="label">一次只用一档</div>
+    <p>同一次游戏里，「性能」和「超级性能」只有先用上的那一档会加速。想换另一档：在设置里改好，<b>完全退出游戏，再重新打开</b>。直接在游戏里来回切换的话，后切的那一档这一次不会加速。这不是故障。</p>
+  </div>
+  <p>打开以后，游戏的 DLSS 超分会换成随包的版本（310.7.129）。游戏自带的版本比较旧时，画面和帧率的变化不全来自 INT8。</p>
+
+  <h3>6.3 其它设置 <span class="chip all">一般不用改</span></h3>
+  <p>都在 <code>dlssg_sm86.ini</code> 里，改法见<a href="#ini">怎么改设置文件</a>。「不写」的设置要自己在那一节下面加一行。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>设置</th><th>在哪一节</th><th>出厂</th><th>什么时候改</th></tr></thead>
+    <tbody>
+      <tr><td><code>Optimized</code></td><td><code>[DLSSG]</code></td><td><code>2</code></td><td>帧生成的加速档位。生成的画面有问题时改成 <code>1</code> 试试（这一档的画面和不做任何加速时完全相同）；<code>0</code> 是不做任何加速。旧版本的设置文件把它写在 <code>[FrameGeneration]</code> 下面，照样有效。</td></tr>
+      <tr><td><code>MaxGeneratedFrames</code></td><td><code>[FrameGeneration]</code></td><td><code>3</code>（最多 4X）</td><td>要 6X 时改成 <code>5</code>（见 6.1）。</td></tr>
+      <tr><td><code>Preset</code></td><td><code>[DLSSG]</code></td><td><code>Auto</code></td><td>改成 <code>C</code> = 轻量帧生成（FG Lite）：每个生成帧的 GPU 时间约少三成到一半，画质略低（主要在 HUD 和物体边缘）。同样用本项目的加速内核，游戏自带哪个版本的 DLSS-G 都能用。<code>B</code>（强制 UI 重组）只在游戏同时提供无 HUD 画面和 UI 平面时才有效，多数游戏不提供，这时日志里有一条 <code>preset_ineffective</code>。</td></tr>
+      <tr><td><code>Engine</code></td><td><code>[FrameGeneration]</code></td><td><code>DLSS</code></td><td>改成 <code>XeSS</code> = 用 Intel XeSS-FG 的模型生成插帧（只 2X）。在 RTX 30 上它比默认的 DLSS 慢（4K 每生成帧多约 3 ms），也多占约 0.4–0.5 GB 显存；游戏后缓冲是 RGBA16F（部分 HDR 输出）时自动用回 DLSS。见 6.4。</td></tr>
+      <tr><td><code>Mode</code></td><td><code>[SuperResolution]</code></td><td><code>Off</code></td><td>RTX 30 / 20 想用 INT8 超分时改成 <code>On</code>（见 6.2）。</td></tr>
+      <tr><td><code>Level</code></td><td><code>[Logging]</code></td><td><code>1</code>（只记错误）</td><td>确认安装、反馈问题时改成 <code>2</code>。</td></tr>
+      <tr><td><code>FrameTiming</code></td><td><code>[Logging]</code></td><td>不写（关）</td><td>想记录每一帧的耗时（帧间隔、超分和帧生成各花了多少 GPU 时间）时加一行 <code>FrameTiming=1</code>，日志里会多一个 <code>frames_</code> 开头的文件。</td></tr>
+      <tr><td><code>AccelerateNewerGpus</code></td><td><code>[Compatibility]</code></td><td>不写（开）</td><td>RTX 40 / 50 想换回 NVIDIA 官方帧生成内核时加一行 <code>AccelerateNewerGpus=0</code>。</td></tr>
+    </tbody>
+  </table></div>
+  <p>其它设置都不在出厂文件里，一般用不到，完整说明见 <code>docs\INSTALL.md</code>（可以用记事本打开）。</p>
+  <h3>6.4 XeSS 帧生成（可选） <span class="chip all">所有 RTX 显卡</span></h3>
+  <p>按<a href="#ini">怎么改设置文件</a>，把 <code>[FrameGeneration]</code> 下面的 <code>Engine=DLSS</code> 改成 <code>Engine=XeSS</code>。游戏里照常打开 DLSS 帧生成，倍数只有 2X（设置文件里写了更高也按 2X）。<code>[XeSSFG]</code> 一节有两项：<code>FlowResolution</code>（<code>Coarse</code> / <code>Middle</code> / <code>Fine</code>，出厂 <code>Middle</code>，越细越慢）和 <code>UseHudless</code>（出厂 <code>1</code>：游戏提供无 HUD 画面时用它，没有就自动不用）。<code>[DLSSG]</code> 一节的设置在 XeSS 下不起作用。</p>
+  <p>游戏的后缓冲是 RGBA16F（部分 HDR 输出用这种格式）、或者缺 XeSS 需要的输入时，这个游戏改用 DLSS 帧生成，日志（出厂级别就有）里有一条 <code>xefg_fallback</code> 写明原因。</p>
+
+</section>
+
+<section class="step" id="report">
+  <div class="step-head"><span class="num">7</span><h2>遇到问题怎么反馈</h2></div>
+  <ol>
+    <li>按<a href="#ini">怎么改设置文件</a>，把 <code>[Logging]</code> 下面的 <code>Level</code> 改成 <code>2</code>（已经是 2 就不用改）。</li>
+    <li>先把 <code>dlssg_sm86\logs</code> 里原来的文件删掉，再启动游戏，把问题复现一次，然后完全退出游戏。</li>
+    <li>把游戏文件夹里的 <code>dlssg_sm86\logs</code> 整个文件夹压缩：右键 <code>logs</code> →「压缩为 ZIP 文件」（Windows 10 是右键 →「发送到」→「压缩(zipped)文件夹」）。</li>
+    <li>把这个压缩包，连同下面这段填好的文字，提交到你下载本项目的地方（例如 GitHub 页面的 Issues）。</li>
+    <li>画面问题附上截图或录屏：截图按 <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>，录屏按 <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>R</kbd>。</li>
+  </ol>
+  <div class="copy-wrap">
+    <div class="copy-row"><button class="copy" type="button" id="copy-report">复制这段</button><span class="copy-state" id="copy-state" role="status"></span></div>
+    <div class="scroll"><pre id="report-template">版本：0.4.0
+用的是哪个 DLL（version.dll 或换过的哪个）：
+显卡型号：
+驱动版本：
+游戏名称和版本：
+分辨率：
+DLSS 超分档位：
+帧生成倍数：
+dlssg_sm86.ini 改过哪些（没改就写“没改”）：
+遇到的问题（在哪个场景、怎么出现的）：</pre></div>
+  </div>
+  <div class="box tip">
+    <div class="label">显卡型号和驱动版本在哪看</div>
+    <p>按 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd> 打开任务管理器 →「性能」→ 左边写着 NVIDIA 的那个 GPU。右上角是显卡型号，下面的「驱动程序版本」就是驱动版本。拍照或截图也行。</p>
+  </div>
+</section>
+
+<section class="step" id="ini">
+  <h2>怎么改设置文件</h2>
+  <p>所有设置都在游戏文件夹里的 <code>dlssg_sm86.ini</code> 里（改解压出来的那一份没有用）。</p>
+  <ol>
+    <li>完全退出游戏。</li>
+    <li>在游戏文件夹里右键 <code>dlssg_sm86.ini</code> →「打开方式」→「记事本」。Windows 11 可能要先点「显示更多选项」。</li>
+    <li>找到方括号里的那一节，例如 <code>[Logging]</code>，在它下面找到要改的那一行，只改等号后面的值，例如把 <code>Level=1</code> 改成 <code>Level=2</code>。分号 <code>;</code> 开头的行是说明文字，不用管。</li>
+    <li>要「加一行」的设置（例如 <code>AccelerateNewerGpus=0</code>）：写在对应那一节的方括号那一行下面、下一个方括号之前，单独占一行，不要写到别的节里。</li>
+    <li>按 <kbd>Ctrl</kbd> + <kbd>S</kbd> 保存，关掉记事本，再启动游戏。</li>
+  </ol>
+  <div class="box tip">
+    <div class="label">改坏了也不要紧</div>
+    <p>写错的那一项会自动用回默认值，其它设置照常生效（日志里会记一条 <code>configuration_warning</code>）。想恢复出厂设置，从解压出来的文件夹里重新复制一份 <code>dlssg_sm86.ini</code> 覆盖过去。</p>
+  </div>
+</section>
+
+<section class="step" id="upgrade">
+  <h2>升级</h2>
+  <ol>
+    <li>完全退出游戏。</li>
+    <li>和第 4 步一样：先删掉游戏文件夹里旧的 DLL（<code>version.dll</code> 或你换上的那个）、<code>dlssg_sm86.ini</code> 和 <code>dlssg_sm86</code> 文件夹，再复制新版的 3 样。</li>
+    <li>以前改过的设置，在新的 <code>dlssg_sm86.ini</code> 里重新改一遍。</li>
+    <li>从 0.3.x 升级的，还可以删掉 <code>%LOCALAPPDATA%\DlssgSm86</code> 这个文件夹（在文件资源管理器的地址栏里输入这串字回车就能打开），新版不再用它。</li>
+  </ol>
+</section>
+
+<section class="step" id="uninstall">
+  <h2>卸载</h2>
+  <ol>
+    <li>完全退出游戏。</li>
+    <li>删掉游戏文件夹里的 <code>version.dll</code>（换过 DLL 的，删你换上去的那一个）、<code>dlssg_sm86.ini</code> 和 <code>dlssg_sm86</code> 文件夹。</li>
+    <li>第 4 步备份过文件的，把它们放回去。</li>
+    <li>还不放心的话：Steam 库里右键游戏 →「属性」→「已安装文件」→「验证游戏文件的完整性」。它会恢复被覆盖的游戏文件，但不会删除多出来的文件，所以上面第 2 条一定要自己删。</li>
+  </ol>
+</section>
+
+<section class="step" id="faq">
+  <h2>常见问题</h2>
+  <h3>帧生成选项还是灰的，打不开</h3>
+  <ul>
+    <li>确认第 1 步的「硬件加速 GPU 计划」已经打开，并且重启过电脑。</li>
+    <li>确认文件放在了真正的 EXE 文件夹里（用第 3 步任务管理器的方法再找一次），三样东西都在。</li>
+    <li>确认游戏本身支持 DLSS 帧生成，并且用的是 DirectX 12。</li>
+    <li>还是不行：照第 7 步把日志发回来，日志里看得出原因。</li>
+  </ul>
+  <h3>Level 改成 2 了，logs 里还是什么都没有</h3>
+  <ul>
+    <li>最常见的原因是放错了文件夹，按第 3 步重新找。</li>
+    <li>文件夹没放错，就是这个游戏不认 <code>version.dll</code>，按下面「换一个 DLL 试」做。</li>
+    <li>杀毒软件（360、火绒、Windows 安全中心等）可能拦截或删除了 <code>version.dll</code> 这些文件。本项目的 DLL 用的是自签名证书，有的杀毒软件会误报。去杀毒软件的隔离区或拦截记录里看看，恢复文件并加入信任。</li>
+    <li>Windows 11 的「智能应用控制」开着时也可能拦截。遇到这种情况请把情况反馈给我们，不建议为了用本项目去关它。</li>
+  </ul>
+  <h3 id="faq-dll">换一个 DLL 试</h3>
+  <p>解压出来的 <code>alternatives</code> 文件夹里有另外 5 个名字的同一个程序。按下面的顺序一个一个试，<b>每次游戏文件夹里只放一个</b>：</p>
+  <ol>
+    <li>完全退出游戏，删掉游戏文件夹里的 <code>version.dll</code>（或者上一次试的那个）。</li>
+    <li>从 <code>alternatives</code> 里复制下一个到游戏文件夹，顺序是：<code>winmm.dll</code> → <code>dbghelp.dll</code> → <code>dinput8.dll</code> → <code>dxgi.dll</code> → <code>d3d12.dll</code>。</li>
+    <li>启动游戏，打开帧生成玩一两分钟，退出，看 <code>dlssg_sm86\logs</code> 里有没有出现 <code>loader_</code> 开头的文件（<code>Level</code> 要先改成 <code>2</code>，见第 5 步）。有了就用这一个，没有就回到第 1 条换下一个。</li>
+  </ol>
+  <p>五个都试过还不行，就把情况反馈给我们。<code>dxgi.dll</code> 和 <code>d3d12.dll</code> 排在最后，是因为它们在游戏的画面渲染路径上，只在前面几个都不行时才用，两个不要同时放。</p>
+  <h3>游戏打不开或者闪退</h3>
+  <ul>
+    <li>先照「卸载」删掉本项目的文件，确认游戏本身能正常运行。</li>
+    <li>游戏本身没问题的话，重新装上，把 <code>Level</code> 改成 <code>2</code>，复现一次闪退，然后按第 7 步把日志发回来，并说清楚在哪一步闪退。</li>
+  </ul>
+  <h3>生成的画面闪烁、花屏或者拖影</h3>
+  <ul>
+    <li>先看基础帧率：关掉帧生成时帧率太低，开了以后拖影、边缘破碎是帧生成本身的表现，降低画质把基础帧率提上来再看。</li>
+    <li>把 <code>[DLSSG]</code> 下面的 <code>Optimized=2</code> 改成 <code>1</code> 再试（这一档的画面和不做任何加速时完全相同）。</li>
+    <li>RTX 40 / 50：在 <code>[Compatibility]</code> 下面加一行 <code>AccelerateNewerGpus=0</code> 换回官方内核再试。</li>
+    <li>还在的话按第 7 步反馈，写明哪些设置下出现、哪些设置下没有。</li>
+  </ul>
+  <h3>超分打开了，好像没变化</h3>
+  <ul>
+    <li>只有 RTX 30 / 20 才有这一项，RTX 40 / 50 不改超分。</li>
+    <li>游戏里的 DLSS 要设成「性能」或「超级性能」，「质量」「平衡」「DLAA」不受影响。</li>
+    <li>DLSS 光线重建要关掉；NVIDIA App 里给这个游戏设的 DLSS 覆盖要关掉，或者选「最新」。</li>
+    <li>在游戏里切过档位的话，完全退出再进（见 6.2「一次只用一档」）。</li>
+  </ul>
+  <h3>改了设置好像没变化</h3>
+  <ul>
+    <li>改完一定要完全退出游戏。可以在任务管理器里确认游戏进程已经没有了，再重新打开。</li>
+    <li>确认改的是<b>游戏文件夹里</b>的 <code>dlssg_sm86.ini</code>，不是解压出来的那一份，并且按 <kbd>Ctrl</kbd> + <kbd>S</kbd> 保存了。</li>
+  </ul>
+  <h3>开了帧生成，操作感觉有点延迟</h3>
+  <ul>
+    <li>帧生成会让画面更流畅，但操作延迟会比不开时略高一点，这是帧生成本身的特性。如果延迟大到明显影响操作，可以降低倍数，或者按第 7 步反馈。</li>
+  </ul>
+</section>
+
+<footer>
+  DLSSG 0.4.0 安装手册 · 全部设置的完整说明：<code>docs\INSTALL.md</code> · 版本说明：<code>README.md</code> · 许可：<code>LICENSE.md</code>、<code>THIRD_PARTY_NOTICES.txt</code>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var button = document.getElementById("copy-report");
+  var state = document.getElementById("copy-state");
+  var source = document.getElementById("report-template");
+  if (!button || !source) return;
+  function selectText() {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents(source);
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } catch (e) {}
+  }
+  button.addEventListener("click", function () {
+    var text = source.innerText;
+    var done = function () { state.textContent = "已复制，粘贴到反馈里填好就行"; };
+    var fallback = function () { selectText(); state.textContent = "已选中，请按 Ctrl + C 复制"; };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } else {
+        fallback();
+      }
+    } catch (e) {
+      fallback();
+    }
+  });
+})();
+</script>
+</body>
+</html>

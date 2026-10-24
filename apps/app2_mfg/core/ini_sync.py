@@ -1453,3 +1453,133 @@ class IniConfigManager:
                     config["dlssg_preset"] = "Auto"
 
         return config if (config or ini3.exists() or univ_json.exists()) else None
+    @classmethod
+    def sync_dlssg_sm86_forward(
+        cls,
+        target_dir: Union[str, Path],
+        config: Dict[str, Any],
+        exe_name: Optional[str] = None
+    ) -> bool:
+        """
+        Forward sync: writes dlssg_for_sm86 parameters to TargetExeDir/dlssg_sm86.ini
+        preserving comments, structure, and original formatting.
+        """
+        import shutil
+        target = Path(target_dir)
+        ini_path = target / "dlssg_sm86.ini"
+
+        if not ini_path.exists():
+            tpl_candidates = [
+                Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "v0.4.0" / "dlssg_sm86.ini",
+                Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "0.4.0" / "dlssg_sm86.ini",
+                Path(__file__).resolve().parent.parent.parent.parent / "defaults" / "app2_mfg" / "dlssg_sm86_preset.json"
+            ]
+            for cand in tpl_candidates:
+                if cand.name.endswith(".ini") and cand.exists():
+                    try:
+                        shutil.copy2(cand, ini_path)
+                        break
+                    except Exception:
+                        pass
+
+        enabled = int(config.get("enabled", 1))
+        engine = str(config.get("engine", "DLSS")).strip()
+        max_f = int(config.get("max_generated_frames", 2))
+        opt = int(config.get("optimized", 2))
+        preset = str(config.get("dlssg_preset", "Auto")).strip()
+        sr_mode = str(config.get("super_resolution_mode", "Off")).strip()
+        log_lvl = int(config.get("logging_level", 1))
+
+        # Check DLSS 5 coexistence: if DLSS 5 is present, force SuperResolution Mode=Off
+        try:
+            from core.state_cleaner import is_dlss5_present
+            if is_dlss5_present(target_dir):
+                sr_mode = "Off"
+        except Exception:
+            pass
+
+        updates = {
+            "General": {
+                "Enabled": enabled
+            },
+            "FrameGeneration": {
+                "Engine": engine,
+                "MaxGeneratedFrames": max_f
+            },
+            "DLSSG": {
+                "Optimized": opt,
+                "Preset": preset
+            },
+            "SuperResolution": {
+                "Mode": sr_mode
+            },
+            "Logging": {
+                "Level": log_lvl,
+                "Directory": r"dlssg_sm86\logs"
+            },
+            "Runtime": {
+                "Mode": "Bundled"
+            }
+        }
+
+        return cls.write_ini_sections(ini_path, updates)
+
+    # Aliases
+    sync_mode_d_forward = sync_dlssg_sm86_forward
+
+    @classmethod
+    def read_dlssg_sm86_reverse(cls, target_dir: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Reverse sync: read parameters from TargetExeDir/dlssg_sm86.ini.
+        """
+        target = Path(target_dir)
+        ini_path = target / "dlssg_sm86.ini"
+        if not ini_path.exists():
+            return None
+
+        data = cls.read_ini_sections(ini_path)
+        if not data:
+            return None
+
+        config: Dict[str, Any] = {}
+        gen = data.get("General", {})
+        if "Enabled" in gen:
+            try:
+                config["enabled"] = int(gen["Enabled"])
+            except Exception:
+                pass
+
+        fg = data.get("FrameGeneration", {})
+        if "Engine" in fg:
+            config["engine"] = fg["Engine"]
+        if "MaxGeneratedFrames" in fg:
+            try:
+                config["max_generated_frames"] = int(fg["MaxGeneratedFrames"])
+            except Exception:
+                pass
+
+        dlssg = data.get("DLSSG", {})
+        if "Optimized" in dlssg:
+            try:
+                config["optimized"] = int(dlssg["Optimized"])
+            except Exception:
+                pass
+        if "Preset" in dlssg:
+            config["dlssg_preset"] = dlssg["Preset"]
+
+        sr = data.get("SuperResolution", {})
+        if "Mode" in sr:
+            config["super_resolution_mode"] = sr["Mode"]
+
+        log_sec = data.get("Logging", {})
+        if "Level" in log_sec:
+            try:
+                config["logging_level"] = int(log_sec["Level"])
+            except Exception:
+                pass
+
+        return config if config else None
+
+    # Aliases
+    read_mode_d_reverse = read_dlssg_sm86_reverse
+
