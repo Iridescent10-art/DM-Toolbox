@@ -36,7 +36,7 @@ from common.ui_theme import (
     ModernProgressDialog, ModernConfirmDialog, ModernDialog,
     get_global_theme
 )
-from common.wallpaper_manager import cleanup_unused_wallpapers
+from common.wallpaper_manager import cleanup_unused_wallpapers, GLOBAL_WALLPAPER_NOTIFIER
 from common.config_manager import (
     TOOLBOX_ROOT, CACHE_ROOT, CONFIG_ROOT,
     get_total_cache_size_mb, reset_all_data,
@@ -887,6 +887,7 @@ class ToolboxLauncher(BaseWindow):
                 cleanup_unused_wallpapers()
                 ok, msg, freed_mb = reset_all_data(defaults_dir)
                 self.reload_wallpaper()
+                GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit("launcher")
 
                 # Step 4: 90%
                 progress_dlg.set_progress(90, "正在重置初始配置与刷新状态...", "恢复各组件 defaults 初始出厂配置")

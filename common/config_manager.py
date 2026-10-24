@@ -226,20 +226,36 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
 
         # Restore from defaults/
         if defaults_base_dir and Path(defaults_base_dir).exists():
-            for app_dir in Path(defaults_base_dir).iterdir():
-                if app_dir.is_dir():
-                    app_name = app_dir.name
-                    target_app_config = get_app_config_dir(app_name)
-                    target_app_cache = get_app_cache_dir(app_name)
-                    for item in app_dir.iterdir():
-                        if item.is_file():
-                            shutil.copy2(item, target_app_config / item.name)
-                        elif item.name == "embedded_components" and item.is_dir():
-                            for sub_item in item.iterdir():
-                                if sub_item.is_dir():
-                                    shutil.copytree(sub_item, target_app_cache / sub_item.name, dirs_exist_ok=True)
-                                elif sub_item.is_file():
-                                    shutil.copy2(sub_item, target_app_cache / sub_item.name)
+            for item in Path(defaults_base_dir).iterdir():
+                if item.is_file():
+                    # Root configuration files like theme.json, wallpaper_config.json
+                    try:
+                        shutil.copy2(item, CONFIG_ROOT / item.name)
+                    except Exception:
+                        pass
+                elif item.is_dir():
+                    app_name = item.name
+                    if app_name == "wallpapers":
+                        target_wallpapers_cache = CACHE_ROOT / "wallpapers"
+                        target_wallpapers_cache.mkdir(parents=True, exist_ok=True)
+                        for wp in item.iterdir():
+                            if wp.is_file():
+                                try:
+                                    shutil.copy2(wp, target_wallpapers_cache / wp.name)
+                                except Exception:
+                                    pass
+                    else:
+                        target_app_config = get_app_config_dir(app_name)
+                        target_app_cache = get_app_cache_dir(app_name)
+                        for sub_item in item.iterdir():
+                            if sub_item.is_file():
+                                shutil.copy2(sub_item, target_app_config / sub_item.name)
+                            elif sub_item.name == "embedded_components" and sub_item.is_dir():
+                                for ec_item in sub_item.iterdir():
+                                    if ec_item.is_dir():
+                                        shutil.copytree(ec_item, target_app_cache / ec_item.name, dirs_exist_ok=True)
+                                    elif ec_item.is_file():
+                                        shutil.copy2(ec_item, target_app_cache / ec_item.name)
 
         return True, f"已成功清空 AppData 缓存并还原初始配置！释放空间: {freed_mb:.2f} MB", freed_mb
     except Exception as e:

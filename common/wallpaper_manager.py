@@ -28,7 +28,7 @@ from typing import Dict, Any, Optional, Tuple, Union, List
 
 from PySide6.QtCore import (
     Qt, QObject, Signal, QTimer, QRect, QRectF, QPoint, QSize,
-    QFileSystemWatcher
+    QFileSystemWatcher, QThread
 )
 from PySide6.QtGui import (
     QPixmap, QImage, QPainter, QColor, QPen, QBrush, QPainterPath,
@@ -36,7 +36,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QSlider, QRadioButton, QButtonGroup, QFileDialog, QFrame,
+    QSlider, QSpinBox, QProgressBar, QRadioButton, QButtonGroup, QFileDialog, QFrame,
     QMessageBox, QGraphicsDropShadowEffect, QApplication, QSizePolicy
 )
 
@@ -83,23 +83,23 @@ SUBAPP_TITLES = {
 }
 
 DEFAULT_WALLPAPER_CONFIG = {
-    "enabled": False,
+    "enabled": True,
     "sync_mode": "unified",  # "unified" | "main_only" | "per_app"
-    "source_hash": "",
-    "source_path": "",
-    "cached_image_path": "",
-    "blur_radius": 18,
-    "tint_opacity_dark": 0.76,
-    "tint_opacity_light": 0.80,
-    "card_opacity": 0.86,
+    "source_hash": "1d529e28b4d9",
+    "source_path": "默认壁纸",
+    "cached_image_path": "%APPDATA%/ToolboxMaster/cache/wallpapers/bg_1d529e28b4d9_blur2.png",
+    "blur_radius": 2,
+    "tint_opacity_dark": 0.20,
+    "tint_opacity_light": 0.20,
+    "card_opacity": 0.50,
     "scale_mode": "aspect_fill",
     "subapp_overrides": {
-        "hardware_master": {"enabled": False, "cached_image_path": ""},
-        "dlss_mfg": {"enabled": False, "cached_image_path": ""},
-        "auto_hdr": {"enabled": False, "cached_image_path": ""},
-        "upscale_hud": {"enabled": False, "cached_image_path": ""},
-        "jxr_converter": {"enabled": False, "cached_image_path": ""},
-        "dlss5_injector": {"enabled": False, "cached_image_path": ""},
+        "hardware_master": {"enabled": True, "cached_image_path": ""},
+        "dlss_mfg": {"enabled": True, "cached_image_path": ""},
+        "auto_hdr": {"enabled": True, "cached_image_path": ""},
+        "upscale_hud": {"enabled": True, "cached_image_path": ""},
+        "jxr_converter": {"enabled": True, "cached_image_path": ""},
+        "dlss5_injector": {"enabled": True, "cached_image_path": ""},
     }
 }
 
@@ -109,6 +109,33 @@ def ensure_wallpaper_dirs():
     try:
         WALLPAPERS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
+
+        # Auto-seed default wallpaper assets if missing in cache
+        defaults_wp_dir = ROOT_DIR / "defaults" / "wallpapers"
+        if defaults_wp_dir.exists():
+            for wp_file in defaults_wp_dir.iterdir():
+                if wp_file.is_file():
+                    target_f = WALLPAPERS_CACHE_DIR / wp_file.name
+                    if not target_f.exists():
+                        try:
+                            shutil.copy2(wp_file, target_f)
+                        except Exception:
+                            pass
+
+        # Auto-seed default wallpaper config if missing in config
+        if not GLOBAL_WALLPAPER_CONFIG_PATH.exists():
+            defaults_wp_cfg = ROOT_DIR / "defaults" / "wallpaper_config.json"
+            if defaults_wp_cfg.exists():
+                try:
+                    shutil.copy2(defaults_wp_cfg, GLOBAL_WALLPAPER_CONFIG_PATH)
+                except Exception:
+                    pass
+            else:
+                try:
+                    with open(GLOBAL_WALLPAPER_CONFIG_PATH, "w", encoding="utf-8") as f:
+                        json.dump(DEFAULT_WALLPAPER_CONFIG, f, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -137,6 +164,17 @@ def resolve_cached_image_path(path_str: str) -> Optional[Path]:
     p = Path(expanded)
     if not p.is_absolute():
         p = WALLPAPERS_CACHE_DIR / p.name
+    if not p.exists():
+        fallback = WALLPAPERS_CACHE_DIR / p.name
+        if fallback.exists():
+            return fallback
+        defaults_f = ROOT_DIR / "defaults" / "wallpapers" / p.name
+        if defaults_f.exists():
+            try:
+                shutil.copy2(defaults_f, fallback)
+                return fallback
+            except Exception:
+                return defaults_f
     return p if p.exists() else None
 
 
@@ -275,20 +313,24 @@ def convert_jxr_to_png(jxr_path: Union[str, Path], output_png_path: Union[str, P
 
 def process_and_cache_wallpaper(
     source_file_path: Union[str, Path],
-    blur_radius: int = 15
+    blur_radius: int = 15,
+    progress_callback = None
 ) -> Tuple[bool, str, Dict[str, Any]]:
     """
-    Pre-processes wallpaper image into AppData cache:
+    Pre-processes wallpaper image into AppData cache with async progress:
     1. Handles .jxr / .png / .jpg / .webp / .bmp.
     2. Computes content hash for caching.
-    3. Resizes to max 2560x1440 while keeping aspect ratio (LANCZOS high quality).
+    3. Resizes to max 2560x1440 while keeping aspect ratio.
     4. Caches base image as bg_{hash}_base.png for permanent source-deletion fault tolerance.
-    5. Pre-generates blurred image as bg_{hash}_blur{blur_radius}.png.
+    5. Pre-generates blurred image as bg_{hash}_blur{blur_radius}.png with hierarchical acceleration.
     """
     ensure_wallpaper_dirs()
     src = Path(source_file_path)
     if not src.exists():
         return False, f"源壁纸文件不存在: {src}", {}
+
+    if progress_callback:
+        progress_callback(10, "正在读取图片源文件...")
 
     try:
         from PIL import Image, ImageFilter
@@ -296,6 +338,8 @@ def process_and_cache_wallpaper(
         temp_converted = None
         # Handle JXR
         if src.suffix.lower() == ".jxr":
+            if progress_callback:
+                progress_callback(20, "正在通过 Windows 原生 WIC 解码 HDR 图像...")
             temp_converted = WALLPAPERS_CACHE_DIR / f"temp_jxr_{int(time.time()*1000)}.png"
             if not convert_jxr_to_png(src, temp_converted):
                 if temp_converted.exists():
@@ -305,6 +349,9 @@ def process_and_cache_wallpaper(
         else:
             img_file_to_open = src
 
+        if progress_callback:
+            progress_callback(35, "正在解析图像色彩与分辨率...")
+
         # Open and convert to RGBA
         with Image.open(img_file_to_open) as im:
             img = im.convert("RGBA")
@@ -312,8 +359,11 @@ def process_and_cache_wallpaper(
         if temp_converted and temp_converted.exists():
             temp_converted.unlink(missing_ok=True)
 
-        # Scale to max 2560x1440
-        max_w, max_h = 2560, 1440
+        if progress_callback:
+            progress_callback(50, "正在生成 2560×1440 超清壁纸底图缓存...")
+
+        # Scale to max 3840x2160 (4K UHD) while preserving native quality for <= 4K
+        max_w, max_h = 3840, 2160
         w, h = img.size
         scale = min(max_w / w, max_h / h, 1.0)
         if scale < 1.0:
@@ -325,17 +375,31 @@ def process_and_cache_wallpaper(
         img_bytes = img.tobytes()
         source_hash = hashlib.sha256(img_bytes).hexdigest()[:12]
 
-        # 1. Save base image for slider adjustments (fault tolerance if source deleted)
+        # 1. Save base image for slider adjustments (compress_level=1 for 10x faster saving)
         base_cached_file = WALLPAPERS_CACHE_DIR / f"bg_{source_hash}_base.png"
-        img.save(base_cached_file, format="PNG", optimize=True)
+        img.save(base_cached_file, format="PNG", compress_level=1)
 
-        # 2. Pre-generate blurred image
+        # 2. Pre-generate blurred image with hierarchical acceleration
+        if progress_callback:
+            progress_callback(75, f"正在计算 {blur_radius}px 毛玻璃模糊预渲染...")
+
         blurred_cached_file = WALLPAPERS_CACHE_DIR / f"bg_{source_hash}_blur{blur_radius}.png"
         if blur_radius > 0:
-            blurred_img = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            blurred_img.save(blurred_cached_file, format="PNG", optimize=True)
+            cur_w, cur_h = img.size
+            if blur_radius > 6:
+                small_w = max(1, cur_w // 2)
+                small_h = max(1, cur_h // 2)
+                small = img.resize((small_w, small_h), Image.Resampling.BILINEAR)
+                blurred = small.filter(ImageFilter.GaussianBlur(radius=blur_radius / 2.0))
+                blurred_img = blurred.resize((cur_w, cur_h), Image.Resampling.BILINEAR)
+            else:
+                blurred_img = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            blurred_img.save(blurred_cached_file, format="PNG", compress_level=1)
         else:
             shutil.copy2(base_cached_file, blurred_cached_file)
+
+        if progress_callback:
+            progress_callback(100, "壁纸解析完成，点击「完成」应用生效")
 
         result_data = {
             "source_hash": source_hash,
@@ -353,7 +417,7 @@ def process_and_cache_wallpaper(
 def generate_blur_from_cache(source_hash: str, blur_radius: int) -> Optional[Path]:
     """
     Generates or fetches cached blur file from the cached base image.
-    Ultra-fast (<35ms) and 100% resilient if source file was deleted from desktop.
+    Ultra-fast (<50ms) and 100% resilient if source file was deleted from desktop.
     """
     ensure_wallpaper_dirs()
     target_blur_file = WALLPAPERS_CACHE_DIR / f"bg_{source_hash}_blur{blur_radius}.png"
@@ -370,8 +434,16 @@ def generate_blur_from_cache(source_hash: str, blur_radius: int) -> Optional[Pat
             img = im.convert("RGBA")
 
         if blur_radius > 0:
-            blurred_img = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            blurred_img.save(target_blur_file, format="PNG", optimize=True)
+            cur_w, cur_h = img.size
+            if blur_radius > 6:
+                small_w = max(1, cur_w // 2)
+                small_h = max(1, cur_h // 2)
+                small = img.resize((small_w, small_h), Image.Resampling.BILINEAR)
+                blurred = small.filter(ImageFilter.GaussianBlur(radius=blur_radius / 2.0))
+                blurred_img = blurred.resize((cur_w, cur_h), Image.Resampling.BILINEAR)
+            else:
+                blurred_img = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            blurred_img.save(target_blur_file, format="PNG", compress_level=1)
         else:
             shutil.copy2(base_file, target_blur_file)
 
@@ -387,6 +459,11 @@ def cleanup_unused_wallpapers() -> int:
     """
     ensure_wallpaper_dirs()
     active_hashes = set()
+
+    # Always preserve the default system wallpaper
+    if DEFAULT_WALLPAPER_CONFIG.get("source_hash"):
+        active_hashes.add(DEFAULT_WALLPAPER_CONFIG["source_hash"])
+    active_hashes.add("1d529e28b4d9")
 
     # Collect hashes from global config
     cfg = load_wallpaper_config("launcher")
@@ -594,12 +671,35 @@ GLOBAL_WALLPAPER_NOTIFIER = WallpaperNotifier()
 # Custom Wallpaper Configuration & Settings Dialog (DMWallpaperDialog)
 # =========================================================================
 
+class WallpaperImportWorker(QThread):
+    progress = Signal(int, str)
+    finished = Signal(bool, str, dict)
+
+    def __init__(self, file_path: str, blur_radius: int):
+        super().__init__()
+        self.file_path = file_path
+        self.blur_radius = blur_radius
+
+    def run(self):
+        def cb(pct, msg):
+            self.progress.emit(pct, msg)
+
+        ok, msg, res = process_and_cache_wallpaper(
+            self.file_path,
+            blur_radius=self.blur_radius,
+            progress_callback=cb
+        )
+        self.finished.emit(ok, msg, res)
+
+
 class DMWallpaperDialog(QDialog):
     """
-    DM Wallpaper Settings Dialog (阶段四实现):
-    - File importer (PNG, JPG, WEBP, BMP, JXR)
-    - Real-time preview with sliders for blur, dark tint, light tint, card opacity
-    - Sync scope options (unified, main_only, per_app)
+    DM Wallpaper Settings Dialog:
+    - Asynchronous file importer with live progress feedback
+    - Instant slider & spinbox adjustment with keyboard numerical input
+    - Multi-stage progress bar
+    - Click "完成" (Done) to apply changes, zero lag while tweaking
+    - Scope options (unified, main_only, per_app)
     - One-click restore defaults
     """
     def __init__(self, parent=None, subapp_id: str = "launcher"):
@@ -607,14 +707,11 @@ class DMWallpaperDialog(QDialog):
         self.subapp_id = normalize_subapp_id(subapp_id)
         self.is_dark = (get_global_theme() == "dark")
         self.config = load_wallpaper_config(self.subapp_id)
-        self._cached_pixmap: Optional[QPixmap] = None
-        self._debounce_timer = QTimer(self)
-        self._debounce_timer.setSingleShot(True)
-        self._debounce_timer.setInterval(80)
-        self._debounce_timer.timeout.connect(self._on_debounce_update)
+        self.draft_config = json.loads(json.dumps(self.config))
+        self._import_worker: Optional[WallpaperImportWorker] = None
 
         self.setWindowTitle("自定义壁纸与毛玻璃设置")
-        self.setFixedSize(540, 680)
+        self.setFixedSize(540, 720)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
@@ -622,15 +719,25 @@ class DMWallpaperDialog(QDialog):
         self._load_config_to_ui()
         self._apply_dialog_theme()
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and event.position().y() < 50:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, "_drag_pos"):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
     def _init_ui(self):
         # Container
         self.container = QFrame(self)
         self.container.setObjectName("DialogContainer")
-        self.container.setGeometry(0, 0, 540, 680)
+        self.container.setGeometry(0, 0, 540, 720)
 
         main_layout = QVBoxLayout(self.container)
         main_layout.setContentsMargins(24, 18, 24, 20)
-        main_layout.setSpacing(14)
+        main_layout.setSpacing(12)
 
         # 1. Custom Title Bar
         title_bar = QHBoxLayout()
@@ -647,18 +754,18 @@ class DMWallpaperDialog(QDialog):
 
         btn_close = QPushButton("✕")
         btn_close.setFixedSize(28, 28)
-        btn_close.setCursor(Qt.PointingHandCursor)
+        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.setStyleSheet("""
             QPushButton { border: none; font-size: 14px; color: #888; border-radius: 14px; }
             QPushButton:hover { background-color: #E81123; color: white; }
         """)
-        btn_close.clicked.connect(self.accept)
+        btn_close.clicked.connect(self.reject)
         title_bar.addWidget(btn_close)
         main_layout.addLayout(title_bar)
 
         # 2. Thumbnail Preview Card
         self.preview_card = QFrame()
-        self.preview_card.setFixedHeight(140)
+        self.preview_card.setFixedHeight(130)
         self.preview_card.setStyleSheet("border-radius: 12px; border: 1px solid #3A3A3A;")
         preview_layout = QVBoxLayout(self.preview_card)
         preview_layout.setContentsMargins(12, 10, 12, 10)
@@ -678,7 +785,7 @@ class DMWallpaperDialog(QDialog):
         btn_box.setSpacing(10)
 
         self.btn_select = QPushButton("📁 选择本地壁纸...")
-        self.btn_select.setCursor(Qt.PointingHandCursor)
+        self.btn_select.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_select.setStyleSheet("""
             QPushButton {
                 background-color: #69DB9B;
@@ -695,7 +802,7 @@ class DMWallpaperDialog(QDialog):
         btn_box.addWidget(self.btn_select)
 
         self.btn_clear = QPushButton("🗑️ 清除壁纸")
-        self.btn_clear.setCursor(Qt.PointingHandCursor)
+        self.btn_clear.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_clear.setStyleSheet("""
             QPushButton {
                 background-color: rgba(239, 68, 68, 0.15);
@@ -715,25 +822,47 @@ class DMWallpaperDialog(QDialog):
         preview_layout.addLayout(btn_box)
         main_layout.addWidget(self.preview_card)
 
-        # 3. Parameters Adjustment Sliders
-        sliders_box = QVBoxLayout()
-        sliders_box.setSpacing(12)
+        # 2.5 Progress Feedback Card (New!)
+        self.progress_card = QFrame()
+        self.progress_card.setObjectName("ProgressCard")
+        self.progress_card.setFixedHeight(50)
+        progress_layout = QVBoxLayout(self.progress_card)
+        progress_layout.setContentsMargins(12, 6, 12, 6)
+        progress_layout.setSpacing(4)
 
-        # Blur slider (0-40)
-        self.slider_blur, self.val_blur = self._create_slider_row(
-            sliders_box, "毛玻璃模糊度 (0 ~ 40 px):", 0, 40, self._on_slider_changed
+        self.lbl_progress_status = QLabel("就绪")
+        self.lbl_progress_status.setStyleSheet("font-size: 11px; font-weight: 600; color: #69DB9B;")
+        progress_layout.addWidget(self.lbl_progress_status)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(6)
+        progress_layout.addWidget(self.progress_bar)
+
+        self.progress_card.setVisible(False)
+        main_layout.addWidget(self.progress_card)
+
+        # 3. Parameters Adjustment Sliders & SpinBoxes
+        sliders_box = QVBoxLayout()
+        sliders_box.setSpacing(10)
+
+        # Blur row (0-40)
+        self.slider_blur, self.spin_blur = self._create_slider_row(
+            sliders_box, "毛玻璃模糊度 (0 ~ 40 px):", 0, 40, " px"
         )
-        # Dark tint slider (20% - 95%)
-        self.slider_tint_dark, self.val_tint_dark = self._create_slider_row(
-            sliders_box, "深色遮罩浓度 (20% ~ 95%):", 20, 95, self._on_slider_changed
+        # Dark tint row (20% - 95%)
+        self.slider_tint_dark, self.spin_tint_dark = self._create_slider_row(
+            sliders_box, "深色遮罩浓度 (20% ~ 95%):", 20, 95, " %"
         )
-        # Light tint slider (20% - 95%)
-        self.slider_tint_light, self.val_tint_light = self._create_slider_row(
-            sliders_box, "浅色遮罩浓度 (20% ~ 95%):", 20, 95, self._on_slider_changed
+        # Light tint row (20% - 95%)
+        self.slider_tint_light, self.spin_tint_light = self._create_slider_row(
+            sliders_box, "浅色遮罩浓度 (20% ~ 95%):", 20, 95, " %"
         )
-        # Card opacity slider (50% - 100%)
-        self.slider_card, self.val_card = self._create_slider_row(
-            sliders_box, "卡片不透明度 (50% ~ 100%):", 50, 100, self._on_slider_changed
+        # Card opacity row (50% - 100%)
+        self.slider_card, self.spin_card = self._create_slider_row(
+            sliders_box, "卡片不透明度 (50% ~ 100%):", 50, 100, " %"
         )
         main_layout.addLayout(sliders_box)
 
@@ -741,8 +870,8 @@ class DMWallpaperDialog(QDialog):
         scope_group_box = QFrame()
         scope_group_box.setObjectName("ScopeBox")
         scope_layout = QVBoxLayout(scope_group_box)
-        scope_layout.setContentsMargins(12, 10, 12, 10)
-        scope_layout.setSpacing(6)
+        scope_layout.setContentsMargins(12, 8, 12, 8)
+        scope_layout.setSpacing(5)
 
         lbl_scope = QLabel("壁纸生效范围：")
         lbl_scope.setStyleSheet("font-size: 13px; font-weight: 700;")
@@ -760,18 +889,14 @@ class DMWallpaperDialog(QDialog):
         scope_layout.addWidget(self.radio_unified)
         scope_layout.addWidget(self.radio_main_only)
         scope_layout.addWidget(self.radio_per_app)
-        self.radio_unified.toggled.connect(self._on_scope_changed)
-        self.radio_main_only.toggled.connect(self._on_scope_changed)
-        self.radio_per_app.toggled.connect(self._on_scope_changed)
 
         main_layout.addWidget(scope_group_box)
-
         main_layout.addStretch()
 
         # 5. Bottom Buttons
         bottom_bar = QHBoxLayout()
         self.btn_restore = QPushButton("🔄 一键恢复默认")
-        self.btn_restore.setCursor(Qt.PointingHandCursor)
+        self.btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_restore.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
@@ -789,7 +914,7 @@ class DMWallpaperDialog(QDialog):
 
         self.btn_ok = QPushButton("完成")
         self.btn_ok.setFixedSize(90, 32)
-        self.btn_ok.setCursor(Qt.PointingHandCursor)
+        self.btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ok.setStyleSheet("""
             QPushButton {
                 background-color: #2F8F5B;
@@ -801,27 +926,32 @@ class DMWallpaperDialog(QDialog):
             }
             QPushButton:hover { background-color: #3E9E69; }
         """)
-        self.btn_ok.clicked.connect(self.accept)
+        self.btn_ok.clicked.connect(self._apply_and_close)
         bottom_bar.addWidget(self.btn_ok)
         main_layout.addLayout(bottom_bar)
 
-    def _create_slider_row(self, parent_layout, label_text: str, min_v: int, max_v: int, slot):
+    def _create_slider_row(self, parent_layout, label_text: str, min_v: int, max_v: int, suffix: str):
         row = QVBoxLayout()
         row.setSpacing(4)
         top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+
         lbl = QLabel(label_text)
         lbl.setStyleSheet("font-size: 12px; font-weight: 600;")
         top.addWidget(lbl)
         top.addStretch()
-        val_lbl = QLabel(f"{min_v}")
-        val_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #69DB9B;")
-        top.addWidget(val_lbl)
+
+        spin = QSpinBox()
+        spin.setRange(min_v, max_v)
+        spin.setSuffix(suffix)
+        spin.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        spin.setCursor(Qt.CursorShape.IBeamCursor)
+        top.addWidget(spin)
         row.addLayout(top)
 
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(min_v, max_v)
-        slider.setCursor(Qt.PointingHandCursor)
-        slider.valueChanged.connect(slot)
+        slider.setCursor(Qt.CursorShape.PointingHandCursor)
         slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 height: 6px;
@@ -844,12 +974,29 @@ class DMWallpaperDialog(QDialog):
                 background: #83E7B0;
             }
         """)
+
+        # Bi-directional sync without feedback loop (instant zero-lag response)
+        def on_slider_val(v):
+            if spin.value() != v:
+                spin.blockSignals(True)
+                spin.setValue(v)
+                spin.blockSignals(False)
+
+        def on_spin_val(v):
+            if slider.value() != v:
+                slider.blockSignals(True)
+                slider.setValue(v)
+                slider.blockSignals(False)
+
+        slider.valueChanged.connect(on_slider_val)
+        spin.valueChanged.connect(on_spin_val)
+
         row.addWidget(slider)
         parent_layout.addLayout(row)
-        return slider, val_lbl
+        return slider, spin
 
     def _load_config_to_ui(self):
-        cfg = self.config
+        cfg = self.draft_config
         enabled = cfg.get("enabled", False)
         cached_path = resolve_cached_image_path(cfg.get("cached_image_path", ""))
 
@@ -863,22 +1010,22 @@ class DMWallpaperDialog(QDialog):
             self.lbl_preview_path.setText("点击下方按钮导入 PNG / JPG / WEBP / BMP / JXR 壁纸")
             self.btn_clear.setEnabled(False)
 
-        # Set sliders
-        blur = int(cfg.get("blur_radius", 15))
+        # Set sliders & spinboxes
+        blur = int(cfg.get("blur_radius", 18))
         self.slider_blur.setValue(blur)
-        self.val_blur.setText(f"{blur} px")
+        self.spin_blur.setValue(blur)
 
-        td = int(cfg.get("tint_opacity_dark", 0.68) * 100)
+        td = int(cfg.get("tint_opacity_dark", 0.76) * 100)
         self.slider_tint_dark.setValue(td)
-        self.val_tint_dark.setText(f"{td}%")
+        self.spin_tint_dark.setValue(td)
 
-        tl = int(cfg.get("tint_opacity_light", 0.72) * 100)
+        tl = int(cfg.get("tint_opacity_light", 0.80) * 100)
         self.slider_tint_light.setValue(tl)
-        self.val_tint_light.setText(f"{tl}%")
+        self.spin_tint_light.setValue(tl)
 
-        co = int(cfg.get("card_opacity", 0.80) * 100)
+        co = int(cfg.get("card_opacity", 0.86) * 100)
         self.slider_card.setValue(co)
-        self.val_card.setText(f"{co}%")
+        self.spin_card.setValue(co)
 
         # Set scope
         scope = cfg.get("sync_mode", "unified")
@@ -894,6 +1041,7 @@ class DMWallpaperDialog(QDialog):
         border = "#3A3D45" if self.is_dark else "#E2E8F0"
         card_bg = "#2D3036" if self.is_dark else "#FFFFFF"
         text_c = "#E8E8E8" if self.is_dark else "#1E293B"
+        spin_c = "#69DB9B" if self.is_dark else "#2F8F5B"
 
         self.container.setStyleSheet(f"""
             QFrame#DialogContainer {{
@@ -908,6 +1056,54 @@ class DMWallpaperDialog(QDialog):
                 background-color: {card_bg};
                 border: 1px solid {border};
                 border-radius: 10px;
+            }}
+            QFrame#ProgressCard {{
+                background-color: {card_bg};
+                border: 1px solid {border};
+                border-radius: 8px;
+            }}
+            QProgressBar {{
+                background-color: {"#1A1C1E" if self.is_dark else "#E2E8F0"};
+                border: none;
+                border-radius: 3px;
+                height: 6px;
+            }}
+            QProgressBar::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2F8F5B, stop:1 #69DB9B);
+                border-radius: 3px;
+            }}
+            QSpinBox {{
+                background-color: {card_bg};
+                color: {spin_c};
+                font-size: 13px;
+                font-weight: 700;
+                border: 1px solid {border};
+                border-radius: 6px;
+                padding: 2px 20px 2px 8px;
+                min-width: 80px;
+                max-width: 90px;
+            }}
+            QSpinBox::up-button {{
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 18px;
+                background: transparent;
+                border-left: 1px solid {border};
+                border-top-right-radius: 6px;
+            }}
+            QSpinBox::down-button {{
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 18px;
+                background: transparent;
+                border-left: 1px solid {border};
+                border-bottom-right-radius: 6px;
+            }}
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+                background-color: rgba(105, 219, 155, 0.2);
+            }}
+            QSpinBox:hover, QSpinBox:focus {{
+                border: 1px solid {spin_c};
             }}
             QRadioButton {{
                 color: {text_c};
@@ -927,68 +1123,120 @@ class DMWallpaperDialog(QDialog):
             return
 
         blur_val = self.slider_blur.value()
-        ok, msg, res = process_and_cache_wallpaper(file_path, blur_radius=blur_val)
+
+        # Show progress card & state
+        self.progress_card.setVisible(True)
+        self.progress_bar.setValue(10)
+        self.lbl_progress_status.setText("正在分析图片源文件...")
+        self.btn_select.setEnabled(False)
+        self.btn_clear.setEnabled(False)
+        self.btn_ok.setEnabled(False)
+
+        self._import_worker = WallpaperImportWorker(file_path, blur_radius=blur_val)
+        self._import_worker.progress.connect(self._on_import_progress)
+        self._import_worker.finished.connect(self._on_import_finished)
+        self._import_worker.start()
+
+    def _on_import_progress(self, pct: int, msg: str):
+        self.progress_bar.setValue(pct)
+        self.lbl_progress_status.setText(msg)
+
+    def _on_import_finished(self, ok: bool, msg: str, res: dict):
+        self.btn_select.setEnabled(True)
+        self.btn_ok.setEnabled(True)
+
         if not ok:
+            self.progress_bar.setValue(0)
+            self.lbl_progress_status.setText(f"导入失败: {msg}")
             QMessageBox.warning(self, "导入壁纸失败", msg)
             return
 
-        self.config["enabled"] = True
-        self.config["source_hash"] = res["source_hash"]
-        self.config["source_path"] = res["source_path"]
-        self.config["cached_image_path"] = res["cached_image_path"]
-        self.config["blur_radius"] = blur_val
+        self.draft_config["enabled"] = True
+        self.draft_config["source_hash"] = res["source_hash"]
+        self.draft_config["source_path"] = res["source_path"]
+        self.draft_config["cached_image_path"] = res["cached_image_path"]
+        self.draft_config["blur_radius"] = self.slider_blur.value()
 
-        save_wallpaper_config(self.config, self.subapp_id)
-        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
-        self._load_config_to_ui()
+        self.lbl_preview_info.setText("✅ 已选择新壁纸（待应用）")
+        src_name = Path(res.get("source_path", "本地壁纸")).name or "本地壁纸"
+        cached_name = Path(res.get("cached_image_path", "")).name
+        self.lbl_preview_path.setText(f"来源: {src_name} ({cached_name})")
+        self.btn_clear.setEnabled(True)
+
+        self.progress_bar.setValue(100)
+        self.lbl_progress_status.setText("✅ 壁纸解析完成！可调整参数，点击右下角「完成」应用生效")
 
     def _clear_wallpaper(self):
-        self.config["enabled"] = False
-        save_wallpaper_config(self.config, self.subapp_id)
-        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
-        self._load_config_to_ui()
-
-    def _on_slider_changed(self):
-        blur = self.slider_blur.value()
-        self.val_blur.setText(f"{blur} px")
-        self.val_tint_dark.setText(f"{self.slider_tint_dark.value()}%")
-        self.val_tint_light.setText(f"{self.slider_tint_light.value()}%")
-        self.val_card.setText(f"{self.slider_card.value()}%")
-
-        self.config["blur_radius"] = blur
-        self.config["tint_opacity_dark"] = round(self.slider_tint_dark.value() / 100.0, 2)
-        self.config["tint_opacity_light"] = round(self.slider_tint_light.value() / 100.0, 2)
-        self.config["card_opacity"] = round(self.slider_card.value() / 100.0, 2)
-
-        # Trigger debounced blur re-generation and preview update
-        self._debounce_timer.start()
-
-    def _on_debounce_update(self):
-        if self.config.get("enabled") and self.config.get("source_hash"):
-            blur = self.config.get("blur_radius", 15)
-            new_path = generate_blur_from_cache(self.config["source_hash"], blur)
-            if new_path:
-                self.config["cached_image_path"] = str(new_path)
-
-        save_wallpaper_config(self.config, self.subapp_id)
-        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
-
-    def _on_scope_changed(self):
-        if self.radio_unified.isChecked():
-            self.config["sync_mode"] = "unified"
-        elif self.radio_main_only.isChecked():
-            self.config["sync_mode"] = "main_only"
-        elif self.radio_per_app.isChecked():
-            self.config["sync_mode"] = "per_app"
-
-        save_wallpaper_config(self.config, self.subapp_id)
-        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
+        self.draft_config["enabled"] = False
+        self.lbl_preview_info.setText("⚪ 已标记清除壁纸（点击右下角「完成」应用生效）")
+        self.lbl_preview_path.setText("保存后将恢复为纯色主题背景")
+        self.btn_clear.setEnabled(False)
+        self.progress_card.setVisible(True)
+        self.progress_bar.setValue(100)
+        self.lbl_progress_status.setText("已关闭壁纸，请点击「完成」应用生效")
 
     def _restore_defaults(self):
-        self.config = json.loads(json.dumps(DEFAULT_WALLPAPER_CONFIG))
-        save_wallpaper_config(self.config, self.subapp_id)
-        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
+        self.draft_config = json.loads(json.dumps(DEFAULT_WALLPAPER_CONFIG))
         self._load_config_to_ui()
+        self.progress_card.setVisible(True)
+        self.progress_bar.setValue(100)
+        self.lbl_progress_status.setText("已恢复为默认预设，请点击「完成」应用生效")
+
+    def _apply_and_close(self):
+        self.btn_ok.setEnabled(False)
+        self.btn_select.setEnabled(False)
+        self.btn_clear.setEnabled(False)
+
+        blur_val = self.slider_blur.value()
+        tint_dark_val = round(self.slider_tint_dark.value() / 100.0, 2)
+        tint_light_val = round(self.slider_tint_light.value() / 100.0, 2)
+        card_op_val = round(self.slider_card.value() / 100.0, 2)
+
+        self.draft_config["blur_radius"] = blur_val
+        self.draft_config["tint_opacity_dark"] = tint_dark_val
+        self.draft_config["tint_opacity_light"] = tint_light_val
+        self.draft_config["card_opacity"] = card_op_val
+
+        if self.radio_unified.isChecked():
+            self.draft_config["sync_mode"] = "unified"
+        elif self.radio_main_only.isChecked():
+            self.draft_config["sync_mode"] = "main_only"
+        elif self.radio_per_app.isChecked():
+            self.draft_config["sync_mode"] = "per_app"
+
+        # If enabled and has source_hash, ensure blurred file exists
+        if self.draft_config.get("enabled") and self.draft_config.get("source_hash"):
+            source_hash = self.draft_config["source_hash"]
+            target_blur_file = WALLPAPERS_CACHE_DIR / f"bg_{source_hash}_blur{blur_val}.png"
+            if not target_blur_file.exists():
+                self.progress_card.setVisible(True)
+                self.progress_bar.setValue(40)
+                self.lbl_progress_status.setText(f"正在生成 {blur_val}px 毛玻璃预渲染...")
+                QApplication.processEvents()
+
+                new_path = generate_blur_from_cache(source_hash, blur_val)
+                if new_path:
+                    self.draft_config["cached_image_path"] = str(new_path)
+            else:
+                self.draft_config["cached_image_path"] = str(target_blur_file)
+
+        self.progress_card.setVisible(True)
+        self.progress_bar.setValue(85)
+        self.lbl_progress_status.setText("正在保存配置并同步到所有窗口...")
+        QApplication.processEvents()
+
+        # Save configuration
+        self.config = json.loads(json.dumps(self.draft_config))
+        save_wallpaper_config(self.config, self.subapp_id)
+
+        # Notify all windows
+        GLOBAL_WALLPAPER_NOTIFIER.wallpaper_changed.emit(self.subapp_id)
+
+        self.progress_bar.setValue(100)
+        self.lbl_progress_status.setText("✅ 应用成功！")
+        QApplication.processEvents()
+
+        QTimer.singleShot(200, self.accept)
 
 
 def main():

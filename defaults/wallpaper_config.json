@@ -1,0 +1,38 @@
+{
+  "enabled": true,
+  "sync_mode": "unified",
+  "source_hash": "1d529e28b4d9",
+  "source_path": "默认壁纸",
+  "cached_image_path": "%APPDATA%\\ToolboxMaster\\cache\\wallpapers\\bg_1d529e28b4d9_blur2.png",
+  "blur_radius": 2,
+  "tint_opacity_dark": 0.2,
+  "tint_opacity_light": 0.2,
+  "card_opacity": 0.5,
+  "scale_mode": "aspect_fill",
+  "subapp_overrides": {
+    "hardware_master": {
+      "enabled": true,
+      "cached_image_path": ""
+    },
+    "dlss_mfg": {
+      "enabled": true,
+      "cached_image_path": ""
+    },
+    "auto_hdr": {
+      "enabled": true,
+      "cached_image_path": ""
+    },
+    "upscale_hud": {
+      "enabled": true,
+      "cached_image_path": ""
+    },
+    "jxr_converter": {
+      "enabled": true,
+      "cached_image_path": ""
+    },
+    "dlss5_injector": {
+      "enabled": true,
+      "cached_image_path": ""
+    }
+  }
+}
