@@ -244,6 +244,38 @@ def test_6_clean_and_rollback():
     print("  -> Rollback and state cleaning verified successfully!")
 
 
+def test_7_preset_and_guide_dialogs_mode_c():
+    print("[TEST 7] Testing Preset & Guide Dialogs for Mode C...")
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(sys.argv)
+
+    from gui_qt import OptiScalerPresetDialog, ModernTranslationGuideDialog
+
+    # 1. Test OptiScalerPresetDialog defaults and initial_modes
+    dlg_def = OptiScalerPresetDialog()
+    assert dlg_def.stacked_widget.count() == 3, f"Expected 3 tabs in preset dialog, got {dlg_def.stacked_widget.count()}"
+    assert hasattr(dlg_def, "combo_sm86_mult"), "Mode C combo_sm86_mult missing in preset dialog"
+    assert hasattr(dlg_def, "combo_sm86_opt"), "Mode C combo_sm86_opt missing in preset dialog"
+    assert hasattr(dlg_def, "combo_sm86_preset"), "Mode C combo_sm86_preset missing in preset dialog"
+    assert hasattr(dlg_def, "combo_sm86_engine"), "Mode C combo_sm86_engine missing in preset dialog"
+    assert hasattr(dlg_def, "combo_sm86_sr"), "Mode C combo_sm86_sr missing in preset dialog"
+    assert hasattr(dlg_def, "combo_sm86_proxy"), "Mode C combo_sm86_proxy missing in preset dialog"
+
+    dlg_a = OptiScalerPresetDialog(initial_mode="A")
+    assert dlg_a.stacked_widget.currentIndex() == 0, f"Expected tab 0 for Mode A, got {dlg_a.stacked_widget.currentIndex()}"
+
+    dlg_b = OptiScalerPresetDialog(initial_mode="B")
+    assert dlg_b.stacked_widget.currentIndex() == 1, f"Expected tab 1 for Mode B, got {dlg_b.stacked_widget.currentIndex()}"
+
+    dlg_c = OptiScalerPresetDialog(initial_mode="C")
+    assert dlg_c.stacked_widget.currentIndex() == 2, f"Expected tab 2 for Mode C, got {dlg_c.stacked_widget.currentIndex()}"
+
+    # 2. Test ModernTranslationGuideDialog tabs
+    dlg_guide = ModernTranslationGuideDialog()
+    assert dlg_guide.tabs.count() == 3, f"Expected 3 tabs in guide dialog, got {dlg_guide.tabs.count()}"
+    print("  -> OptiScalerPresetDialog and ModernTranslationGuideDialog verified successfully!")
+
+
 if __name__ == "__main__":
     print("=== Running v1.3.30 Mode C (dlssg_for_sm86) Verification Suite ===")
     test_1_embedded_assets_and_updater()
@@ -252,4 +284,5 @@ if __name__ == "__main__":
     test_4_ini_sync_and_preset()
     test_5_dlss5_coexistence_and_sr_off()
     test_6_clean_and_rollback()
-    print("=== ALL 6 TESTS PASSED SUCCESSFULLY! ===")
+    test_7_preset_and_guide_dialogs_mode_c()
+    print("=== ALL 7 TESTS PASSED SUCCESSFULLY! ===")

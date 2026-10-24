@@ -385,6 +385,60 @@ class ModernTranslationGuideDialog(QDialog):
         """
         return self._create_browser(html, is_dark)
 
+    def _create_dlssg_sm86_tab(self, is_dark: bool) -> QWidget:
+        td_border = '#3A3A3A' if is_dark else '#D4D4D4'
+        th_bg = '#2A2B2C' if is_dark else '#E5E5E5'
+        badge_orange = '<span style="background-color: #ea580c; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">原生 DLSS-G</span>'
+        html = f"""
+        <div style="line-height: 1.6; font-size: 13px;">
+            <h3 style="color: #ea580c; margin-top: 0;">🔥 模式 C · dlssg_for_sm86 原生插帧（RTX 20/30 系显卡首选推荐）</h3>
+            <p><b>适用显卡</b>：专为 <b>NVIDIA GeForce RTX 20 系列 (Turing) 与 RTX 30 系列 (Ampere)</b> 显卡深度定制！</p>
+            <p><b>核心架构原理</b>：通过底层拦截 <code>NVSDK_NGX_D3D12_EvaluateFeature</code>，直接调用官方原生插帧内核与硬件 INT8/FP16 流水线加速。<b>完全不挂钩 SwapChain Present 交换链</b>，天生具备与 DLSS 5 (ReShade 6.8) 零冲突共存基因！</p>
+            <p><b>与 DLSS 5 完美共存优势</b>：</p>
+            <ul>
+                <li><b>独立物理槽位</b>：DLSS 5 独占 <code>dxgi.dll</code>，模式 C 代理运行于 <code>version.dll</code>，彼此独立互不干扰；</li>
+                <li><b>超分辨率让位</b>：模式 C 自动设置 <code>Mode=Off</code>，超分由 DLSS 5 神经网络全权重构，插帧由 dlssg_sm86 原生处理；</li>
+                <li><b>双通道畅玩</b>：进游戏同时开启【DirectX 12】、【DLSS 超分辨率】与【DLSS 帧生成】，画质与帧率瞬间双重飞跃！</li>
+            </ul>
+            <p><b>开启方式</b>：进入游戏【画质设置】，确保使用 DirectX 12 渲染模式，开启【DLSS 超分辨率】，并将【DLSS 帧生成】开关直接打开即可！</p>
+            <hr style="border: 0; border-top: 1px solid {td_border}; margin: 12px 0;">
+            <h4 style="color: #f97316; margin: 8px 0;">⚙️ 核心参数与调优说明（可在工具箱预设面板直接调整）</h4>
+            <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; border-color: {td_border}; font-size: 12px;">
+                <tr style="background-color: {th_bg}; font-weight: bold;">
+                    <th style="width: 25%; text-align: left;">参数项</th>
+                    <th style="width: 30%; text-align: left;">中文功能释义</th>
+                    <th style="text-align: left;">推荐设定与说明</th>
+                </tr>
+                <tr>
+                    <td><b>MaxGeneratedFrames</b></td>
+                    <td>插帧目标上限</td>
+                    <td>默认 <code>2</code> (2X 双倍帧率)；高刷显示器可尝试 <code>3</code> (3X) 或 <code>4</code> (4X)。</td>
+                </tr>
+                <tr>
+                    <td><b>Optimized</b></td>
+                    <td>硬件流水线优化级别</td>
+                    <td>默认 <code>2</code> (轻量硬件加速 · 平衡画质与极低延迟 · 官方推荐)；<code>1</code> 为严格保真，<code>3</code> 为超频极速。</td>
+                </tr>
+                <tr>
+                    <td><b>Preset</b></td>
+                    <td>DLSS-G 模型预设</td>
+                    <td>默认 <code>Auto</code> 或 <code>Default</code>；亦可选 <code>Model C</code> (FG Lite 极速多帧)。</td>
+                </tr>
+                <tr>
+                    <td><b>ProxyDll</b></td>
+                    <td>代理劫持文件</td>
+                    <td>默认 <code>version.dll</code> (完美避让 DLSS 5 的 <code>dxgi.dll</code>)。</td>
+                </tr>
+                <tr>
+                    <td><b>SuperResolution Mode</b></td>
+                    <td>超分辨率接管</td>
+                    <td>默认 <code>Off</code> (关闭超分接管，让位给游戏原生或 DLSS 5 神经重构)。</td>
+                </tr>
+            </table>
+        </div>
+        """
+        return self._create_browser(html, is_dark)
+
 
 class ModernRHIGuideDialog(QDialog):
     """
@@ -797,36 +851,36 @@ class OptiScalerPresetDialog(QDialog):
             cb_str = str(cb_data.value if hasattr(cb_data, "value") else cb_data).lower()
             if "standalone" in cb_str or "dashdogy" in cb_str:
                 raw_mode = "A"
+            elif "optiscaler" in cb_str or "fsr" in cb_str or "xess" in cb_str:
+                raw_mode = "B"
+            elif "dlssg" in cb_str or "sm86" in cb_str:
+                raw_mode = "C"
             elif "reshade" in cb_str or "mavis" in cb_str:
                 raw_mode = "B"
-            elif "optiscaler" in cb_str or "fsr" in cb_str or "xess" in cb_str:
-                raw_mode = "C"
 
         if not raw_mode and self.game:
             if self.game.patched_backend:
                 pb = str(self.game.patched_backend).lower()
                 if "standalone" in pb or "dashdogy" in pb:
                     raw_mode = "A"
-                elif "reshade" in pb or "mavis" in pb:
-                    raw_mode = "B"
                 elif "optiscaler" in pb or "fsr" in pb or "xess" in pb:
+                    raw_mode = "B"
+                elif "dlssg" in pb or "sm86" in pb:
                     raw_mode = "C"
             elif self.game.target_dir:
                 td = Path(self.game.target_dir)
-                if (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
+                if (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
                     raw_mode = "C"
-                elif (td / "renodx-mfgunlock.addon64").exists() or (td / "ReShade.ini").exists():
+                elif (td / "OptiScaler.ini").exists() or (td / "nvngx.ini").exists():
                     raw_mode = "B"
                 elif (td / "RTXMFG-UI.ini").exists() or (td / "mfg_unlocker.ini").exists():
                     raw_mode = "A"
 
         mode_upper = str(raw_mode or "A").upper().strip()
-        if any(k in mode_upper for k in ["SM86", "DLSSG"]):
+        if any(k in mode_upper for k in ["SM86", "DLSSG", "C"]):
             target_idx = 2
         elif any(k in mode_upper for k in ["OPTISCALER", "XESS", "FSR", "B"]):
             target_idx = 1
-        elif "C" in mode_upper:
-            target_idx = 2
         else:
             target_idx = 0
 
@@ -1858,6 +1912,228 @@ class OptiScalerPresetDialog(QDialog):
             }}
         """
 
+    def _build_dlssg_sm86_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(12)
+
+        # Section 1: Core Frame Generation Settings
+        fg_card = QFrame()
+        fg_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 10px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        fg_layout = QVBoxLayout(fg_card)
+        fg_layout.setContentsMargins(14, 12, 14, 12)
+        fg_layout.setSpacing(10)
+
+        lbl_fg_sec = QLabel("🔥 dlssg_for_sm86 原生插帧 (RTX 20/30 系列首选) 核心设定")
+        lbl_fg_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#f97316' if is_dark else '#c2410c'};")
+        fg_layout.addWidget(lbl_fg_sec)
+
+        # Row 1: MaxGeneratedFrames / Multiplier
+        h_mult = QHBoxLayout()
+        lbl_mult = QLabel("插帧目标帧数上限:")
+        lbl_mult.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_mult.setFixedWidth(150)
+        h_mult.addWidget(lbl_mult)
+
+        self.combo_sm86_mult = QComboBox()
+        self.combo_sm86_mult.setMinimumHeight(36)
+        self.combo_sm86_mult.setMinimumWidth(280)
+        self.combo_sm86_mult.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_mult.addItem("2X 双倍帧率 (标准平滑 · 生成 1 帧 · 推荐 60Hz~144Hz) [默认推荐]", 2)
+        self.combo_sm86_mult.addItem("3X 三倍帧率 (高刷电竞 · 生成 2 帧 · 推荐 165Hz~240Hz)", 3)
+        self.combo_sm86_mult.addItem("4X 四倍帧率 (超高刷极速 · 生成 3 帧 · 推荐 240Hz+)", 4)
+        self.combo_sm86_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_mult.addWidget(self.combo_sm86_mult, 1)
+        fg_layout.addLayout(h_mult)
+
+        # Row 2: Optimized Pipeline Level
+        h_opt = QHBoxLayout()
+        lbl_opt = QLabel("硬件流水线优化等级:")
+        lbl_opt.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_opt.setFixedWidth(150)
+        h_opt.addWidget(lbl_opt)
+
+        self.combo_sm86_opt = QComboBox()
+        self.combo_sm86_opt.setMinimumHeight(36)
+        self.combo_sm86_opt.setMinimumWidth(280)
+        self.combo_sm86_opt.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_opt.addItem("2: 轻量硬件加速 (平衡画质与极低延迟 · 官方推荐) [默认]", 2)
+        self.combo_sm86_opt.addItem("1: 严格精确模式 (标准渲染流水线 · 绝对保真)", 1)
+        self.combo_sm86_opt.addItem("3: 激进超频加速 (最大化帧率释放 · 极速响应)", 3)
+        self.combo_sm86_opt.addItem("0: 关闭额外加速 (纯原生直通模式)", 0)
+        self.combo_sm86_opt.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_opt.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_opt.addWidget(self.combo_sm86_opt, 1)
+        fg_layout.addLayout(h_opt)
+
+        # Row 3: DLSSG Preset Model
+        h_preset = QHBoxLayout()
+        lbl_preset = QLabel("DLSS-G 帧生成模型预设:")
+        lbl_preset.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_preset.setFixedWidth(150)
+        h_preset.addWidget(lbl_preset)
+
+        self.combo_sm86_preset = QComboBox()
+        self.combo_sm86_preset.setMinimumHeight(36)
+        self.combo_sm86_preset.setMinimumWidth(280)
+        self.combo_sm86_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_preset.addItem("Auto (跟随游戏或驱动默认设置) [推荐]", "Auto")
+        self.combo_sm86_preset.addItem("Default (官方原生标准帧生成模型)", "Default")
+        self.combo_sm86_preset.addItem("Model C (FG Lite 极速多帧 · 推荐跟随 nvapp)", "C")
+        self.combo_sm86_preset.addItem("Model B (完整 UI 重构 · 原生标准默认)", "B")
+        self.combo_sm86_preset.addItem("Model A (早期模型 · 关闭 UI 重构)", "A")
+        self.combo_sm86_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_preset.addWidget(self.combo_sm86_preset, 1)
+        fg_layout.addLayout(h_preset)
+
+        # Row 4: Engine Selection
+        h_eng = QHBoxLayout()
+        lbl_eng = QLabel("插帧调度内核引擎:")
+        lbl_eng.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_eng.setFixedWidth(150)
+        h_eng.addWidget(lbl_eng)
+
+        self.combo_sm86_engine = QComboBox()
+        self.combo_sm86_engine.setMinimumHeight(36)
+        self.combo_sm86_engine.setMinimumWidth(280)
+        self.combo_sm86_engine.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_engine.addItem("Auto (全自动智能调度 · 优先 DLSS 原生内核) [默认推荐]", "Auto")
+        self.combo_sm86_engine.addItem("DLSS (强制调用 NVIDIA DLSS-G 官方帧生成内核)", "DLSS")
+        self.combo_sm86_engine.addItem("XeSS (桥接至 Intel XeSSFG 帧生成内核)", "XeSS")
+        self.combo_sm86_engine.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_engine.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_eng.addWidget(self.combo_sm86_engine, 1)
+        fg_layout.addLayout(h_eng)
+
+        layout.addWidget(fg_card)
+
+        # Section 2: DLSS 5 Coexistence & Advanced Options
+        coex_card = QFrame()
+        coex_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 10px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        coex_layout = QVBoxLayout(coex_card)
+        coex_layout.setContentsMargins(14, 12, 14, 12)
+        coex_layout.setSpacing(10)
+
+        lbl_coex_sec = QLabel("🛡️ DLSS 5 协同隔离与高级运行时配置")
+        lbl_coex_sec.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#7ED9A2' if is_dark else '#2F8F5B'};")
+        coex_layout.addWidget(lbl_coex_sec)
+
+        # Row 5: SuperResolution Mode
+        h_sr = QHBoxLayout()
+        lbl_sr = QLabel("超分辨率托管模式:")
+        lbl_sr.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_sr.setFixedWidth(150)
+        h_sr.addWidget(lbl_sr)
+
+        self.combo_sm86_sr = QComboBox()
+        self.combo_sm86_sr.setMinimumHeight(36)
+        self.combo_sm86_sr.setMinimumWidth(280)
+        self.combo_sm86_sr.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_sr.addItem("Off (关闭超分接管 · 让位 DLSS 5 神经重构或游戏原生) [完美共存推荐]", "Off")
+        self.combo_sm86_sr.addItem("On (开启自带超分内核 · 独立运行时可选)", "On")
+        self.combo_sm86_sr.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_sr.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_sr.addWidget(self.combo_sm86_sr, 1)
+        coex_layout.addLayout(h_sr)
+
+        # Row 6: Proxy DLL Slot
+        h_proxy = QHBoxLayout()
+        lbl_proxy = QLabel("代理 DLL 注入槽位:")
+        lbl_proxy.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_proxy.setFixedWidth(150)
+        h_proxy.addWidget(lbl_proxy)
+
+        self.combo_sm86_proxy = QComboBox()
+        self.combo_sm86_proxy.setMinimumHeight(36)
+        self.combo_sm86_proxy.setMinimumWidth(280)
+        self.combo_sm86_proxy.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_proxy.addItem("version.dll (标准系统代理 · 完美避让 DLSS 5 dxgi.dll) [推荐]", "version.dll")
+        self.combo_sm86_proxy.addItem("winmm.dll (多媒体库代理 · 广泛兼容性)", "winmm.dll")
+        self.combo_sm86_proxy.addItem("dbghelp.dll (调试库代理 · 备选方案)", "dbghelp.dll")
+        self.combo_sm86_proxy.addItem("dinput8.dll (DirectInput 代理 · 备选方案)", "dinput8.dll")
+        self.combo_sm86_proxy.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_proxy.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_proxy.addWidget(self.combo_sm86_proxy, 1)
+        coex_layout.addLayout(h_proxy)
+
+        # Row 7: Logging Level
+        h_log = QHBoxLayout()
+        lbl_log = QLabel("运行日志输出级别:")
+        lbl_log.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_log.setFixedWidth(150)
+        h_log.addWidget(lbl_log)
+
+        self.combo_sm86_log = QComboBox()
+        self.combo_sm86_log.setMinimumHeight(36)
+        self.combo_sm86_log.setMinimumWidth(280)
+        self.combo_sm86_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_sm86_log.addItem("2: 状态与警告 (精简模式 · 零性能损耗) [默认推荐]", 2)
+        self.combo_sm86_log.addItem("1: 完整诊断 (捕获所有加载与 API 挂钩细节)", 1)
+        self.combo_sm86_log.addItem("0: 完全静默 (关闭所有磁盘日志写入)", 0)
+        self.combo_sm86_log.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_sm86_log.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_log.addWidget(self.combo_sm86_log, 1)
+        coex_layout.addLayout(h_log)
+
+        # Notice Card
+        notice_box = QFrame()
+        notice_box.setStyleSheet(f"""
+            QFrame {{
+                background-color: {'#064e3b22' if is_dark else '#f0fdf4'};
+                border: 1px solid {'#059669' if is_dark else '#86efac'};
+                border-radius: 8px;
+                padding: 10px 12px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        nb_layout = QVBoxLayout(notice_box)
+        nb_layout.setContentsMargins(6, 4, 6, 4)
+        nb_layout.setSpacing(4)
+
+        lbl_nb_title = QLabel("💡【RTX 20/30 系 + DLSS 5 神经重构双通道协同指南】")
+        lbl_nb_title.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {'#34d399' if is_dark else '#15803d'};")
+        nb_layout.addWidget(lbl_nb_title)
+
+        lbl_nb_desc = QLabel(
+            "• <b>双通道物理隔离</b>：DLSS 5 独占 dxgi.dll（ReShade 6.8 渲染底座），dlssg_for_sm86 代理运行于独立通道 (version.dll)；<br>"
+            "• <b>超分独享让位</b>：超分辨率模式建议保持 Off，由 DLSS 5 神经网络全权重构高精画质，插帧由 dlssg_sm86 负责；<br>"
+            "• <b>进游戏使用方法</b>：同时开启游戏画质菜单内的【DLSS 超分辨率】与【DLSS 帧生成】，零冲突畅享神经重构 + 原生插帧！"
+        )
+        lbl_nb_desc.setStyleSheet(f"font-size: 11px; color: {text_color}; line-height: 1.4;")
+        lbl_nb_desc.setWordWrap(True)
+        nb_layout.addWidget(lbl_nb_desc)
+        coex_layout.addWidget(notice_box)
+
+        layout.addWidget(coex_card)
+        layout.addStretch()
+        return tab
+
     def _sync_values_to_ui(self):
         # 0. Mode A
         a_mult = int(self.preset_a.get("multiplier", 3))
@@ -1975,6 +2251,43 @@ class OptiScalerPresetDialog(QDialog):
         self.lbl_sharp_val.setText(f"{val/100.0:.2f}")
 
         self._on_fg_out_changed()
+
+        # 3. Mode C (dlssg_for_sm86)
+        if hasattr(self, "combo_sm86_mult"):
+            sm86_mult = int(self.preset_sm86.get("max_generated_frames", 2))
+            idx_sm = self.combo_sm86_mult.findData(sm86_mult)
+            if idx_sm >= 0:
+                self.combo_sm86_mult.setCurrentIndex(idx_sm)
+
+            sm86_opt = int(self.preset_sm86.get("optimized", 2))
+            idx_so = self.combo_sm86_opt.findData(sm86_opt)
+            if idx_so >= 0:
+                self.combo_sm86_opt.setCurrentIndex(idx_so)
+
+            sm86_preset = str(self.preset_sm86.get("dlssg_preset", "Default"))
+            idx_sp = self.combo_sm86_preset.findData(sm86_preset)
+            if idx_sp >= 0:
+                self.combo_sm86_preset.setCurrentIndex(idx_sp)
+
+            sm86_eng = str(self.preset_sm86.get("engine", "Auto"))
+            idx_se = self.combo_sm86_engine.findData(sm86_eng)
+            if idx_se >= 0:
+                self.combo_sm86_engine.setCurrentIndex(idx_se)
+
+            sm86_sr = str(self.preset_sm86.get("super_resolution_mode", "Off"))
+            idx_sr = self.combo_sm86_sr.findData(sm86_sr)
+            if idx_sr >= 0:
+                self.combo_sm86_sr.setCurrentIndex(idx_sr)
+
+            sm86_proxy = str(self.preset_sm86.get("proxy_dll", "version.dll"))
+            idx_spr = self.combo_sm86_proxy.findData(sm86_proxy)
+            if idx_spr >= 0:
+                self.combo_sm86_proxy.setCurrentIndex(idx_spr)
+
+            sm86_log = int(self.preset_sm86.get("logging_level", 2))
+            idx_sl = self.combo_sm86_log.findData(sm86_log)
+            if idx_sl >= 0:
+                self.combo_sm86_log.setCurrentIndex(idx_sl)
 
 
 
@@ -3137,7 +3450,7 @@ class ModernMFGGUI(QMainWindow):
         brand_vbox.setSpacing(1)
         lbl_b1 = QLabel("MFG Master")
         lbl_b1.setStyleSheet("font-size: 15px; font-weight: bold;")
-        lbl_b2 = QLabel("插帧双引擎管理器")
+        lbl_b2 = QLabel("插帧多引擎管理器")
         lbl_b2.setStyleSheet("font-size: 11px; color: #64748b;")
         brand_vbox.addWidget(lbl_b1)
         brand_vbox.addWidget(lbl_b2)
@@ -3416,7 +3729,7 @@ class ModernMFGGUI(QMainWindow):
         grid.addWidget(card1, 0, 0)
 
         # Card 2: 插帧引擎模式
-        card2 = self._create_card("⚙️", "#F5F5F5", "#7e22ce", "插帧引擎后端定制", "dashdogy 原生多帧解锁器 (模式 A) / OptiScaler 跨架构转译 (模式 B)")
+        card2 = self._create_card("⚙️", "#F5F5F5", "#7e22ce", "插帧引擎后端定制", "dashdogy (模式 A) / OptiScaler (模式 B) / dlssg_for_sm86 (模式 C)")
         c2 = card2.layout()
         self.combo_backend = QComboBox()
         self.combo_backend.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -3824,13 +4137,13 @@ class ModernMFGGUI(QMainWindow):
         layout.setContentsMargins(28, 20, 28, 20)
         layout.setSpacing(16)
 
-        title = QLabel("插帧双引擎深度定制与高级参数 (模式 A · dashdogy & 模式 B · OptiScaler)")
+        title = QLabel("插帧三引擎深度定制与高级参数 (模式 A · dashdogy & 模式 B · OptiScaler & 模式 C · dlssg_for_sm86)")
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
-        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 原生多帧解锁器", "Universal 全架构通用版，原生支持 RTX 20/30/40/50 全系列显卡")
+        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 原生多帧解锁器", "Universal 全架构通用版，原生支持 RTX 40/50 全系列显卡")
         cs_layout = card_standalone.layout()
-        cs_layout.addWidget(QLabel("• 适用硬件: 全面支持 RTX 20、30、40、50 系列显卡，无架构黑名单锁死"))
+        cs_layout.addWidget(QLabel("• 适用硬件: 全面支持 RTX 40、50 系列显卡，无架构黑名单锁死"))
         cs_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (智能选取: winmm.dll > version.dll > dinput8.dll)"))
         cs_layout.addWidget(QLabel("• 交互菜单: 游戏内按 【Backspace】（退格键）呼出 ImGui 菜单，支持免重启切换 DLSS 预设"))
         cs_layout.addWidget(QLabel("• 多倍率支持: 支持 2X / 3X / 4X / 6X 以及 Dynamic MFG 动态插帧"))
@@ -3844,7 +4157,7 @@ class ModernMFGGUI(QMainWindow):
         cs_layout.addWidget(btn_page2_a_preset)
         layout.addWidget(card_standalone)
 
-        card_optiscaler = self._create_card("C", "#ffedd5", "#c2410c", "模式 B: OptiScaler / XeSS 2.0 / FSR 3.1 跨架构转译 (全显卡插帧)", "跨显卡转译方案，将原生 DLSS 3 转译为 Intel XeFG 或 AMD FSR 3.1 帧生成")
+        card_optiscaler = self._create_card("B", "#e0f2fe", "#0284c7", "模式 B: OptiScaler / XeSS 2.0 / FSR 3.1 跨架构转译 (全显卡插帧)", "跨显卡转译方案，将原生 DLSS 3 转译为 Intel XeFG 或 AMD FSR 3.1 帧生成")
         co_layout = card_optiscaler.layout()
         co_layout.addWidget(QLabel("• 核心原理: 将游戏内 DLSS 3 帧生成开关桥接至 Intel XeFG 或 AMD FSR 3.1 算力管线"))
         co_layout.addWidget(QLabel("• 多倍率支持: 原生支持 Intel XeSS 2.0 官方插帧 (2X/3X/4X) 与 FSR 3.1 (2X) 双重内核自由切换"))
@@ -3854,11 +4167,27 @@ class ModernMFGGUI(QMainWindow):
 
         btn_page2_preset = QPushButton("⚙️ 打开模式 B / OptiScaler 中文预设与倍率参数面板 →")
         btn_page2_preset.setProperty("class", "card-action-btn")
-        btn_page2_preset.setStyleSheet("color: #c2410c; font-weight: bold; font-size: 13px; margin-top: 6px;")
+        btn_page2_preset.setStyleSheet("color: #0284c7; font-weight: bold; font-size: 13px; margin-top: 6px;")
         btn_page2_preset.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_page2_preset.clicked.connect(lambda: self.on_open_preset_config_dialog(initial_mode="C"))
+        btn_page2_preset.clicked.connect(lambda: self.on_open_preset_config_dialog(initial_mode="B"))
         co_layout.addWidget(btn_page2_preset)
         layout.addWidget(card_optiscaler)
+
+        card_dlssg_sm86 = self._create_card("C", "#ffedd5", "#c2410c", "🔥 模式 C: dlssg_for_sm86 原生插帧 (RTX 20/30 系显卡首选推荐 · 完美共存 DLSS 5)", "专为 NVIDIA Turing (RTX 20XX) 与 Ampere (RTX 30XX) 深度研发的原生 DLSS-G 插帧核心")
+        csm_layout = card_dlssg_sm86.layout()
+        csm_layout.addWidget(QLabel("• 核心原理: 截获 NVSDK_NGX_D3D12_EvaluateFeature 并调用原生插帧内核，不劫持 SwapChain Present 呈现交换链"))
+        csm_layout.addWidget(QLabel("• 完美共存 DLSS 5: dxgi.dll 归属于 DLSS 5 底座，dlssg_sm86 代理运行于 version.dll，超分自动设为 Off 让位神经重构"))
+        csm_layout.addWidget(QLabel("• 硬件级流水线加速: 内置 0/1/2/3 级硬件流水线优化（Optimized），媲美 40 系的原生丝滑流畅体验"))
+        csm_layout.addWidget(QLabel("• 双向实时同步: 支持桌面 UI 调参即时同步至 dlssg_sm86.ini，文件修改后台自动反向刷新"))
+        csm_layout.addWidget(QLabel("• 进游戏指南: 开启游戏内【DirectX 12】并同时开启【DLSS 超分辨率】与【DLSS 帧生成】即刻畅玩"))
+
+        btn_page2_c_preset = QPushButton("⚙️ 打开模式 C / dlssg_for_sm86 中文预设与参数面板 →")
+        btn_page2_c_preset.setProperty("class", "card-action-btn")
+        btn_page2_c_preset.setStyleSheet("color: #c2410c; font-weight: bold; font-size: 13px; margin-top: 6px;")
+        btn_page2_c_preset.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_page2_c_preset.clicked.connect(lambda: self.on_open_preset_config_dialog(initial_mode="C"))
+        csm_layout.addWidget(btn_page2_c_preset)
+        layout.addWidget(card_dlssg_sm86)
 
         layout.addStretch()
         return self._wrap_scroll(page)
