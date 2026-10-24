@@ -229,37 +229,41 @@ class PatchEngine:
                         safe_force_remove(p_p)
 
         existing_files = {f.lower() for f in os.listdir(target_dir)}
+        from core.utils import get_system_gpu_name, is_rtx_20_or_30_series
+        gpu_name = get_system_gpu_name()
+        is_rtx20_30 = is_rtx_20_or_30_series(gpu_name)
+        should_use_bink = (prefer_bink_hook or is_rtx20_30 or has_dlss5) and "bink2w64.dll" in existing_files
 
-        if prefer_bink_hook and "bink2w64.dll" in existing_files:
-            # Bink hooked route
+        if should_use_bink:
+            # Bink hooked route (0ms early hook, optimal for RTX 20/30 series & perfect DLSS 5 coexistence)
             orig_bink = os.path.join(target_dir, "bink2w64.dll")
             hooked_bink = os.path.join(target_dir, "bink2w64Hooked.dll")
 
             # Rename original to bink2w64Hooked.dll
-            os.rename(orig_bink, hooked_bink)
-            manifest.renamed_backups.append({"original": "bink2w64.dll", "backup": "bink2w64Hooked.dll"})
+            if not os.path.exists(hooked_bink):
+                os.rename(orig_bink, hooked_bink)
+                manifest.renamed_backups.append({"original": "bink2w64.dll", "backup": "bink2w64Hooked.dll"})
 
             # Copy MFGUnlocker as bink2w64.dll
             shutil.copy2(source_dll, orig_bink)
             manifest.created_files.append("bink2w64.dll")
-            return True, ""
+        else:
+            # Mode A proxy slot: dynamically resolved based on PE imports (winmm > version)
+            selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.STANDALONE)
+            dest_proxy_path = os.path.join(target_dir, selected_proxy)
+            dm_backup_dir = os.path.join(target_dir, ".dm_backup")
+            os.makedirs(dm_backup_dir, exist_ok=True)
+            dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
 
-        # Mode A proxy slot: dynamically resolved based on PE imports (winmm > version)
-        selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.STANDALONE)
-        dest_proxy_path = os.path.join(target_dir, selected_proxy)
-        dm_backup_dir = os.path.join(target_dir, ".dm_backup")
-        os.makedirs(dm_backup_dir, exist_ok=True)
-        dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
-
-        if os.path.exists(dest_proxy_path):
-            if not os.path.exists(dm_proxy_bak) and not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path):
-                try:
-                    shutil.copy2(dest_proxy_path, dm_proxy_bak)
-                except Exception:
-                    pass
-            safe_force_remove(dest_proxy_path)
-        shutil.copy2(source_dll, dest_proxy_path)
-        manifest.created_files.append(selected_proxy)
+            if os.path.exists(dest_proxy_path):
+                if not os.path.exists(dm_proxy_bak) and not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path):
+                    try:
+                        shutil.copy2(dest_proxy_path, dm_proxy_bak)
+                    except Exception:
+                        pass
+                safe_force_remove(dest_proxy_path)
+            shutil.copy2(source_dll, dest_proxy_path)
+            manifest.created_files.append(selected_proxy)
 
         # If DLSS 5 is active in Mode A, ensure ReShade is deployed as dxgi.dll
         if has_dlss5:
@@ -370,7 +374,7 @@ class PatchEngine:
             return "dxgi.dll"
 
         imported = self._get_pe_imported_proxies(game.exe_path)
-        if "winmm.dll" in imported and "version.dll" not in imported:
+        if "winmm.dll" in imported:
             return "winmm.dll"
         if "version.dll" in imported:
             return "version.dll"

@@ -446,6 +446,27 @@ def is_rtx_40_or_newer(gpu_name: str) -> bool:
     return False
 
 
+def is_rtx_20_or_30_series(gpu_name: str) -> bool:
+    """
+    Check if GPU is NVIDIA RTX 20 or 30 series (Turing / Ampere architecture),
+    which lacks native 4th-gen Optical Flow Accelerator and requires special
+    GPU spoofing, Bink2 fast-hooking, or OptiScaler XeFG/FSR3 translation.
+    """
+    import re
+    if not gpu_name:
+        return False
+    name = gpu_name.upper()
+    if not any(k in name for k in ["NVIDIA", "GEFORCE", "RTX", "TITAN"]):
+        return False
+    if is_rtx_40_or_newer(name):
+        return False
+    if re.search(r"RTX\s*(20\d\d|30\d\d)", name) or re.search(r"RTX\s*A\d{4}", name) or "TITAN RTX" in name:
+        return True
+    if "RTX" in name:
+        return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Streamline Multi-Frame Generation Detection
 # ---------------------------------------------------------------------------

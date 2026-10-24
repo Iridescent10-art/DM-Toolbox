@@ -1316,6 +1316,10 @@ class IniConfigManager:
                 "OverlayMenu": "false" if has_dlss5_a else "true",
                 "EnableImGui": "0" if has_dlss5_a else "1",
                 "EnableUI": "0" if has_dlss5_a else "1"
+            },
+            "Compatibility": {
+                "GpuNameOverride": "1",
+                "Rtx30FlipMetering": "on"
             }
         }
 
@@ -1328,6 +1332,10 @@ class IniConfigManager:
                 "FirstLaunchMenuShown": "1",
                 "OverlayMenu": "false" if has_dlss5_a else "true",
                 "EnableImGui": "0" if has_dlss5_a else "1"
+            },
+            "Compatibility": {
+                "GpuNameOverride": "1",
+                "Rtx30FlipMetering": "on"
             }
         }
         ok3 = cls.write_ini_sections(target / "RTX40MFG-UI.ini", overlay_updates)

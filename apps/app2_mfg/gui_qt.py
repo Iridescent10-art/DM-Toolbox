@@ -65,7 +65,7 @@ from common.app_updater import MirrorSpeedTestWorker
 from core.patcher import PatchEngine
 from core.rollback import RollbackEngine
 from core.rhi_installer import RHIInstaller
-from core.utils import get_system_gpu_name, is_rtx_40_or_newer
+from core.utils import get_system_gpu_name, is_rtx_40_or_newer, is_rtx_20_or_30_series
 from core.ini_sync import IniConfigManager
 from core.optiscaler_config import (
     load_optiscaler_preset, save_optiscaler_preset,
@@ -3394,6 +3394,40 @@ class ModernMFGGUI(QMainWindow):
         self.lbl_backend_desc.setWordWrap(True)
         c2.addWidget(self.lbl_backend_desc)
 
+        # RTX 20/30 Series Dedicated Hardware Alert Card
+        self.card_rtx20_30_notice = QFrame()
+        self.card_rtx20_30_notice.setObjectName("CardRtx2030Notice")
+        self.card_rtx20_30_notice.setStyleSheet("""
+            QFrame#CardRtx2030Notice {
+                background: rgba(245, 158, 11, 0.12);
+                border: 1px solid rgba(245, 158, 11, 0.45);
+                border-radius: 8px;
+                padding: 6px;
+            }
+        """)
+        c_notice_layout = QVBoxLayout(self.card_rtx20_30_notice)
+        c_notice_layout.setContentsMargins(10, 8, 10, 8)
+        c_notice_layout.setSpacing(4)
+        
+        lbl_notice_title = QLabel("⚡ 硬件架构检测：NVIDIA RTX 20/30 系列显卡")
+        lbl_notice_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #f59e0b;")
+        c_notice_layout.addWidget(lbl_notice_title)
+
+        lbl_notice_body = QLabel(
+            "• 模式 A (dashdogy)：已为您自动启用 Bink2 链式挂载与 Ampere 流控补偿，0ms 无延迟秒挂载，并与 DLSS 5 (dxgi.dll) 完美双轨共存！\n"
+            "• 模式 B (OptiScaler)：如遇部分游戏反作弊拦截原生 DLSS-G，可随时一键切换为模式 B (XeFG/FSR 3.1 跨卡转译)。"
+        )
+        lbl_notice_body.setStyleSheet("font-size: 11px; color: #cbd5e1; line-height: 1.4;")
+        lbl_notice_body.setWordWrap(True)
+        c_notice_layout.addWidget(lbl_notice_body)
+        c2.addWidget(self.card_rtx20_30_notice)
+
+        # Update visibility based on current GPU
+        try:
+            self.card_rtx20_30_notice.setVisible(is_rtx_20_or_30_series(get_system_gpu_name()))
+        except Exception:
+            self.card_rtx20_30_notice.setVisible(False)
+
         # 1. Bink2 Chain Hook Card Container
         self.card_bink = QFrame()
         self.card_bink.setObjectName("CardBink")
@@ -4092,7 +4126,10 @@ class ModernMFGGUI(QMainWindow):
         else:
             gpu_name = get_system_gpu_name()
             gpu_upper = gpu_name.upper()
-            if any(k in gpu_upper for k in ["RTX", "GEFORCE RTX"]):
+            if is_rtx_20_or_30_series(gpu_name):
+                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 20/30 系列，推荐模式 A (自动启用 Bink2 链式挂载，与 DLSS 5 共存)，或切换模式 B 跨卡转译。")
+                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #f59e0b; font-weight: 600;")
+            elif any(k in gpu_upper for k in ["RTX", "GEFORCE RTX"]):
                 self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 显卡，已自动优选模式 A (Universal 多帧解锁器)")
                 self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
             else:
@@ -5355,6 +5392,13 @@ class ModernMFGGUI(QMainWindow):
             progress_dlg.set_progress(80, "正在注入补丁文件并写入版本清单...", "执行文件部署与安全备份")
             QApplication.processEvents()
 
+            gpu_name = get_system_gpu_name()
+            is_rtx20_30 = is_rtx_20_or_30_series(gpu_name)
+            if is_rtx20_30 and (backend == BackendType.STANDALONE or backend_str == "dashdogy"):
+                if self.selected_game and os.path.exists(os.path.join(self.selected_game.target_dir, "bink2w64.dll")):
+                    self.use_bink = True
+                    self.btn_bink_toggle.setText("⚙️ Bink2 链式劫持: 【已启用】(RTX 20/30 自适应) →")
+
             ok, msg = self.patcher.patch_game(self.selected_game, backend, prefer_bink_hook=self.use_bink)
 
             if ok:
@@ -5367,7 +5411,27 @@ class ModernMFGGUI(QMainWindow):
                 except Exception:
                     pass
 
+                if is_rtx20_30:
+                    msg += (
+                        "\n\n⚡ 【RTX 20/30 系列专属优化已就绪】\n"
+                        "• 已自动配置 Ampere/Turing 架构流控补偿 (Rtx30FlipMetering)；\n"
+                        "• 若游戏目录含 bink2w64.dll 已自动采用 Bink2 链式挂载 (0ms 秒级挂载)；\n"
+                        "• 本配置与 DLSS 5 (dxgi.dll) 完美双轨共存，互不干扰！"
+                    )
                 progress_dlg.finish(True, "补丁应用成功！", msg, auto_close_delay_ms=0)
+                if is_rtx20_30 and (backend == BackendType.STANDALONE or backend_str == "dashdogy"):
+                    try:
+                        ModernDialog.info(
+                            self,
+                            "RTX 20/30 系列专属优化提示",
+                            f"检测到当前运行在 NVIDIA RTX 20/30 系列显卡 ({gpu_name})：\n\n"
+                            "1. 已为您自动应用 Ampere/Turing 架构流控补偿与显卡伪装配置；\n"
+                            "2. 若游戏包含 bink2w64.dll，已自动启用 Bink2 链式挂载，实现 0ms 启动抢先接管，并与 DLSS 5 (dxgi.dll) 完美共存！\n"
+                            "3. 进入游戏后若遇到原生开关未开启，可在游戏内按 Backspace 键调节，或随时在工具箱中一键切换为【模式 B · OptiScaler 跨卡转译】运行。",
+                            self.is_dark_mode
+                        )
+                    except Exception:
+                        pass
                 self.selected_game.is_patched = True
                 self.selected_game.patched_backend = actual_backend
                 GameCacheManager.update_patch_state(
