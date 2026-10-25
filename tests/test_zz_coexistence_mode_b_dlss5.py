@@ -111,6 +111,10 @@ def test_adapt_mode_b_moves_proxy_and_writes_coexistence_contract(tmp_path):
     assert cp.get("XeFG", "IgnoreInitChecks").lower() == "true"
     assert cp.get("XeFG", "InterpolationCount") == "2"  # 3X factory default
     assert cp.get("fakenvapi", "UseFakenvapi").lower() == "false"
+    # OptiScaler must not hook the game's NVNGX DLSS call: the DLSS 5 addon owns
+    # CreateFeature there, and a competing create returns FAIL_NotInitialized
+    # (0xBAD00007), which makes OptiScaler fall back to FSR/XeSS.
+    assert cp.get("Inputs", "EnableDlssInputs").lower() == "false"
 
     # 4. OptiScaler is pointed at the game's real DLSS runtime, not left at auto.
     assert cp.get("Libraries", "NvngxDlssPath") == r"Streamline\nvngx_dlss.dll"

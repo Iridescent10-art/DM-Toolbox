@@ -726,7 +726,16 @@ class IniConfigManager:
             "DLSSD": dlssd_sec,
             "Libraries": libraries_sec,
             "Inputs": {
-                "EnableDlssInputs": "true"
+                # Coexistence: OptiScaler must NOT hook the game's NVNGX DLSS path.
+                # The DLSS 5 RenoDX addon owns NVSDK_NGX_D3D12_CreateFeature/evaluate
+                # and initializes its own NR pipeline there. When OptiScaler hooks the
+                # same call it creates a feature of its own first, the vendor NGX
+                # answers NVSDK_NGX_Result_FAIL_NotInitialized (0xBAD00007) and
+                # OptiScaler falls back to FSR/XeSS - the game then renders with FSR
+                # while DLSS 5 never receives the DLSS frame. With DLSS inputs left
+                # alone the game's own DLSS call reaches RenoDX untouched, DLSS 5 does
+                # the super resolution and OptiScaler only translates DLSS-G to XeFG.
+                "EnableDlssInputs": "false" if has_dlss5 else "true"
             },
             "CAS": {
                 "Enabled": "true" if rcas_enabled else "false"
