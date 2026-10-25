@@ -872,8 +872,14 @@ class PatchEngine:
         if has_dlss5:
             deploy_fakenvapi = False
             try:
-                from core.coexistence import purge_fakenvapi
+                from core.coexistence import purge_fakenvapi, ensure_ngx_core
                 purge_fakenvapi(target_dir)
+                # Games that ship only nvngx_dlss.dll need the driver NGX core in
+                # the game folder once OptiScaler stops hooking DLSS inputs;
+                # otherwise every CreateFeature returns 0xBAD00007 and the game
+                # renders black (see coexistence.ensure_ngx_core).
+                for ngx_file in ensure_ngx_core(target_dir):
+                    manifest.created_files.append(ngx_file)
             except Exception:
                 pass
 

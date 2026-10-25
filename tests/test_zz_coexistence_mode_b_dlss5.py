@@ -79,10 +79,34 @@ def test_find_dlss_runtime_prefers_root_then_streamline_then_nested(tmp_path):
     assert coex.find_dlss_runtime(tmp_path)["nvngx_dlss.dll"] == "nvngx_dlss.dll"
 
 
+def test_ensure_ngx_core_copies_driver_files_once(tmp_path):
+    source = tmp_path / "driver_store" / "nv_dispi.inf_amd64_test"
+    source.mkdir(parents=True)
+    (source / "nvngx.dll").write_bytes(b"nvngx loader")
+    (source / "_nvngx.dll").write_bytes(b"nvngx core")
+
+    game = tmp_path / "game"
+    game.mkdir()
+
+    copied = coex.ensure_ngx_core(game, source_dir=source)
+    assert sorted(copied) == ["_nvngx.dll", "nvngx.dll"]
+    assert (game / "nvngx.dll").read_bytes() == b"nvngx loader"
+    assert (game / "_nvngx.dll").read_bytes() == b"nvngx core"
+
+    # Second run must not report (or overwrite) anything that already exists.
+    assert coex.ensure_ngx_core(game, source_dir=source) == []
+
+
 def test_adapt_mode_b_moves_proxy_and_writes_coexistence_contract(tmp_path):
     game = _make_mode_b_game(tmp_path)
+    ngx_source = tmp_path / "driver_store"
+    ngx_source.mkdir()
+    (ngx_source / "nvngx.dll").write_bytes(b"driver nvngx loader")
+    (ngx_source / "_nvngx.dll").write_bytes(b"driver nvngx core")
 
-    ok, message = coex.adapt_mode_b_for_dlss5(game, game / "Game.exe")
+    ok, message = coex.adapt_mode_b_for_dlss5(
+        game, game / "Game.exe", ngx_source_dir=ngx_source
+    )
     assert ok, message
 
     # 1. dxgi.dll is vacated for the ReShade host, OptiScaler lands in an imported slot.
@@ -126,10 +150,22 @@ def test_adapt_mode_b_moves_proxy_and_writes_coexistence_contract(tmp_path):
     assert marker["adapted_for_dlss5"] is True
     assert set(marker["exposed_root_files"]) == {"nvngx_dlss.dll", "nvngx_dlssg.dll"}
 
+    # 6. The driver NGX core is placed next to the exe: without it nothing
+    # initializes NGX once OptiScaler stops hooking DLSS inputs (0xBAD00007 -> black).
+    assert (game / "nvngx.dll").read_bytes() == b"driver nvngx loader"
+    assert (game / "_nvngx.dll").read_bytes() == b"driver nvngx core"
+    assert set(marker["ngx_core_files"]) == {"nvngx.dll", "_nvngx.dll"}
+
 
 def test_restore_mode_b_removes_exposed_runtime_and_marker(tmp_path):
     game = _make_mode_b_game(tmp_path)
-    ok, message = coex.adapt_mode_b_for_dlss5(game, game / "Game.exe")
+    ngx_source = tmp_path / "driver_store"
+    ngx_source.mkdir()
+    (ngx_source / "nvngx.dll").write_bytes(b"driver nvngx loader")
+    (ngx_source / "_nvngx.dll").write_bytes(b"driver nvngx core")
+    ok, message = coex.adapt_mode_b_for_dlss5(
+        game, game / "Game.exe", ngx_source_dir=ngx_source
+    )
     assert ok, message
     # Pretend DLSS 5 took dxgi.dll.
     (game / "dxgi.dll").write_bytes(b"ReShade 6.8 host" + b"\x00" * 32)
@@ -140,6 +176,8 @@ def test_restore_mode_b_removes_exposed_runtime_and_marker(tmp_path):
     assert coex.detect_optiscaler_slot(game) == "dxgi.dll"
     assert not (game / "nvngx_dlss.dll").exists(), "root copy must not survive uninstall"
     assert not (game / "nvngx_dlssg.dll").exists()
+    assert not (game / "nvngx.dll").exists(), "NGX core copy must not survive uninstall"
+    assert not (game / "_nvngx.dll").exists()
     assert (game / "Streamline" / "nvngx_dlss.dll").is_file(), "the game's original stays"
     assert not (game / ".mfg_coex_backup.json").exists()
 

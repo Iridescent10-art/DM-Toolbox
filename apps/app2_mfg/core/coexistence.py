@@ -60,6 +60,10 @@ FAKENVAPI_FILES: List[str] = [
     "fakenvapi.log",
 ]
 
+# NGX core the driver installs. Games that ship nvngx_dlss.dll without nvngx.dll
+# depend on it being resolvable at load time (see ensure_ngx_core).
+NGX_CORE_FILES: Tuple[str, ...] = ("nvngx.dll", "_nvngx.dll")
+
 _SIG_WINDOW = 16 * 1024 * 1024
 
 
@@ -417,6 +421,82 @@ def purge_fakenvapi(target_dir: os.PathLike | str) -> List[str]:
     return removed
 
 
+def find_ngx_core_dir() -> Optional[Path]:
+    """
+    Locate the NVIDIA NGX core (``nvngx.dll`` / ``_nvngx.dll``) installed by the driver.
+
+    The driver advertises its own directory in
+    ``HKLM\\SOFTWARE\\NVIDIA Corporation\\Global\\NGXCore`` (``FullPath``). Older
+    drivers put the loader in System32 instead, so a DriverStore scan is the last
+    resort.
+    """
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\NVIDIA Corporation\Global\NGXCore"
+        ) as key:
+            full_path, _ = winreg.QueryValueEx(key, "FullPath")
+        base = Path(str(full_path))
+        if (base / "_nvngx.dll").is_file() or (base / "nvngx.dll").is_file():
+            return base
+    except Exception:
+        pass
+
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    system32 = system_root / "System32"
+    if (system32 / "nvngx.dll").is_file():
+        return system32
+
+    try:
+        for cand in sorted((system32 / "DriverStore" / "FileRepository").glob("nv_dispi.inf_amd64_*")):
+            if (cand / "_nvngx.dll").is_file() or (cand / "nvngx.dll").is_file():
+                return cand
+    except Exception:
+        pass
+    return None
+
+
+def ensure_ngx_core(
+    target_dir: os.PathLike | str,
+    source_dir: Optional[os.PathLike | str] = None,
+) -> List[str]:
+    """
+    Copy the driver's NGX core next to the game executable when it is missing.
+
+    Several titles (``yysls`` / Where Winds Meet among them) ship
+    ``nvngx_dlss.dll`` but not ``nvngx.dll``: they rely on a proxy (OptiScaler)
+    to bridge the NGX load. The coexistence contract stops OptiScaler from
+    hooking DLSS inputs, so nothing initializes NGX any more, every
+    ``NVSDK_NGX_D3D12_CreateFeature`` returns ``FAIL_NotInitialized``
+    (0xBAD00007) and the game renders black. With the core in the game folder the
+    game initializes NGX itself and the DLSS 5 addon receives the DLSS frame.
+
+    Returns the names of the files that were copied so the caller can record them
+    for a clean rollback.
+    """
+    td = Path(target_dir)
+    copied: List[str] = []
+    if not td.is_dir():
+        return copied
+
+    source = Path(source_dir) if source_dir else find_ngx_core_dir()
+    if not source or not source.is_dir():
+        return copied
+
+    for name in NGX_CORE_FILES:
+        candidate = source / name
+        destination = td / name
+        if not candidate.is_file() or destination.exists():
+            continue
+        try:
+            shutil.copy2(candidate, destination)
+            copied.append(name)
+        except Exception:
+            continue
+    return copied
+
+
 def _find_dashdogy_source() -> Optional[str]:
     """Locate a cached MFGUnlocker.dll (v1.7.0 or v1.6.1) to deploy Mode A proxy."""
     try:
@@ -585,6 +665,7 @@ def ensure_dashdogy_proxy(
 def adapt_mode_b_for_dlss5(
     target_dir: os.PathLike | str,
     exe_path: Optional[os.PathLike | str] = None,
+    ngx_source_dir: Optional[os.PathLike | str] = None,
 ) -> Tuple[bool, str]:
     """
     Called when DLSS 5 is injected into a directory where Mode B (OptiScaler) is already present.
@@ -595,9 +676,13 @@ def adapt_mode_b_for_dlss5(
        - LoadAsiPlugins = true
        - FGInput = dlssg, FGOutput = xefg
        - PreserveSwapChain = true
+       - EnableDlssInputs = false (DLSS 5 addon owns NVNGX CreateFeature)
        - IgnoreInitChecks = true, DepthInverted = true
     3. Purges fakenvapi.dll (which causes GPU query failure in DLSS 5) and secondary ReShade binaries.
-    4. Records coexistence marker in target_dir / ".mfg_coex_backup.json".
+    4. Drops the driver's nvngx.dll / _nvngx.dll into the game folder when the game
+       ships only nvngx_dlss.dll; without it nothing initializes NGX once OptiScaler
+       stops hooking DLSS inputs and the game renders black (see ensure_ngx_core).
+    5. Records coexistence marker in target_dir / ".mfg_coex_backup.json".
     """
     td = Path(target_dir)
     if not td.is_dir():
@@ -609,6 +694,7 @@ def adapt_mode_b_for_dlss5(
 
     purge_fakenvapi(td)
     purge_secondary_reshade(td)
+    ngx_copied = ensure_ngx_core(td, ngx_source_dir)
 
     # Forward sync OptiScaler.ini into coexistence mode (Direct reliable configparser update + optional ini_sync)
     opti_ini = td / "OptiScaler.ini"
@@ -655,12 +741,35 @@ def adapt_mode_b_for_dlss5(
     exposed_files = expose_dlss_runtime(td)
 
     coex_marker = td / ".mfg_coex_backup.json"
+    # Repeated injections must not forget files created by an earlier run: the
+    # helpers skip copies that already exist, so their return value is empty on a
+    # re-run and the marker has to keep the union for a clean uninstall.
+    previous: Dict[str, Any] = {}
+    try:
+        import json
+        if coex_marker.exists():
+            with open(coex_marker, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                previous = loaded
+    except Exception:
+        previous = {}
+
+    def _union(key: str, fresh: List[str]) -> List[str]:
+        old = previous.get(key) or []
+        merged: List[str] = []
+        for name in list(old) + list(fresh):
+            if name not in merged:
+                merged.append(name)
+        return merged
+
     marker_data = {
         "backend": "B",
         "original_proxy": "dxgi.dll",
         "current_proxy": slot,
         "adapted_for_dlss5": True,
-        "exposed_root_files": exposed_files,
+        "exposed_root_files": _union("exposed_root_files", exposed_files),
+        "ngx_core_files": _union("ngx_core_files", ngx_copied),
     }
     try:
         import json
@@ -759,6 +868,11 @@ def restore_mode_b_from_dlss5(
                 exposed = td / str(name)
                 if exposed.is_file() and exposed.name in DLSS_RUNTIME_FILES:
                     _remove(exposed)
+            # NGX core copies exist only for the coexistence DLSS hand-off.
+            for name in marker.get("ngx_core_files") or []:
+                ngx = td / str(name)
+                if ngx.is_file() and ngx.name in NGX_CORE_FILES:
+                    _remove(ngx)
         except Exception:
             pass
 
