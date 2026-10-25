@@ -407,8 +407,7 @@ def get_app_cache_dir() -> Path:
 
 def get_system_gpu_name() -> str:
     """
-    Detects active TRUE physical GPU name, prioritizing App 1 (CPU/GPU配置管理工具)
-    出厂真实硬件数据与备份快照，防止因注册表/WMI中已被修改伪装（如伪装成 RTX 5090 等）导致插帧补丁识别为错误架构。
+    Detects active TRUE physical GPU name, prioritizing discrete gaming GPU on laptops.
     """
     try:
         from common.config_manager import get_real_gpu_model
@@ -422,26 +421,50 @@ def get_system_gpu_name() -> str:
         import winreg
         path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as key:
-            for i in range(12):
+            candidates = []
+            for i in range(16):
                 try:
                     sub = winreg.EnumKey(key, i)
                     with winreg.OpenKey(key, sub) as sk:
                         name, _ = winreg.QueryValueEx(sk, "DriverDesc")
                         s = str(name).strip()
-                        if any(k in s.upper() for k in ["NVIDIA", "GEFORCE", "RTX", "GTX", "RADEON", "INTEL ARC"]):
-                            return s
+                        if s:
+                            candidates.append(s)
                 except Exception:
                     pass
+            for c in candidates:
+                if "RTX" in c.upper():
+                    return c
+            for c in candidates:
+                if any(k in c.upper() for k in ["NVIDIA", "GEFORCE"]):
+                    return c
+            if candidates:
+                return candidates[0]
     except Exception:
         pass
     return "Unknown GPU"
 
 
 def is_rtx_40_or_newer(gpu_name: str) -> bool:
-    """Check if GPU has native OFA Gen 4+ supporting native DLSS-G (RTX 40/50+)."""
+    """Check if GPU has native OFA Gen 4+ supporting native DLSS-G (RTX 40/50+ desktop & laptop)."""
     import re
+    if not gpu_name:
+        return False
     name = gpu_name.upper()
+    if not any(k in name for k in ["NVIDIA", "GEFORCE", "RTX", "TITAN"]):
+        return False
+    # Workstation Ampere/Turing (e.g. RTX A1000..A6000, Quadro RTX) without Ada Generation are SM86/SM75
+    if re.search(r"\bA\d{4}\b", name) and "ADA" not in name:
+        return False
+    if "QUADRO" in name and "ADA" not in name:
+        return False
+    if "TITAN" in name:
+        return False
     if re.search(r"RTX\s*(40\d\d|50\d\d|60\d\d)", name):
+        return True
+    if re.search(r"\b(40|50)\d0\s*(LAPTOP|MOBILE|MAX-Q|TI|SUPER)\b", name):
+        return True
+    if "ADA GENERATION" in name or "BLACKWELL" in name:
         return True
     return False
 
@@ -449,8 +472,8 @@ def is_rtx_40_or_newer(gpu_name: str) -> bool:
 def is_rtx_20_or_30_series(gpu_name: str) -> bool:
     """
     Check if GPU is NVIDIA RTX 20 or 30 series (Turing / Ampere architecture),
-    which lacks native 4th-gen Optical Flow Accelerator and requires special
-    GPU spoofing, Bink2 fast-hooking, or OptiScaler XeFG/FSR3 translation.
+    including all Desktop, Laptop, Mobile, and Max-Q models, which lack native
+    4th-gen Optical Flow Accelerator and require dlssg_for_sm86 (Mode C) native frame gen.
     """
     import re
     if not gpu_name:
@@ -458,10 +481,18 @@ def is_rtx_20_or_30_series(gpu_name: str) -> bool:
     name = gpu_name.upper()
     if not any(k in name for k in ["NVIDIA", "GEFORCE", "RTX", "TITAN"]):
         return False
-    if is_rtx_40_or_newer(name):
+    if is_rtx_40_or_newer(gpu_name):
         return False
-    if re.search(r"RTX\s*(20\d\d|30\d\d)", name) or re.search(r"RTX\s*A\d{4}", name) or "TITAN RTX" in name:
+    # Explicit 20/30 series matches for Desktop, Laptop, Mobile, Max-Q, Ti, Super
+    if re.search(r"RTX\s*(20\d\d|30\d\d)", name):
         return True
+    # Mobile/Laptop variants with or without 'RTX' prefix format variations (e.g. 3060 Laptop GPU, 2060 Mobile)
+    if re.search(r"\b(20|30)\d0\s*(LAPTOP|MOBILE|MAX-Q|TI|SUPER)\b", name):
+        return True
+    # Workstation Ampere/Turing (A1000..A6000, Quadro RTX 3000..8000)
+    if re.search(r"RTX\s*A\d{4}", name) or re.search(r"\bA\d{4}\b", name) or re.search(r"QUADRO\s*RTX", name) or "TITAN RTX" in name:
+        return True
+    # Catch-all: If it contains RTX and is not 40/50 series, default to 20/30 series architecture!
     if "RTX" in name:
         return True
     return False

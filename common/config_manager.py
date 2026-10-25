@@ -269,64 +269,104 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
 def get_real_gpu_model() -> str:
     """
     Retrieve the TRUE underlying physical GPU model.
-    Prioritizes reading from App 1 (CPU/GPU配置管理工具) 出厂真实硬件数据与备份快照，
-    防止因注册表/WMI中已被修改伪装（如伪装成 RTX 5090/4090 等）导致 DLSS 5 或插帧补丁识别为错误架构。
+    Prioritizes reading physical DXGI / Windows hardware devices directly,
+    ensuring mobile/laptop dual-GPU setups (AMD/Intel iGPU + NVIDIA RTX dGPU)
+    correctly prioritize the discrete NVIDIA gaming GPU.
     """
-    # 1. Check App 1 cache backup file: GPU_Backup.cfg
+    import ctypes
+    from ctypes import wintypes
+
+    # 1. Direct DXGI Hardware Enumeration (kernel driver level, prioritizes discrete gaming GPU)
     try:
-        app1_cache = get_app_cache_dir("app1_hardware")
-        primary_backup = app1_cache / "GPU_Backup.cfg"
-        if primary_backup.exists():
-            val = primary_backup.read_text(encoding="utf-8", errors="ignore").strip()
-            if val and len(val) > 2 and "unknown" not in val.lower():
-                return val
+        dxgi = ctypes.windll.dxgi
+        class GUID(ctypes.Structure):
+            _fields_ = [('Data1', wintypes.DWORD), ('Data2', wintypes.WORD), ('Data3', wintypes.WORD), ('Data4', ctypes.c_byte * 8)]
+        class LUID(ctypes.Structure):
+            _fields_ = [('LowPart', wintypes.DWORD), ('HighPart', wintypes.LONG)]
+        class DXGI_ADAPTER_DESC1(ctypes.Structure):
+            _fields_ = [
+                ('Description', wintypes.WCHAR * 128),
+                ('VendorId', wintypes.UINT),
+                ('DeviceId', wintypes.UINT),
+                ('SubSysId', wintypes.UINT),
+                ('Revision', wintypes.UINT),
+                ('DedicatedVideoMemory', ctypes.c_size_t),
+                ('DedicatedSystemMemory', ctypes.c_size_t),
+                ('SharedSystemMemory', ctypes.c_size_t),
+                ('AdapterLuid', LUID),
+                ('Flags', wintypes.UINT),
+            ]
+        IID_IDXGIFactory1 = GUID(0x770aae78, 0xf26f, 0x4dba, (ctypes.c_byte * 8)(0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87))
+        pFactory = ctypes.c_void_p()
+        if dxgi.CreateDXGIFactory1(ctypes.byref(IID_IDXGIFactory1), ctypes.byref(pFactory)) == 0:
+            vtable = ctypes.cast(ctypes.cast(pFactory, ctypes.POINTER(ctypes.c_void_p)).contents, ctypes.POINTER(ctypes.c_void_p))
+            EnumAdapters1 = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, wintypes.UINT, ctypes.POINTER(ctypes.c_void_p))(vtable[12])
+            GetDesc1_proto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(DXGI_ADAPTER_DESC1))
+            Release = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(vtable[2])
+
+            adapters = []
+            i = 0
+            while True:
+                pAdapter = ctypes.c_void_p()
+                if EnumAdapters1(pFactory, i, ctypes.byref(pAdapter)) != 0:
+                    break
+                avtable = ctypes.cast(ctypes.cast(pAdapter, ctypes.POINTER(ctypes.c_void_p)).contents, ctypes.POINTER(ctypes.c_void_p))
+                desc = DXGI_ADAPTER_DESC1()
+                GetDesc1_proto(avtable[10])(pAdapter, ctypes.byref(desc))
+                Release(pAdapter)
+                i += 1
+                if desc.Flags & 2:  # DXGI_ADAPTER_FLAG_SOFTWARE
+                    continue
+                d_str = desc.Description.strip()
+                if d_str:
+                    adapters.append({
+                        'desc': d_str,
+                        'vendor': desc.VendorId,
+                        'vram': desc.DedicatedVideoMemory
+                    })
+            Release(pFactory)
+
+            if adapters:
+                # On laptops with dual GPUs (e.g. AMD Radeon iGPU + NVIDIA RTX 3060 Laptop GPU),
+                # always prioritize the discrete NVIDIA RTX / GeForce graphics processor:
+                nvidia_adapters = [a for a in adapters if a['vendor'] == 0x10DE or any(k in a['desc'].upper() for k in ['NVIDIA', 'GEFORCE', 'RTX'])]
+                if nvidia_adapters:
+                    best = max(nvidia_adapters, key=lambda a: a['vram'])
+                    return best['desc']
+                best = max(adapters, key=lambda a: a['vram'])
+                return best['desc']
     except Exception:
         pass
 
-    backup_candidates = [
-        Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "cache" / "app1_hardware" / "GPU_Backup.cfg",
-        Path("C:/ToolboxData/cache/app1_hardware/GPU_Backup.cfg"),
-        Path("C:/GPU_Backup.cfg"),
-    ]
-    for p_candidate in backup_candidates:
-        if p_candidate.exists():
-            try:
-                val = p_candidate.read_text(encoding="utf-8", errors="ignore").strip()
-                if val and len(val) > 2 and "unknown" not in val.lower():
-                    return val
-            except Exception:
-                pass
-
-    # 2. Check App 1 config.json -> current_hardware.detected_gpu
-    config_candidates = [
-        get_app_config_path("app1_hardware", "config.json"),
-        Path(os.environ.get("APPDATA", "")) / "ToolboxMaster" / "config" / "app1_hardware" / "config.json",
-        Path("C:/ToolboxData/config/app1_hardware/config.json"),
-        Path("C:/Users/Public/Hardware_Config.json"),
-    ]
+    # 2. Registry Display Class (prioritizing NVIDIA discrete GPU over integrated graphics)
     try:
-        root_dir = Path(__file__).resolve().parent.parent
-        config_candidates.extend([
-            root_dir / "apps" / "app1_hardware" / "config.json",
-            root_dir / "defaults" / "app1_hardware" / "config.json",
-            Path(r"C:\Program Files\DMBOX\apps\app1_hardware\config.json"),
-            Path(r"D:\AI\整合包\apps\app1_hardware\config.json"),
-        ])
+        import winreg
+        path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as key:
+            candidates = []
+            for i in range(16):
+                try:
+                    sub = winreg.EnumKey(key, i)
+                    with winreg.OpenKey(key, sub) as sk:
+                        name, _ = winreg.QueryValueEx(sk, "DriverDesc")
+                        s = str(name).strip()
+                        if s:
+                            candidates.append(s)
+                except Exception:
+                    pass
+            # Prioritize discrete RTX GPUs (including Laptop / Mobile)
+            for c in candidates:
+                if "RTX" in c.upper():
+                    return c
+            for c in candidates:
+                if any(k in c.upper() for k in ["NVIDIA", "GEFORCE"]):
+                    return c
+            if candidates:
+                return candidates[0]
     except Exception:
         pass
 
-    for p_cfg in config_candidates:
-        if p_cfg.exists():
-            try:
-                with open(p_cfg, "r", encoding="utf-8", errors="ignore") as f:
-                    data = json.load(f)
-                det = data.get("current_hardware", {}).get("detected_gpu", "").strip()
-                if det and len(det) > 2 and "unknown" not in det.lower():
-                    return det
-            except Exception:
-                pass
-
-    # 3. Check Windows Hardware Enum PCI directly (Protected by Windows Kernel, unaffected by DriverDesc modifications)
+    # 3. Check Windows Hardware Enum PCI directly for NVIDIA Device
     try:
         import winreg
         enum_pci = r"SYSTEM\CurrentControlSet\Enum\PCI"
@@ -352,21 +392,14 @@ def get_real_gpu_model() -> str:
     except Exception:
         pass
 
-    # 4. Fallback: Registry DriverDesc (if App 1 data not found and not spoofed)
+    # 4. Check App 1 cache backup file if real physical hardware was persisted
     try:
-        import winreg
-        path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as key:
-            for i in range(12):
-                try:
-                    sub = winreg.EnumKey(key, i)
-                    with winreg.OpenKey(key, sub) as sk:
-                        name, _ = winreg.QueryValueEx(sk, "DriverDesc")
-                        s = str(name).strip()
-                        if any(k in s.upper() for k in ["NVIDIA", "GEFORCE", "RTX", "GTX", "RADEON", "INTEL ARC"]):
-                            return s
-                except Exception:
-                    pass
+        app1_cache = get_app_cache_dir("app1_hardware")
+        primary_backup = app1_cache / "GPU_Backup.cfg"
+        if primary_backup.exists():
+            val = primary_backup.read_text(encoding="utf-8", errors="ignore").strip()
+            if val and len(val) > 2 and "unknown" not in val.lower():
+                return val
     except Exception:
         pass
 
@@ -380,10 +413,11 @@ def get_real_gpu_info() -> Dict[str, Any]:
     """
     import re
     name = get_real_gpu_model()
-    is_50 = bool(re.search(r"rtx\s*50\d0", name, re.IGNORECASE))
-    is_40 = bool(re.search(r"rtx\s*40\d0", name, re.IGNORECASE))
-    is_30 = bool(re.search(r"rtx\s*30\d0", name, re.IGNORECASE))
-    is_20 = bool(re.search(r"rtx\s*20\d0", name, re.IGNORECASE))
+    name_upper = name.upper()
+    is_50 = bool(re.search(r"RTX\s*50\d0", name_upper)) or "BLACKWELL" in name_upper
+    is_40 = bool(re.search(r"RTX\s*40\d0", name_upper)) or "ADA GENERATION" in name_upper
+    is_30 = bool(re.search(r"RTX\s*30\d0", name_upper)) or bool(re.search(r"30\d0\s*(LAPTOP|MOBILE|MAX-Q|TI|SUPER)", name_upper))
+    is_20 = bool(re.search(r"RTX\s*20\d0", name_upper)) or bool(re.search(r"20\d0\s*(LAPTOP|MOBILE|MAX-Q|TI|SUPER)", name_upper))
 
     if is_50:
         arch = "rtx50"
@@ -398,7 +432,7 @@ def get_real_gpu_info() -> Dict[str, Any]:
     return {
         "gpu_name": name,
         "arch": arch,
-        "is_nvidia": any(k in name.upper() for k in ["NVIDIA", "GEFORCE", "RTX"]),
+        "is_nvidia": any(k in name_upper for k in ["NVIDIA", "GEFORCE", "RTX"]),
         "description": arch_desc,
         "is_rtx_40_or_newer": is_50 or is_40
     }

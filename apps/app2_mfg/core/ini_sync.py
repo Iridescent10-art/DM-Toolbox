@@ -1,4 +1,10 @@
-from core.state_cleaner import is_dlss5_present
+try:
+    from core.state_cleaner import is_dlss5_present
+except ImportError:
+    try:
+        from apps.app2_mfg.core.state_cleaner import is_dlss5_present
+    except ImportError:
+        from .state_cleaner import is_dlss5_present
 """
 IniConfigManager - Unified INI Configuration Manager & Real-Time Sync Engine.
 Handles bi-directional synchronization between DM-Toolbox GUI and game directory INI configs
@@ -1566,7 +1572,6 @@ class IniConfigManager:
 
         # Check DLSS 5 coexistence: if DLSS 5 is present, force SuperResolution Mode=Off
         try:
-            from core.state_cleaner import is_dlss5_present
             if is_dlss5_present(target_dir):
                 sr_mode = "Off"
         except Exception:

@@ -4645,10 +4645,10 @@ class ModernMFGGUI(QMainWindow):
             gpu_name = get_system_gpu_name()
             gpu_upper = gpu_name.upper()
             if is_rtx_20_or_30_series(gpu_name):
-                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 20/30 系列，首选自动推荐【模式 C: dlssg_for_sm86 原生插帧】(与 DLSS 5 完美共存)")
+                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 20/30 系列(含笔记本/移动端)，自动优选【模式 C: dlssg_for_sm86 原生插帧】(与 DLSS 5 完美共存)")
                 self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600;")
-            elif any(k in gpu_upper for k in ["RTX", "GEFORCE RTX"]):
-                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 40/50 系列，自动首选模式 A (Universal 多帧解锁器)")
+            elif is_rtx_40_or_newer(gpu_name):
+                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 40/50 系列(含笔记本/移动端)，自动优选【模式 A (Universal 多帧解锁器)】")
                 self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
             else:
                 self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为非 RTX 或 AMD/Intel 显卡，自动首选模式 B (OptiScaler 跨卡转译)")
