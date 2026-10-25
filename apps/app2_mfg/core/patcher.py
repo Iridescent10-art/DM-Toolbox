@@ -231,7 +231,7 @@ class PatchEngine:
             self.rollback_engine.rollback(game.target_dir, game.exe_name)
             return False, f"修补过程发生异常，已自动回滚: {e}"
 
-    def _apply_standalone_patch(self, game: GameInfo, manifest: PatchManifest, prefer_bink_hook: bool) -> Tuple[bool, str]:
+    def _apply_standalone_patch(self, game: GameInfo, manifest: PatchManifest, prefer_bink_hook: bool = False) -> Tuple[bool, str]:
         source_dll = self.updater.get_latest_cached_file(BackendType.STANDALONE)
         if not source_dll or not os.path.exists(source_dll):
             return False, "本地缓存中未找到 dashdogy/MFG-Unlocker 组件！\n请先在主界面点击【检查并同步最新版本】进行下载。"
@@ -241,61 +241,72 @@ class PatchEngine:
         cleanup_pending_files(target_dir)
 
         # Purge Mode B & C conflicting files
-        for mode_bc_file in ["OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll", "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64"]:
+        for mode_bc_file in ["OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll", "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64", "dlssg_sm86.ini"]:
             f_p = os.path.join(target_dir, mode_bc_file)
             if os.path.exists(f_p):
                 safe_force_remove(f_p)
+        dlssg_sm86_dir = os.path.join(target_dir, "dlssg_sm86")
+        if os.path.exists(dlssg_sm86_dir):
+            safe_force_remove(dlssg_sm86_dir)
 
-        # Purge any old proxies that belong to OptiScaler or ReShade so they don't block dashdogy or conflict
+        # Self-healing: restore any bink2w64Hooked.dll back to bink2w64.dll unconditionally
+        hooked_bink = os.path.join(target_dir, "bink2w64Hooked.dll")
+        orig_bink = os.path.join(target_dir, "bink2w64.dll")
+        if os.path.exists(hooked_bink):
+            try:
+                if os.path.exists(orig_bink):
+                    safe_force_remove(orig_bink)
+                os.rename(hooked_bink, orig_bink)
+            except Exception:
+                pass
+
+        # Load Mode A preset
+        try:
+            from core.optiscaler_config import load_mode_a_preset
+            preset_a = load_mode_a_preset()
+        except Exception:
+            preset_a = {}
+
         has_dlss5 = is_dlss5_present(target_dir)
-        for proxy_cand in ["winmm.dll", "version.dll", "dinput8.dll", "wininet.dll", "dxgi.dll"]:
+
+        # Resolve selected proxy slot according to official standard:
+        # Standalone: dxgi.dll (or user configured / PE imported slot)
+        # Coexistence with DLSS 5: version.dll (or winmm.dll), strictly leaving dxgi.dll to DLSS 5 ReShade 6.8
+        configured_proxy = str(preset_a.get("proxy_dll", "auto")).lower().strip()
+        if configured_proxy in ["dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll"]:
+            if has_dlss5 and configured_proxy == "dxgi.dll":
+                selected_proxy = "version.dll"
+            else:
+                selected_proxy = configured_proxy
+        else:
+            selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.STANDALONE)
+
+        # Clean old proxy candidates: strictly maintain only 1 proxy DLL slot for Mode A!
+        all_proxies = ["dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"]
+        for proxy_cand in all_proxies:
+            if proxy_cand == selected_proxy:
+                continue
+            if proxy_cand == "dxgi.dll" and has_dlss5:
+                continue
             p_p = os.path.join(target_dir, proxy_cand)
             if os.path.exists(p_p):
-                if proxy_cand == "dxgi.dll":
-                    if self._is_optiscaler_dll(p_p):
-                        safe_force_remove(p_p)
-                    elif not has_dlss5 and self._is_reshade_dll(p_p):
-                        safe_force_remove(p_p)
-                else:
-                    if self._is_optiscaler_dll(p_p) or self._is_reshade_dll(p_p):
-                        safe_force_remove(p_p)
+                if self._is_dashdogy_dll(p_p) or self._is_optiscaler_dll(p_p) or self._is_dlssg_sm86_dll(p_p) or (proxy_cand != "dxgi.dll" and self._is_reshade_dll(p_p)):
+                    safe_force_remove(p_p)
 
-        existing_files = {f.lower() for f in os.listdir(target_dir)}
-        from core.utils import get_system_gpu_name, is_rtx_20_or_30_series
-        gpu_name = get_system_gpu_name()
-        is_rtx20_30 = is_rtx_20_or_30_series(gpu_name)
-        should_use_bink = (prefer_bink_hook or is_rtx20_30 or has_dlss5) and "bink2w64.dll" in existing_files
+        dest_proxy_path = os.path.join(target_dir, selected_proxy)
+        dm_backup_dir = os.path.join(target_dir, ".dm_backup")
+        os.makedirs(dm_backup_dir, exist_ok=True)
+        dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
 
-        if should_use_bink:
-            # Bink hooked route (0ms early hook, optimal for RTX 20/30 series & perfect DLSS 5 coexistence)
-            orig_bink = os.path.join(target_dir, "bink2w64.dll")
-            hooked_bink = os.path.join(target_dir, "bink2w64Hooked.dll")
-
-            # Rename original to bink2w64Hooked.dll
-            if not os.path.exists(hooked_bink):
-                os.rename(orig_bink, hooked_bink)
-                manifest.renamed_backups.append({"original": "bink2w64.dll", "backup": "bink2w64Hooked.dll"})
-
-            # Copy MFGUnlocker as bink2w64.dll
-            shutil.copy2(source_dll, orig_bink)
-            manifest.created_files.append("bink2w64.dll")
-        else:
-            # Mode A proxy slot: dynamically resolved based on PE imports (winmm > version)
-            selected_proxy = self._resolve_proxy_slot(game, is_coexisting_with_dlss5=has_dlss5, active_backend=BackendType.STANDALONE)
-            dest_proxy_path = os.path.join(target_dir, selected_proxy)
-            dm_backup_dir = os.path.join(target_dir, ".dm_backup")
-            os.makedirs(dm_backup_dir, exist_ok=True)
-            dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
-
-            if os.path.exists(dest_proxy_path):
-                if not os.path.exists(dm_proxy_bak) and not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path):
-                    try:
-                        shutil.copy2(dest_proxy_path, dm_proxy_bak)
-                    except Exception:
-                        pass
-                safe_force_remove(dest_proxy_path)
-            shutil.copy2(source_dll, dest_proxy_path)
-            manifest.created_files.append(selected_proxy)
+        if os.path.exists(dest_proxy_path):
+            if not os.path.exists(dm_proxy_bak) and not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path) and not self._is_dlssg_sm86_dll(dest_proxy_path):
+                try:
+                    shutil.copy2(dest_proxy_path, dm_proxy_bak)
+                except Exception:
+                    pass
+            safe_force_remove(dest_proxy_path)
+        shutil.copy2(source_dll, dest_proxy_path)
+        manifest.created_files.append(selected_proxy)
 
         # If DLSS 5 is active in Mode A, ensure ReShade is deployed as dxgi.dll
         if has_dlss5:
@@ -341,6 +352,11 @@ class PatchEngine:
         """Check if a DLL file is dashdogy/MFGUnlocker."""
         data = self._read_dll_signature_bytes(path)
         return b"MFGUnlocker" in data or b"RTX40MFG" in data or b"RTXMFG" in data
+
+    def _is_dlssg_sm86_dll(self, path: str) -> bool:
+        """Check if a DLL file is dlssg_for_sm86 loader proxy binary."""
+        data = self._read_dll_signature_bytes(path)
+        return b"dlssg_sm86" in data or b"dlssg_for_sm86" in data
 
     def _get_pe_imported_proxies(self, exe_path: str) -> List[str]:
         """
@@ -417,9 +433,9 @@ class PatchEngine:
             return "dinput8.dll"
 
         if not is_coexisting_with_dlss5:
-            if active_backend == BackendType.OPTISCALER_FSR:
+            if active_backend in (BackendType.OPTISCALER_FSR, BackendType.STANDALONE):
                 return "dxgi.dll"
-            return "version.dll"
+            return "dxgi.dll"
 
         # Under DLSS 5 coexistence: dxgi.dll is strictly reserved for ReShade 6.8.
         # The shared coexistence router picks the slot the game imports first

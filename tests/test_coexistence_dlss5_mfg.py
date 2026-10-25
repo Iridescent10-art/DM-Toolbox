@@ -198,6 +198,14 @@ def test_assertion_3_addon_mounting_and_ini_syntax():
 
         # 2. 注入 模式 B (mavismmg/MFGAdaUnlock-RenoDx)
         updater = ComponentUpdater()
+        cached_b = updater.get_latest_cached_file(BackendType.RESHADE_ADDON)
+        if not cached_b or not Path(cached_b).exists():
+            mock_b_dir = updater.cache_dir / "mavismmg" / "v1.0.0"
+            mock_b_dir.mkdir(parents=True, exist_ok=True)
+            mock_b_file = mock_b_dir / "renodx-mfgunlock.addon64"
+            mock_b_file.write_bytes(b"MOCK_RENODX_ADDON64" + b"\x00" * 1024)
+            updater._sync_registry_from_disk()
+
         patcher = PatchEngine(updater)
         ok_b, msg_b = patcher.patch_game(game_info, requested_backend=BackendType.RESHADE_ADDON)
         assert ok_b, f"模式 B 注入应当成功: {msg_b}"
@@ -262,18 +270,23 @@ def test_assertion_4_model_and_dependency_completeness():
         size_40_mb = round(nr_file_40.stat().st_size / (1024 * 1024), 2)
         assert abs(size_40_mb - 263.37) < 0.5, f"RTX 20/30/40 模型大小应为 ~263.37 MB，实际: {size_40_mb} MB"
 
-        # 注入 模式 A (启用 prefer_bink_hook 链路)
+        # 注入 模式 A (标准官方 Proxy DLL 注入规范)
         updater = ComponentUpdater()
         patcher = PatchEngine(updater)
-        ok_a, _ = patcher.patch_game(game_info_40, requested_backend=BackendType.STANDALONE, prefer_bink_hook=True)
-        assert ok_a, "模式 A Bink 链式劫持应成功"
+        ok_a, _ = patcher.patch_game(game_info_40, requested_backend=BackendType.STANDALONE)
+        assert ok_a, "模式 A 官方标准代理注入应成功"
 
-        hooked_bink = game_dir_40 / "bink2w64Hooked.dll"
-        active_bink = game_dir_40 / "bink2w64.dll"
-        assert hooked_bink.exists(), "原版 Bink 必须已安全迁移为 bink2w64Hooked.dll"
-        assert b"RAD_GAME_TOOLS_BINK_ORIGINAL_PAYLOAD" in hooked_bink.read_bytes(), "hooked 文件内容必须与原版一致"
-        assert active_bink.stat().st_size > 1024 * 1024, "活动 bink2w64.dll 必须为 dashdogy 代理"
-        print(f"   [PASS] 分支 1 (RTX 20/30/40): 神经重构模型校验通过 ({size_40_mb} MB)，Bink 链式劫持链路完备")
+        # 校验：原生 bink2w64.dll 100% 未被篡改或劫持
+        native_bink = game_dir_40 / "bink2w64.dll"
+        assert native_bink.exists(), "原生 bink2w64.dll 必须完好存在"
+        assert b"RAD_GAME_TOOLS_BINK_ORIGINAL_PAYLOAD" in native_bink.read_bytes(), "原生 bink2w64.dll 内容绝不受篡改"
+        assert not (game_dir_40 / "bink2w64Hooked.dll").exists(), "绝不应产生 bink2w64Hooked.dll 劫持残留"
+
+        # 校验：模式 A 部署在独立代理槽位 (与 DLSS 5 dxgi.dll 共存态自动挂载至 version.dll)
+        mode_a_proxy = game_dir_40 / "version.dll"
+        assert mode_a_proxy.exists(), "模式 A 代理 DLL 必须成功挂载至 version.dll"
+        assert mode_a_proxy.stat().st_size > 1024 * 1024, "活动 version.dll 必须为 dashdogy 代理"
+        print(f"   [PASS] 分支 1 (RTX 20/30/40): 神经重构模型校验通过 ({size_40_mb} MB)，模式 A 官方标准代理注入完备且零文件篡改")
 
     # 分支 2: RTX 50 架构部署 254.08 MB 模型 + 模式 C fakenvapi 链路
     with tempfile.TemporaryDirectory() as tmpdir_50:
@@ -318,14 +331,18 @@ def test_assertion_5_uninstallation_idempotency_and_restoration():
         # 1. 注入 DLSS 5
         DLSS5Injector.inject(str(game_dir), arch_choice="rtx20_30_40")
 
-        # 2. 注入 模式 A (prefer_bink_hook)
+        # 2. 注入 模式 A (标准官方单代理注入)
         updater = ComponentUpdater()
         patcher = PatchEngine(updater)
-        patcher.patch_game(game_info, requested_backend=BackendType.STANDALONE, prefer_bink_hook=True)
+        patcher.patch_game(game_info, requested_backend=BackendType.STANDALONE)
+
+        # 模拟可能存在的旧版遗留 bink2w64Hooked.dll 以验证自愈与还原覆盖能力
+        legacy_hook = game_dir / "bink2w64Hooked.dll"
+        legacy_hook.write_bytes(bink_content)
 
         # 验证注入状态
-        assert (game_dir / "bink2w64Hooked.dll").exists(), "还原前 bink 应当已被 hook"
-        assert (game_dir / "dxgi.dll").exists(), "还原前 dxgi.dll 应当存在"
+        assert (game_dir / "version.dll").exists(), "还原前 version.dll (模式 A) 应当存在"
+        assert (game_dir / "dxgi.dll").exists(), "还原前 dxgi.dll (DLSS 5) 应当存在"
         assert (game_dir / "nvngx_dlssnr.dll").exists(), "还原前 nvngx_dlssnr.dll 应当存在"
 
         # 3. 执行 DLSS5Injector.restore 一键深度纯净化还原

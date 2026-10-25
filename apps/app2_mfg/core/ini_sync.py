@@ -346,9 +346,11 @@ class IniConfigManager:
             asi_path = plugins_dir / "MFGUnlocker.asi"
             mfg_dll = updater.get_latest_cached_file(BackendType.STANDALONE)
             if not mfg_dll or not os.path.exists(mfg_dll):
-                emb_mfg = Path(__file__).resolve().parent.parent / "embedded_components" / "dashdogy" / "v1.6.1" / "MFGUnlocker.dll"
-                if emb_mfg.exists():
-                    mfg_dll = str(emb_mfg)
+                for v_tag in ["v1.7.0", "v1.6.1"]:
+                    emb_mfg = Path(__file__).resolve().parent.parent / "embedded_components" / "dashdogy" / v_tag / "MFGUnlocker.dll"
+                    if emb_mfg.exists():
+                        mfg_dll = str(emb_mfg)
+                        break
             if mfg_dll and os.path.exists(mfg_dll):
                 plugins_dir.mkdir(parents=True, exist_ok=True)
                 if not asi_path.exists() or asi_path.stat().st_size != Path(mfg_dll).stat().st_size:

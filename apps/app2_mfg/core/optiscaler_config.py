@@ -21,7 +21,7 @@ DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
     "dlss_preset": "K",           # 默认采用 DLSS 4 Transformer 模型 Preset K
     "dlssg_preset": "C",          # 默认采用 Model C (FG Lite 极速多帧 · 推荐跟随 nvapp)
     "menu_key": "Backspace",      # "Backspace", "F11", "Insert", "Home", "End"
-    "bink_hook": False
+    "proxy_dll": "auto"           # "auto" (智能避让), "dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll"
 }
 
 DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
@@ -113,8 +113,9 @@ def get_mode_a_preset_summary(config: Optional[Dict[str, Any]] = None) -> str:
     preset = config.get("dlss_preset", "Default")
     dlssg_p = config.get("dlssg_preset", "C")
     key = config.get("menu_key", "Backspace")
-    bink = " + Bink2链式" if config.get("bink_hook") else ""
-    return f"dashdogy [{mult}X 倍率] | DLSS {preset} 档 | FG {dlssg_p} 模型 | 快捷键: {key}{bink}"
+    proxy = config.get("proxy_dll", "auto")
+    proxy_str = f" | 代理: {proxy}" if proxy != "auto" else ""
+    return f"dashdogy [{mult}X 倍率] | DLSS {preset} 档 | FG {dlssg_p} 模型 | 快捷键: {key}{proxy_str}"
 
 # ----------------- Mode C / OptiScaler Preset -----------------
 

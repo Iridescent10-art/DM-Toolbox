@@ -1,11 +1,16 @@
 {
   "dashdogy": {
-    "latest_tag": "v1.6.1",
+    "latest_tag": "v1.7.0",
     "cached_versions": {
       "v1.6.1": {
         "file": "MFGUnlocker.dll",
         "path": "",
         "sha256": "24e3e6a8c07639fd9cbd79274e4eb21cc65a13f0453e1157720620c3d6286b33"
+      },
+      "v1.7.0": {
+        "file": "MFGUnlocker.dll",
+        "path": "",
+        "sha256": "e6b6e6b70a6ed3af839c9647a32fc22660ae6b2d655062c5c072246c91fc10c7"
       }
     }
   },

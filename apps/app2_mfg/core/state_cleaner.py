@@ -437,7 +437,7 @@ def CleanGameDirectoryState(
 
         actions_taken.append(f"初始化白名单备份目录失败: {e}")
 
-    # 2. Bink2 Hook Restoration
+    # 2. Bink2 Hook Restoration (Always restore original bink2w64.dll unconditionally)
 
     bink_hooked = td / "bink2w64Hooked.dll"
 
@@ -445,21 +445,39 @@ def CleanGameDirectoryState(
 
     if bink_hooked.exists():
 
-        # If not Mode A (or switching modes), unhook bink
+        safe_remove_file(bink_orig)
 
-        if target_mode != "A":
+        try:
 
-            safe_remove_file(bink_orig)
+            bink_hooked.rename(bink_orig)
+
+            actions_taken.append("恢复原版 bink2w64.dll (解除 Bink 劫持)")
+
+        except Exception as e:
+
+            actions_taken.append(f"解除 Bink 劫持失败: {e}")
+
+    elif bink_orig.exists() and is_dashdogy_dll_file(str(bink_orig)):
+
+        safe_remove_file(bink_orig)
+
+        backup_bink = backup_dir / "bink2w64.dll"
+
+        if backup_bink.exists():
 
             try:
 
-                bink_hooked.rename(bink_orig)
+                shutil.copy2(backup_bink, bink_orig)
 
-                actions_taken.append("恢复原版 bink2w64.dll (解除 Bink 劫持)")
+                actions_taken.append("从白名单恢复原版 bink2w64.dll (清理残留 dashdogy 伪装)")
 
             except Exception as e:
 
-                actions_taken.append(f"解除 Bink 劫持失败: {e}")
+                actions_taken.append(f"恢复白名单 bink2w64.dll 失败: {e}")
+
+        else:
+
+            actions_taken.append("清理残留 dashdogy 伪装的 bink2w64.dll")
 
     # 3. Mode-Specific DLL Slot Isolation
 

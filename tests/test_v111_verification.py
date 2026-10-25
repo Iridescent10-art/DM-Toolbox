@@ -42,7 +42,7 @@ def run_tests():
     win.show()
     app.processEvents()
 
-    for card_name in ["card_bink", "card_guide", "card_preset"]:
+    for card_name in ["card_guide", "card_preset"]:
         assert hasattr(win, card_name), f"Check 1 Failed: Main window missing attribute '{card_name}'"
         card = getattr(win, card_name)
         assert isinstance(card, QFrame), f"Check 1 Failed: '{card_name}' must be an instance of QFrame, got {type(card)}"
@@ -82,7 +82,7 @@ def run_tests():
     assert hasattr(dlg, "combo_a_mult"), "Check 2 Failed: Mode A missing multiplier combo"
     assert hasattr(dlg, "combo_a_preset"), "Check 2 Failed: Mode A missing DLSS preset combo"
     assert hasattr(dlg, "combo_a_key"), "Check 2 Failed: Mode A missing hotkey combo"
-    assert hasattr(dlg, "chk_a_bink"), "Check 2 Failed: Mode A missing bink hook checkbox"
+    assert hasattr(dlg, "combo_a_proxy"), "Check 2 Failed: Mode A missing proxy combo"
 
     print("[SUCCESS] Check 2 passed: Tabs strictly ordered A -> B -> C with full Mode A parameters!")
 

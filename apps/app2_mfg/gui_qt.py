@@ -1419,15 +1419,31 @@ class OptiScalerPresetDialog(QDialog):
         sc_layout.setContentsMargins(14, 12, 14, 12)
         sc_layout.setSpacing(10)
 
-        lbl_sec2 = QLabel("🛡️ 运行注入与防反作弊屏蔽")
+        lbl_sec2 = QLabel("🛡️ 代理 DLL 注入槽位选择")
         lbl_sec2.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {'#34d399' if is_dark else '#059669'};")
         sc_layout.addWidget(lbl_sec2)
 
-        self.chk_a_bink = QCheckBox("⚙️ 启用 Bink2 链式劫持 (bink2w64Hooked.dll · 防反篡改与安全屏蔽)")
-        self.chk_a_bink.setStyleSheet(f"color: {text_color}; font-size: 12px; font-weight: 600; border: none;")
-        sc_layout.addWidget(self.chk_a_bink)
+        proxy_row = QHBoxLayout()
+        proxy_row.setContentsMargins(0, 0, 0, 0)
+        lbl_p = QLabel("代理 DLL 注入槽位:")
+        lbl_p.setStyleSheet(f"color: {text_color}; font-size: 12px; font-weight: 600;")
+        lbl_p.setFixedWidth(150)
+        self.combo_a_proxy = QComboBox()
+        self.combo_a_proxy.setMinimumHeight(36)
+        self.combo_a_proxy.setMinimumWidth(280)
+        self.combo_a_proxy.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_a_proxy.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_a_proxy.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.combo_a_proxy.addItem("Auto (智能避让 / 优先 dxgi 或 version)", "auto")
+        self.combo_a_proxy.addItem("dxgi.dll (官方默认标准 · 独立运行首选)", "dxgi.dll")
+        self.combo_a_proxy.addItem("version.dll (DLSS 5 双轨共存推荐)", "version.dll")
+        self.combo_a_proxy.addItem("winmm.dll (通用备用槽位)", "winmm.dll")
+        self.combo_a_proxy.addItem("dinput8.dll (备用槽位)", "dinput8.dll")
+        proxy_row.addWidget(lbl_p)
+        proxy_row.addWidget(self.combo_a_proxy, 1)
+        sc_layout.addLayout(proxy_row)
 
-        lbl_hint = QLabel("💡 模式 A 通过本地代理 DLL (version/winmm) 自动劫持 Streamline，进游戏后按上述快捷键即可直接在屏幕上呼出 dashdogy 实时调参面板。")
+        lbl_hint = QLabel("💡 模式 A 遵循官方标准采用单代理 DLL 挂载 (优先 dxgi.dll；DLSS 5 共存态自动切至 version.dll)，不篡改游戏原版文件。进游戏按快捷键即可在屏幕呼出调参菜单。")
         lbl_hint.setStyleSheet(f"font-size: 11px; color: {sub_text};")
         lbl_hint.setWordWrap(True)
         sc_layout.addWidget(lbl_hint)
@@ -2166,7 +2182,12 @@ class OptiScalerPresetDialog(QDialog):
         if idx_ak >= 0:
             self.combo_a_key.setCurrentIndex(idx_ak)
 
-        self.chk_a_bink.setChecked(bool(self.preset_a.get("bink_hook", True)))
+        cur_proxy = str(self.preset_a.get("proxy_dll", "auto")).lower()
+        idx_ap = self.combo_a_proxy.findData(cur_proxy)
+        if idx_ap >= 0:
+            self.combo_a_proxy.setCurrentIndex(idx_ap)
+        else:
+            self.combo_a_proxy.setCurrentIndex(0)
 
         # 1. Mode B (Guarded if UI exists)
         if hasattr(self, "combo_b_mult"):
@@ -2352,7 +2373,7 @@ class OptiScalerPresetDialog(QDialog):
             self.preset_a["dlss_preset"] = self.combo_a_preset.currentData()
             self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
             self.preset_a["menu_key"] = self.combo_a_key.currentData()
-            self.preset_a["bink_hook"] = self.chk_a_bink.isChecked()
+            self.preset_a["proxy_dll"] = self.combo_a_proxy.currentData()
             save_mode_a_preset(self.preset_a)
 
         # 1. Update Mode B dictionary if UI exists
@@ -2402,10 +2423,80 @@ class OptiScalerPresetDialog(QDialog):
             IniConfigManager.sync_mode_a_forward(self.game.target_dir, self.preset_a)
             IniConfigManager.sync_mode_c_forward(self.game.target_dir, self.preset_c, exe_name=self.game.exe_name)
             IniConfigManager.sync_dlssg_sm86_forward(self.game.target_dir, self.preset_sm86, exe_name=self.game.exe_name)
+            if hasattr(self, "combo_a_proxy"):
+                self._swap_mode_a_proxy(self.game.target_dir, self.combo_a_proxy.currentData())
             if hasattr(self, "combo_sm86_proxy"):
                 self._swap_dlssg_sm86_proxy(self.game.target_dir, self.combo_sm86_proxy.currentData())
 
         self.accept()
+
+    def _swap_mode_a_proxy(self, target_dir: str, new_proxy: str):
+        """
+        Swap the proxy DLL for Mode A (dashdogy/MFG-Unlocker) on disk.
+        Maintains strictly 1 proxy DLL (换，不是加；代理任何时候只放一个).
+        """
+        if not target_dir or not os.path.exists(target_dir):
+            return
+        td = Path(target_dir)
+        manifest_p = td / ".mfg_patch_manifest.json"
+        is_mode_a = False
+        if manifest_p.exists():
+            try:
+                with open(manifest_p, "r", encoding="utf-8") as f:
+                    b_str = json.load(f).get("active_backend", "").lower()
+                    if "standalone" in b_str or "dashdogy" in b_str:
+                        is_mode_a = True
+            except Exception:
+                pass
+        if not is_mode_a:
+            return
+
+        from core.state_cleaner import is_dlss5_present, is_dashdogy_dll_file
+        has_dlss5 = is_dlss5_present(td)
+
+        valid_proxies = ["dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll"]
+        target_name = (new_proxy or "auto").strip().lower()
+        if target_name == "auto":
+            target_name = "version.dll" if has_dlss5 else "dxgi.dll"
+        if has_dlss5 and target_name == "dxgi.dll":
+            target_name = "version.dll"
+
+        # Find existing dashdogy source DLL
+        source_dll = None
+        for p in valid_proxies:
+            p_path = td / p
+            if p_path.exists() and is_dashdogy_dll_file(str(p_path)):
+                source_dll = str(p_path)
+                break
+        if not source_dll:
+            from core.updater import ComponentUpdater
+            from core.models import BackendType
+            source_dll = ComponentUpdater().get_latest_cached_file(BackendType.STANDALONE)
+
+        if not source_dll or not os.path.exists(source_dll):
+            return
+
+        # 1. Clean other dashdogy proxy slots (换，不是加)
+        for p in valid_proxies:
+            if p.lower() == target_name:
+                continue
+            if p == "dxgi.dll" and has_dlss5:
+                continue
+            p_path = td / p
+            if p_path.exists() and is_dashdogy_dll_file(str(p_path)):
+                try:
+                    p_path.unlink()
+                except Exception:
+                    pass
+
+        # 2. Deploy target proxy
+        dest_p = td / target_name
+        try:
+            if dest_p.exists():
+                dest_p.unlink()
+            shutil.copy2(source_dll, dest_p)
+        except Exception:
+            pass
 
     def _swap_dlssg_sm86_proxy(self, target_dir: str, new_proxy: str):
         """
@@ -3184,7 +3275,6 @@ class ModernMFGGUI(QMainWindow):
         self._active_progress_dlg: Optional[ModernProgressDialog] = None
         self.games: List[GameInfo] = []
         self.selected_game: Optional[GameInfo] = None
-        self.use_bink: bool = False
         self.is_dark_mode: bool = (get_global_theme() == "dark")
         self.drag_position = QPoint()
         self.subapp_id = "app2_mfg"
@@ -3368,7 +3458,7 @@ class ModernMFGGUI(QMainWindow):
                     padding: 8px 16px;
                 """)
 
-        if hasattr(self, "card_bink"):
+        if hasattr(self, "card_guide"):
             self._update_entry_cards_style()
 
         if hasattr(self, "size_grip") and self.size_grip:
@@ -3854,7 +3944,7 @@ class ModernMFGGUI(QMainWindow):
 
         lbl_notice_body = QLabel(
             "• 🔥 模式 C (dlssg_for_sm86 首选推荐)：专为 Turing/Ampere 定制的高性能 SM75/SM86 本地插帧内核，与 DLSS 5 (dxgi.dll) 零冲突完美共存！\n"
-            "• 模式 A (dashdogy)：已为您自动启用 Bink2 链式挂载与 Ampere 流控补偿，0ms 无延迟秒挂载；\n"
+            "• 模式 A (dashdogy)：基于官方标准 Proxy DLL 规范注入，通用稳定多倍插帧；\n"
             "• 模式 B (OptiScaler)：全显卡通用跨架构转译备选 (XeSS 2.0 / FSR 3.1)。"
         )
         lbl_notice_body.setStyleSheet("font-size: 11px; color: #cbd5e1; line-height: 1.4;")
@@ -3868,25 +3958,7 @@ class ModernMFGGUI(QMainWindow):
         except Exception:
             self.card_rtx20_30_notice.setVisible(False)
 
-        # 1. Bink2 Chain Hook Card Container
-        self.card_bink = QFrame()
-        self.card_bink.setObjectName("CardBink")
-        self.card_bink.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
-        self.card_bink.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.card_bink.setMinimumHeight(42)
-        cb_layout = QVBoxLayout(self.card_bink)
-        cb_layout.setContentsMargins(10, 4, 10, 4)
-        cb_layout.setSpacing(0)
-
-        self.btn_bink_toggle = QPushButton(f"⚙️ Bink2 链式劫持: {'【已启用】' if self.use_bink else '【已禁用】'} →")
-        self.btn_bink_toggle.setProperty("class", "card-action-btn")
-        self.btn_bink_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_bink_toggle.setMinimumHeight(34)
-        self.btn_bink_toggle.clicked.connect(self._toggle_bink)
-        cb_layout.addWidget(self.btn_bink_toggle)
-        c2.addWidget(self.card_bink)
-
-        # 2. Frame Generation Guide Card Container
+        # 1. Frame Generation Guide Card Container
         self.card_guide = QFrame()
         self.card_guide.setObjectName("CardGuide")
         self.card_guide.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
@@ -4233,7 +4305,7 @@ class ModernMFGGUI(QMainWindow):
         cs_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (智能选取: winmm.dll > version.dll > dinput8.dll)"))
         cs_layout.addWidget(QLabel("• 交互菜单: 游戏内按 【Backspace】（退格键）呼出 ImGui 菜单，支持免重启切换 DLSS 预设"))
         cs_layout.addWidget(QLabel("• 多倍率支持: 支持 2X / 3X / 4X / 6X 以及 Dynamic MFG 动态插帧"))
-        cs_layout.addWidget(QLabel("• Bink 链式劫持: 将原有 bink2w64.dll 重命名为 bink2w64Hooked.dll，防反篡改屏蔽"))
+        cs_layout.addWidget(QLabel("• 注入规范: 严格遵循官方 Proxy DLL 标准 (dxgi/version/winmm/dinput8)，不篡改游戏原版文件"))
 
         btn_page2_a_preset = QPushButton("⚙️ 打开模式 A / dashdogy 中文预设与倍率参数面板 →")
         btn_page2_a_preset.setProperty("class", "card-action-btn")
@@ -4561,10 +4633,6 @@ class ModernMFGGUI(QMainWindow):
         except Exception:
             pass
 
-    def _toggle_bink(self):
-        self.use_bink = not self.use_bink
-        self.btn_bink_toggle.setText(f"⚙️ Bink2 链式劫持: {'【已启用】' if self.use_bink else '【已禁用】'} →")
-
     def _on_backend_dropdown_changed(self, index: int = 0):
         data = self.combo_backend.currentData()
         backend_str = data.value if hasattr(data, 'value') else str(data)
@@ -4626,18 +4694,6 @@ class ModernMFGGUI(QMainWindow):
         card_bd = ("rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)") if has_wp else ("#3A3A3A" if is_dark else "#E5E5E5")
         card_hover_bg = (f"rgba(45, 48, 58, {card_op:.2f})" if is_dark else f"rgba(240, 243, 248, {card_op:.2f})") if has_wp else ("#343434" if is_dark else "#EFEFEF")
         if is_dark:
-            bink_qss = f"""
-                QFrame#CardBink {{
-                    background-color: {card_bg};
-                    border: 1px solid {card_bd};
-                    border-radius: 11px;
-                    min-height: 42px;
-                }}
-                QFrame#CardBink:hover {{
-                    background-color: {card_hover_bg};
-                    border: 1px solid #4A4A4A;
-                }}
-            """
             guide_qss = f"""
                 QFrame#CardGuide {{
                     background-color: {card_bg};
@@ -4730,18 +4786,6 @@ class ModernMFGGUI(QMainWindow):
             path_lbl_color = "#E8E8E8"
             title_lbl_color = "#A0A0A0"
         else:
-            bink_qss = """
-                QFrame#CardBink {
-                    background-color: #FFFFFF;
-                    border: 1px solid #E5E5E5;
-                    border-radius: 11px;
-                    min-height: 42px;
-                }
-                QFrame#CardBink:hover {
-                    background-color: #EFEFEF;
-                    border: 1px solid #D4D4D4;
-                }
-            """
             guide_qss = """
                 QFrame#CardGuide {
                     background-color: #FFFFFF;
@@ -4834,14 +4878,10 @@ class ModernMFGGUI(QMainWindow):
             path_lbl_color = "#3A3A3A"
             title_lbl_color = "#8A8A8A"
 
-        if hasattr(self, "card_bink"):
-            self.card_bink.setStyleSheet(bink_qss)
         if hasattr(self, "card_guide"):
             self.card_guide.setStyleSheet(guide_qss)
         if hasattr(self, "card_preset"):
             self.card_preset.setStyleSheet(preset_qss)
-        if hasattr(self, "btn_bink_toggle"):
-            self.btn_bink_toggle.setStyleSheet(btn_bink_qss)
         if hasattr(self, "btn_show_guide"):
             self.btn_show_guide.setStyleSheet(btn_guide_qss)
         if hasattr(self, "btn_preset_cfg"):
@@ -5880,12 +5920,7 @@ class ModernMFGGUI(QMainWindow):
             if is_rtx20_30 and (backend == BackendType.SMART_AUTO or backend_str == "smart_auto"):
                 backend = BackendType.DLSSG_SM86
                 backend_str = BackendType.DLSSG_SM86.value
-            if is_rtx20_30 and (backend == BackendType.STANDALONE or backend_str == "dashdogy"):
-                if self.selected_game and os.path.exists(os.path.join(self.selected_game.target_dir, "bink2w64.dll")):
-                    self.use_bink = True
-                    self.btn_bink_toggle.setText("⚙️ Bink2 链式劫持: 【已启用】(RTX 20/30 自适应) →")
-
-            ok, msg = self.patcher.patch_game(self.selected_game, backend, prefer_bink_hook=self.use_bink)
+            ok, msg = self.patcher.patch_game(self.selected_game, backend)
 
             if ok:
                 # The requested backend can be SMART_AUTO; the manifest holds what was
@@ -5909,7 +5944,7 @@ class ModernMFGGUI(QMainWindow):
                         msg += (
                             "\n\n⚡ 【RTX 20/30 系列专属优化已就绪】\n"
                             "• 已自动配置 Ampere/Turing 架构流控补偿 (Rtx30FlipMetering)；\n"
-                            "• 若游戏目录含 bink2w64.dll 已自动采用 Bink2 链式挂载 (0ms 秒级挂载)；\n"
+                            "• 严格遵循标准 Proxy DLL 注入规范，不修改游戏原版文件；\n"
                             "• 本配置与 DLSS 5 (dxgi.dll) 完美双轨共存，互不干扰！"
                         )
                 progress_dlg.finish(True, "补丁应用成功！", msg, auto_close_delay_ms=0)
@@ -5933,7 +5968,7 @@ class ModernMFGGUI(QMainWindow):
                             "RTX 20/30 系列专属优化提示",
                             f"检测到当前运行在 NVIDIA RTX 20/30 系列显卡 ({gpu_name})：\n\n"
                             "1. 已为您自动应用 Ampere/Turing 架构流控补偿与显卡伪装配置；\n"
-                            "2. 若游戏包含 bink2w64.dll，已自动启用 Bink2 链式挂载，实现 0ms 启动抢先接管，并与 DLSS 5 (dxgi.dll) 完美共存！\n"
+                            "2. 遵循官方标准单代理 DLL 规范注入，原版文件零篡改，并与 DLSS 5 (dxgi.dll) 完美共存！\n"
                             "3. 进入游戏后若遇到原生开关未开启，可在游戏内按 Backspace 键调节，或随时在工具箱中一键切换为【模式 C · dlssg_for_sm86 原生插帧】运行。",
                             self.is_dark_mode
                         )
