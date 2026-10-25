@@ -164,7 +164,7 @@ def glass_control_qss(is_dark: bool) -> str:
         accent = "#3E9E69"
         grid = "rgba(255, 255, 255, 0.08)"
         header_bg = "rgba(18, 20, 25, 0.88)"
-        surface_bg = "rgba(22, 24, 30, 0.58)"
+        surface_bg = "rgba(22, 24, 30, 0.50)"
     else:
         bg = "rgba(255, 255, 255, 0.62)"
         hover = "rgba(255, 255, 255, 0.80)"
@@ -178,7 +178,7 @@ def glass_control_qss(is_dark: bool) -> str:
         accent = "#2F8F5B"
         grid = "rgba(0, 0, 0, 0.06)"
         header_bg = "rgba(255, 255, 255, 0.92)"
-        surface_bg = "rgba(255, 255, 255, 0.68)"
+        surface_bg = "rgba(255, 255, 255, 0.42)"
 
     return f"""
     QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox {{
@@ -253,7 +253,7 @@ def glass_control_qss(is_dark: bool) -> str:
 
 def glass_surface_color(is_dark: bool) -> str:
     """Background used by the large frosted surfaces (tables, lists, editors)."""
-    return "rgba(22, 24, 30, 0.58)" if is_dark else "rgba(255, 255, 255, 0.68)"
+    return "rgba(22, 24, 30, 0.50)" if is_dark else "rgba(255, 255, 255, 0.42)"
 
 
 

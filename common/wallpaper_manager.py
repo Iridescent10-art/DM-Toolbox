@@ -650,7 +650,7 @@ def get_acrylic_qss_styles(is_dark: bool, card_opacity: float, has_wallpaper: bo
     """
     # Readability floor: below ~0.62 the wallpaper shines through the text and
     # the card reads as "fully transparent" on bright wallpapers.
-    card_op = max(0.62, min(1.0, card_opacity))
+    card_op = max(0.50, min(1.0, card_opacity))
 
     if not has_wallpaper:
         # Default solid styling

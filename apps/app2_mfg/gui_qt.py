@@ -3383,7 +3383,7 @@ class ModernMFGGUI(QMainWindow):
             app.setPalette(pal)
         self.setStyleSheet(theme_str)
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
+        card_op = max(0.50, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
         if self.centralWidget():
             if has_wp:
                 tb_bg = f"rgba(26, 28, 36, {card_op:.2f})" if self.is_dark_mode else f"rgba(255, 255, 255, {card_op:.2f})"
@@ -3723,7 +3723,7 @@ class ModernMFGGUI(QMainWindow):
         """磨砂「页面底板」样式：让整页内容像首页卡片一样透光但可读。"""
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull()
                       and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
+        card_op = max(0.50, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
         if has_wp:
             bg = (f"rgba(24, 26, 33, {max(card_op, 0.55):.2f})" if self.is_dark_mode
                   else f"rgba(255, 255, 255, {max(card_op, 0.55):.2f})")
@@ -4746,7 +4746,7 @@ class ModernMFGGUI(QMainWindow):
     def _update_entry_cards_style(self):
         is_dark = self.is_dark_mode
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
+        card_op = max(0.50, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
         card_bg = (f"rgba(26, 28, 36, {card_op:.2f})" if is_dark else f"rgba(255, 255, 255, {card_op:.2f})") if has_wp else ("#2A2B2C" if is_dark else "#FFFFFF")
         card_bd = ("rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)") if has_wp else ("#3A3A3A" if is_dark else "#E5E5E5")
         card_hover_bg = (f"rgba(45, 48, 58, {card_op:.2f})" if is_dark else f"rgba(240, 243, 248, {card_op:.2f})") if has_wp else ("#343434" if is_dark else "#EFEFEF")

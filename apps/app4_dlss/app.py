@@ -913,7 +913,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
         is_dark = self.is_dark_mode
 
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
+        card_op = max(0.50, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
         if has_wp:
             card_bg = f"rgba(26, 28, 36, {card_op:.2f})" if is_dark else f"rgba(255, 255, 255, {card_op:.2f})"
             card_border = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
@@ -1004,7 +1004,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
         # 半透明玻璃质感输入控件，覆盖上面按主题写死的实色样式
         try:
             from common.ui_theme import apply_glass_controls, apply_page_surface
-            card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
+            card_op = max(0.50, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
             apply_page_surface(self.scroll_area.widget(), self.is_dark_mode, card_op)
             apply_glass_controls(self, self.is_dark_mode)
         except Exception:
