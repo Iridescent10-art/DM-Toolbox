@@ -1,3 +1,49 @@
+﻿# 🎉 DM-Toolbox (DM工具箱) 正式发布 v2.3.0 · 模式 B 与 DLSS 5 真双轨共存
+
+**DM-Toolbox (DM工具箱) 正式发布 v2.3.0！**
+本次更新把「XeSS 多帧生成（OptiScaler / XeFG）+ DLSS 5 神经重构（RenoDX / ReShade 6.8）」从「先回退再各跑各的」升级为**同时生效的真双轨共存**，并修掉了 v2.2.0 基线里几处会被用户直接感知的问题。
+
+---
+
+### 🔥 1. 反置双通道隔离拓扑（模式 B + DLSS 5 同时注入）
+
+- **dxgi.dll 严格归 ReShade 6.8**：DLSS 5 的 RenoDX 插件作为第一入口，在游戏创建 D3D12 设备与 NGX 上下文之前完成挂钩；
+- **OptiScaler 动态降级到次级代理槽位**：按游戏 EXE 的 PE 导入表在 `winmm.dll` / `version.dll` / `dinput8.dll` / `wininet.dll` 中动态选择，绝不与 ReShade 抢 `dxgi.dll`；两种注入顺序（先 B 后 DLSS 5 / 先 DLSS 5 后 B）都收敛到同一份磁盘状态；
+- **禁止第二个 ReShade 实例**：注入前清理 `ReShade64.dll` / `d3d12-ReShade64.dll` / `dxgi.dll.reshade_bak`，并在 `OptiScaler.ini` 锁定 `[Plugins] LoadReshade=false`，杜绝双份 D3D12 Hook 在交换链销毁时崩溃。
+
+### 🔥 2. 职责分工与 OptiScaler 配置直通
+
+- **DLSS 5 只管超分，XeFG 只管插帧**：`[Upscalers] Dx12Upscaler=dlss` 保留游戏内 DLSS 菜单与调用链，`[FrameGen] FGInput=dlssg → FGOutput=xefg` 把原生 DLSS-G 输入交给 Intel XeFG 执行多帧插值；
+- **修复共存配置被写回独立模式**：DLSS 5 注入时 ReShade/addon 尚未落盘，旧逻辑会把 `LoadReshade` / `HookOriginalNvngxOnly` / `SkipResizeBuffers` 写回 `auto`——现在共存态强制 `false` / `false` / `true`，并固定 `PreserveSwapChain=true`；
+- **XeFG 3X 出厂默认**：`[XeFG] IgnoreInitChecks=true` 豁免膨胀运动矢量预检查，`MFGUnlocker.asi` + `LoadAsiPlugins=true` 突破 2X 上限，默认 `InterpolationCount=2`（3X）。
+
+### 🔥 3. 根治 0xBAD00007：黑屏与回落 FSR/XeSS
+
+实测（燕云十六声 / Where Winds Meet）定位到两条失败路径，现已同时修好：
+
+- **`EnableDlssInputs=false`**：OptiScaler 不再抢占 `NVSDK_NGX_D3D12_CreateFeature`。此前它抢先创建自己的 DLSS feature，被 vendor NGX 以 `FAIL_NotInitialized (0xBAD00007)` 拒绝后回落到 FSR 2.1.2 —— 游戏最终拿 FSR 出图，DLSS 5 完全没拿到 DLSS 帧；
+- **自动部署 NGX 运行库**：部分游戏只带 `nvngx_dlss.dll` 而不带 `nvngx.dll`，此前靠 OptiScaler 代理加载；停止抢占后 NGX 无人初始化，全部 CreateFeature 返回 0xBAD00007、画面全黑。现在注入时会从驱动目录（`NGXCore` 注册表路径）自动补齐 `nvngx.dll` + `_nvngx.dll` 到游戏根目录，并登记进补丁清单，卸载时只删除自己复制的那两份。
+
+### 🔥 4. DLSS 运行库感知与显存指纹净化
+
+- **`[Libraries]` 精准路由**：新增运行库探测（游戏根目录 → `Streamline/` → 引擎深层目录，限深 4 层），`NvngxDlssPath` / `NvngxFeaturePath` 指向游戏真实 DLL，杜绝 OptiScaler 报 `nvngx_dlss.dll not found, disabling DLSS`；
+- **`StreamlineSpoofing` 保持 `auto`**（20/30 系共存态），不再被误写 `false` 导致游戏内 DLSS 超分菜单消失；`UseFakenvapi=false` 且无条件清理 `fakenvapi.*`，让 `nvngx_dlssnr.dll` 读到真实 GPU 架构内核。
+
+### 🛠 5. 基线修复
+
+- **出厂壁纸**：默认壁纸哈希统一为 `51a11db7f98b`（荷花水景少女），修正校验测试把 `%APPDATA%` 路径当成仓库相对路径的错误判断；
+- **一键还原**：清空 AppData 时保留 `cache` / `config` 目录本身，还原后自动重挂所有窗口的壁纸监听路径，修复还原后壁纸热更新彻底失效的问题；
+- **后台线程**：静默更新检查支持取消并在退出时等待，游戏库扫描与镜像测速增加取消标记，修复关闭窗口时 `QThread: Destroyed while thread is still running` 导致的进程崩溃。
+
+---
+
+### 📦 验证
+
+- 全量自动化测试：**147 passed / 1 skipped**
+- 实机验证：燕云十六声（RTX 4070）DLSS 5 超分正常、XeFG 3X 插帧正常、OptiScaler 面板 `SR: None` / `FG: XeFG 3x`
+
+---
+
 # 🚀 DM-Toolbox v2.1.0 · 核心升级与自适应模型突破
 
 ### 🌟 v2.1.0 核心更新与突破
