@@ -378,11 +378,11 @@ DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "engine": "DLSS",                  # "DLSS" (默认 NVIDIA 原生模型) / "XeSS" (Intel XeSS-FG 引擎)
     "max_generated_frames": 3,         # 1=最高2X, 2=最高3X, 3=最高4X(上游出厂), 5=最高6X
     "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=轻量加速(默认), 3=极速加速
-    "dlssg_preset": "Auto",            # "Auto"(上游出厂), "A", "B", "C"(FG Lite 轻量插帧)
+    "dlssg_preset": "C",               # "C"(FG Lite 轻量插帧 · 默认), "Auto", "A", "B", "Default"
     "super_resolution_mode": "Off",    # "Off"(默认，与 DLSS 5 完美共存), "On"(RTX 20/30 INT8 超分加速)
     "proxy_dll": "version.dll",        # "version.dll"(默认), "winmm.dll", "dbghelp.dll", "dinput8.dll"
     "logging_level": 1,                # 0=关闭, 1=错误, 2=配置, 3=跟踪
-    "preset_schema_version": 3
+    "preset_schema_version": 4
 }
 
 def load_dlssg_sm86_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
@@ -409,19 +409,19 @@ def load_dlssg_sm86_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
         preset["logging_level"] = 1
         preset["preset_schema_version"] = 2
 
-    # v2.3.x 迁移：回到上游 0.4.0 的出厂值（4X 上限 + Preset=Auto）。
-    # v2.0.0 曾把这两个值改成 3X / C，偏离上游出厂配置后，4X 会被静默钳到 3X。
-    # 只迁移「旧出厂组合」，用户自己选过的倍率 / 预设保持不动。
-    if int(preset.get("preset_schema_version", 0) or 0) < 3:
+    # v2.3.x 迁移：倍率上限回到上游出厂的 4X（MaxGeneratedFrames=3），
+    # 预设统一为 Model C（FG Lite 极速多帧）。v2.0.0 曾把上限写成 3X，
+    # 游戏请求的 4X 会被静默钳到 3X；用户显式选过的 A/B/Default 预设保持不变。
+    if int(preset.get("preset_schema_version", 0) or 0) < 4:
         try:
             old_frames = int(preset.get("max_generated_frames", 0) or 0)
         except Exception:
             old_frames = 0
-        old_preset = str(preset.get("dlssg_preset", "")).strip().upper()
-        if old_frames == 2 and old_preset == "C":
+        if old_frames == 2:
             preset["max_generated_frames"] = 3
-            preset["dlssg_preset"] = "Auto"
-        preset["preset_schema_version"] = 3
+        if str(preset.get("dlssg_preset", "")).strip().upper() in ("", "AUTO"):
+            preset["dlssg_preset"] = "C"
+        preset["preset_schema_version"] = 4
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cfg_file, "w", encoding="utf-8") as f:

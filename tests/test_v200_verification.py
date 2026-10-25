@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 """
 Verification tests for DM-Toolbox v2.0.0:
-- Mode C default parameters (4X, Optimized 2, Preset Auto, Engine DLSS, SR Off, Proxy version.dll)
+- Mode C default parameters (4X, Optimized 2, Preset Model C, Engine DLSS, SR Off, Proxy version.dll)
 - RTX 20/30 GPU default backend locking to Mode C
 - Wallpaper default parameters (enabled=True, blur=0, card_opacity=0.5, tint=0.2, sync_mode=unified)
 - Forward & Reverse INI synchronization integrity for Mode C
@@ -47,7 +47,7 @@ def test_mode_c_default_preset():
     assert preset["engine"] == "DLSS", f"Expected engine DLSS, got {preset['engine']}"
     assert preset["max_generated_frames"] == 3, f"Expected max_generated_frames 3 (4X, upstream factory), got {preset['max_generated_frames']}"
     assert preset["optimized"] == 2, f"Expected optimized 2, got {preset['optimized']}"
-    assert preset["dlssg_preset"] == "Auto", f"Expected dlssg_preset Auto, got {preset['dlssg_preset']}"
+    assert preset["dlssg_preset"] == "C", f"Expected dlssg_preset C, got {preset['dlssg_preset']}"
     assert preset["super_resolution_mode"] == "Off", f"Expected SR mode Off, got {preset['super_resolution_mode']}"
     assert preset["proxy_dll"] == "version.dll", f"Expected proxy version.dll, got {preset['proxy_dll']}"
     assert preset["logging_level"] == 1, f"Expected logging level 1, got {preset['logging_level']}"
@@ -56,7 +56,7 @@ def test_mode_c_default_preset():
     assert "DLSS 原生" in summary
     assert "4X" in summary
     assert "轻量加速" in summary
-    assert "预设 Auto" in summary
+    assert "预设 C" in summary
 
 
 def test_wallpaper_default_config():
@@ -104,7 +104,7 @@ def test_mode_c_ini_forward_sync_and_coexistence():
         assert "Engine=DLSS" in content
         assert "MaxGeneratedFrames=3" in content
         assert "Optimized=2" in content
-        assert "Preset=Auto" in content
+        assert "Preset=C" in content
         assert "Mode=Off" in content
 
         # Reverse sync test
@@ -113,7 +113,7 @@ def test_mode_c_ini_forward_sync_and_coexistence():
         assert rev["engine"] == "DLSS"
         assert rev["max_generated_frames"] == 3
         assert rev["optimized"] == 2
-        assert rev["dlssg_preset"] == "Auto"
+        assert rev["dlssg_preset"] == "C"
 
 
 def test_rtx_20_30_detection_logic():

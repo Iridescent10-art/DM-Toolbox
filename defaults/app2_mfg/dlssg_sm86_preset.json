@@ -3,9 +3,9 @@
   "engine": "DLSS",
   "max_generated_frames": 3,
   "optimized": 2,
-  "dlssg_preset": "Auto",
+  "dlssg_preset": "C",
   "super_resolution_mode": "Off",
   "logging_level": 1,
   "proxy_dll": "version.dll",
-  "preset_schema_version": 3
+  "preset_schema_version": 4
 }

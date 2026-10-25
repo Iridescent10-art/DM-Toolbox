@@ -31,10 +31,11 @@
 
 ### 🔥 5. 模式 C 注入严格对齐上游教程（dlssg_for_sm86 0.4.0）
 
-- **只注入三样**：单一代理 DLL（默认 ersion.dll，不加载时可在面板换 winmm.dll / dbghelp.dll / dinput8.dll，换不是加）、dlssg_sm86.ini、整个 dlssg_sm86\ 目录；
-- **出厂值回到上游**：[FrameGeneration] MaxGeneratedFrames=3（最多 4X）、[DLSSG] Preset=Auto。v2.0.0 曾改成 3X / C，会让游戏请求的 4X 被静默钳到 3X；
-- **部署完整性校验**：注入后检查代理 DLL、INI、untime\nvngx_dlssg.dll、ackend\sm86_backend.dll、kernels\fg_kernels.dll，缺任何一项直接报错，不再出现「注入了但没效果」；
-- 老用户预设自动迁移：仅当仍是旧出厂组合（3X + Preset C）时升级为 4X + Auto，手动改过的不动。
+- **只注入三样**：单一代理 DLL（默认 version.dll，游戏不加载时可在面板换成 winmm.dll / dbghelp.dll / dinput8.dll，换不是加）、dlssg_sm86.ini、整个 dlssg_sm86 目录；
+- **出厂值对齐上游**：[FrameGeneration] MaxGeneratedFrames=3（最多 4X）；默认模型为 Model C（FG Lite 极速多帧）。v2.0.0 曾把上限写成 3X，会让游戏请求的 4X 被静默钳到 3X；
+- **部署完整性校验**：注入后检查代理 DLL、INI，以及 dlssg_sm86 目录内的 runtime / backend / kernels 三个核心文件，缺任何一项直接报错，不再出现「注入了但没效果」；
+- 老用户预设自动迁移：3X 上限升级为 4X，Preset=Auto 升级为 Model C；手动选过 A/B/Default 的不动。
+
 ### 🛠 6. 基线修复
 
 - **出厂壁纸**：默认壁纸哈希统一为 `51a11db7f98b`（荷花水景少女），修正校验测试把 `%APPDATA%` 路径当成仓库相对路径的错误判断；
