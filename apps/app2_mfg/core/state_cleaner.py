@@ -207,7 +207,7 @@ def is_dlss5_present(target_dir: Union[str, Path]) -> bool:
 
 
 
-def is_mode_c_present(target_dir: Union[str, Path]) -> bool:
+def is_mode_b_present(target_dir: Union[str, Path]) -> bool:
     """Check if Mode B (OptiScaler / XeSS 2.0 / XeFG) is present."""
     if not target_dir:
         return False
@@ -215,6 +215,8 @@ def is_mode_c_present(target_dir: Union[str, Path]) -> bool:
     if not td.exists() or not td.is_dir():
         return False
     return (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists() or (td / "libxess_fg.dll").exists()
+
+is_mode_c_present = is_mode_b_present  # backward compat alias
 
 def is_dlssg_sm86_present(target_dir: Union[str, Path]) -> bool:
     """Check if dlssg_for_sm86 is present in target directory."""
@@ -345,22 +347,12 @@ def CleanGameDirectoryState(
 
     target_mode:
 
-      - 'A': Prepares for Mode A (dashdogy). ReShade uses dxgi.dll if DLSS 5 active; dashdogy uses version.dll.
-
-             Removes ReShade64.dll, renodx-mfgunlock.addon64, OptiScaler.ini, OptiScaler.log.
-
-      - 'B': Prepares for Mode B (RenoDX). ReShade uses dxgi.dll with both addons.
-
-             Removes version.dll, winmm.dll, ReShade64.dll, OptiScaler.ini, RTXMFG-Universal.json.
-
-      - 'C': Prepares for Mode C (OptiScaler / XeSS 2.0 / FSR 3.1).
-
-             OptiScaler uses dxgi.dll in standalone, or dynamic proxy (winmm.dll / version.dll) if DLSS 5 active.
-
-             Removes Mode A/B/D conflicting files.
-
-
-             Removes Mode A/B/C conflicting files.
+      - 'A': Prepares for Mode A (dashdogy Universal MFG-Unlocker). Standard proxy dxgi.dll (or version.dll under DLSS 5).
+             Removes Mode B (OptiScaler) and Mode C (dlssg_for_sm86) files.
+      - 'B': Prepares for Mode B (OptiScaler / XeSS 2.0 / FSR 3.1 跨架构转译). Standard proxy dxgi.dll (or version.dll under DLSS 5).
+             Removes Mode A (RTXMFG*) and Mode C (dlssg_sm86*) files.
+      - 'C': Prepares for Mode C (dlssg_for_sm86 原生插帧 · RTX 20/30 首选). Standard proxy version.dll.
+             Removes Mode A (RTXMFG*) and Mode B (OptiScaler) files.
 
       - None: Full unpatch clean state.
 
@@ -517,9 +509,9 @@ def CleanGameDirectoryState(
     # (C) renodx-mfgunlock.addon64: ONLY exists in Mode B!
 
     renodx_addon = td / "renodx-mfgunlock.addon64"
-    if renodx_addon.exists() and mode != "B":
+    if renodx_addon.exists():
         safe_remove_file(renodx_addon)
-        actions_taken.append("清理非模式 B 的 renodx-mfgunlock.addon64")
+        actions_taken.append("清理遗留的 renodx-mfgunlock.addon64")
 
 
 
@@ -548,9 +540,14 @@ def CleanGameDirectoryState(
                 safe_remove_file(dxgi_path)
                 actions_taken.append("清理 dxgi.dll (非 ReShade 代理)，锁死 ReShade 6.8 渲染底座")
         else:
-            if mode == "B":
-                if is_injected_proxy_dll(str(dxgi_path)):
-                    if target_proxy_norm and target_proxy_norm != "dxgi.dll":
+            if mode in ("A", "STANDALONE"):
+                if target_proxy_norm and target_proxy_norm != "dxgi.dll":
+                    if is_injected_proxy_dll(str(dxgi_path)):
+                        safe_remove_file(dxgi_path)
+                        actions_taken.append("清理非目标代理槽位的 dxgi.dll")
+            elif mode in ("B", "OPTISCALER_FSR", "OPTISCALER"):
+                if target_proxy_norm and target_proxy_norm != "dxgi.dll":
+                    if is_injected_proxy_dll(str(dxgi_path)):
                         safe_remove_file(dxgi_path)
                         actions_taken.append("清理非目标代理槽位的 dxgi.dll")
             elif mode in ("C", "D", "DLSSG_SM86", "SM86"):
@@ -558,10 +555,6 @@ def CleanGameDirectoryState(
                     if is_injected_proxy_dll(str(dxgi_path)) or is_reshade_dll_file(str(dxgi_path)):
                         safe_remove_file(dxgi_path)
                         actions_taken.append("清理非目标代理槽位的 dxgi.dll")
-            elif mode == "A":
-                if is_injected_proxy_dll(str(dxgi_path)):
-                    safe_remove_file(dxgi_path)
-                    actions_taken.append("清理残留的 dxgi.dll")
             elif mode == "":
                 if is_injected_proxy_dll(str(dxgi_path)):
                     safe_remove_file(dxgi_path)
@@ -616,9 +609,9 @@ def CleanGameDirectoryState(
 
                 actions_taken.append(f"清理非模式 A 配置文件: {cfg}")
 
-    # Mode C (OptiScaler / XeSS 2.0 / FSR 3.1) configs & runtime DLLs:
+    # Mode B (OptiScaler / XeSS 2.0 / FSR 3.1) configs & runtime DLLs:
 
-    mode_c_configs = [
+    mode_b_configs = [
 
         "OptiScaler.dll",
 
@@ -660,7 +653,8 @@ def CleanGameDirectoryState(
     if mode in ("A", "STANDALONE", "C", "D", "DLSSG_SM86", "SM86") or mode == "":
         imported_pe_dlls = get_game_statically_imported_dlls(td)
         has_ffx_loader = (td / "amd_fidelityfx_loader_dx12.dll").exists()
-        for cfg in mode_c_configs:
+        mode_c_configs = mode_b_configs
+        for cfg in mode_b_configs:
             if has_ffx_loader and cfg == "amd_fidelityfx_upscaler_dx12.dll":
                 actions_taken.append("豁免保留游戏原生态 FidelityFX Upscaler 依赖库: amd_fidelityfx_upscaler_dx12.dll")
                 continue
@@ -670,7 +664,7 @@ def CleanGameDirectoryState(
             f = td / cfg
             if f.exists():
                 safe_remove_file(f)
-                actions_taken.append(f"清理非模式 C 配置文件: {cfg}")
+                actions_taken.append(f"清理非模式 B 配置文件: {cfg}")
 
         for opti_d_name in ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx"]:
 
@@ -682,7 +676,7 @@ def CleanGameDirectoryState(
 
                     shutil.rmtree(opti_dir, ignore_errors=True)
 
-                    actions_taken.append(f"清理非模式 C {opti_d_name} 目录")
+                    actions_taken.append(f"清理非模式 B {opti_d_name} 目录")
 
                 except Exception:
 

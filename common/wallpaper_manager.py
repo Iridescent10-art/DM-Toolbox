@@ -363,7 +363,7 @@ def process_and_cache_wallpaper(
             progress_callback(50, "正在生成 2560×1440 超清壁纸底图缓存...")
 
         # Scale to max 3840x2160 (4K UHD) while preserving native quality for <= 4K
-        max_w, max_h = 3840, 2160
+        max_w, max_h = 2560, 1440
         w, h = img.size
         scale = min(max_w / w, max_h / h, 1.0)
         if scale < 1.0:

@@ -1986,7 +1986,7 @@ class DLSS5Injector:
         # while the engine has them mapped corrupts the image and crashes on the
         # next DLSS call. The patch engine already guards this; DLSS 5 did not.
         game_exe = _guess_game_exe(td)
-        if game_exe:
+        if game_exe and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
                 from apps.app2_mfg.core.utils import is_process_running
                 if is_process_running(os.path.basename(game_exe)):

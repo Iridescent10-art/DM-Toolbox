@@ -807,35 +807,31 @@ class OptiScalerPresetDialog(QDialog):
         except Exception:
             pass
 
-        # Load presets: merge in-game INI values if the target game folder already has configs
+        # Load presets: Mode A (dashdogy), Mode B (OptiScaler), Mode C (dlssg_for_sm86)
         self.preset_a = load_mode_a_preset()
-        self.preset_b = load_reshade_preset()
-        self.preset_c = load_optiscaler_preset()
-        self.preset_sm86 = load_dlssg_sm86_preset()
+        self.preset_b = load_optiscaler_preset()  # Mode B is OptiScaler!
+        self.preset_c = load_dlssg_sm86_preset()  # Mode C is dlssg_for_sm86!
+        self.preset_sm86 = self.preset_c          # backward compat alias
+
         if self.game and self.game.target_dir:
             disk_a = IniConfigManager.read_mode_a_reverse(self.game.target_dir)
             if disk_a:
                 self.preset_a.update(disk_a)
             disk_b = IniConfigManager.read_mode_b_reverse(self.game.target_dir)
             if disk_b:
+                if disk_b.get("dx12_upscaler") in ("xess", "dlss") and not self.preset_b.get("user_customized_upscaler", False):
+                    disk_b["dx12_upscaler"] = "auto"
                 self.preset_b.update(disk_b)
-            disk_c = IniConfigManager.read_mode_c_reverse(self.game.target_dir)
-            if disk_c:
-                if disk_c.get("dx12_upscaler") in ("xess", "dlss") and not self.preset_c.get("user_customized_upscaler", False):
-                    disk_c["dx12_upscaler"] = "auto"
-                self.preset_c.update(disk_c)
-            disk_sm86 = IniConfigManager.read_dlssg_sm86_reverse(self.game.target_dir)
-            if disk_sm86:
-                self.preset_sm86.update(disk_sm86)
             else:
-                # 目标游戏未安装过 OptiScaler (第一次安装/打补丁)
-                # 默认超分必须 100% 确保为 auto (自动继承游戏内设定)
-                self.preset_c["dx12_upscaler"] = "auto"
+                self.preset_b["dx12_upscaler"] = "auto"
+            disk_c = IniConfigManager.read_dlssg_sm86_reverse(self.game.target_dir)
+            if disk_c:
+                self.preset_c.update(disk_c)
         else:
-            self.preset_c["dx12_upscaler"] = "auto"
+            self.preset_b["dx12_upscaler"] = "auto"
 
-        if not self.preset_c.get("user_customized_upscaler", False):
-            self.preset_c["dx12_upscaler"] = "auto"
+        if not self.preset_b.get("user_customized_upscaler", False):
+            self.preset_b["dx12_upscaler"] = "auto"
 
         self._drag_pos = QPoint()
         self._is_dragging = False
@@ -1110,7 +1106,7 @@ class OptiScalerPresetDialog(QDialog):
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_a, is_dark))
 
         # Add Tab 1: Mode B (OptiScaler)
-        tab_mode_b = self._build_mode_c_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
+        tab_mode_b = self._build_mode_b_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_b, is_dark))
 
         # Add Tab 2: Mode C (dlssg_for_sm86)
@@ -1452,7 +1448,8 @@ class OptiScalerPresetDialog(QDialog):
         layout.addStretch()
         return tab
 
-    def _build_mode_c_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
+    def _build_mode_b_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
+        # Mode B is OptiScaler
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -1724,7 +1721,7 @@ class OptiScalerPresetDialog(QDialog):
         layout.addStretch()
         return tab
 
-    def _build_mode_b_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
+    def _build_legacy_reshade_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -1928,6 +1925,8 @@ class OptiScalerPresetDialog(QDialog):
                 color: #ffffff;
             }}
         """
+
+    _build_mode_c_tab = _build_mode_b_tab  # backward compat alias
 
     def _build_dlssg_sm86_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
         tab = QWidget()
@@ -2361,9 +2360,9 @@ class OptiScalerPresetDialog(QDialog):
 
     def _reset_to_defaults(self):
         self.preset_a = dict(DEFAULT_MODE_A_PRESET)
-        self.preset_b = dict(DEFAULT_RESHADE_PRESET)
-        self.preset_c = dict(DEFAULT_OPTISCALER_PRESET)
-        self.preset_sm86 = dict(DEFAULT_DLSSG_SM86_PRESET)
+        self.preset_b = dict(DEFAULT_OPTISCALER_PRESET)
+        self.preset_c = dict(DEFAULT_DLSSG_SM86_PRESET)
+        self.preset_sm86 = self.preset_c
         self._sync_values_to_ui()
 
     def _save_and_accept(self):
@@ -2376,53 +2375,38 @@ class OptiScalerPresetDialog(QDialog):
             self.preset_a["proxy_dll"] = self.combo_a_proxy.currentData()
             save_mode_a_preset(self.preset_a)
 
-        # 1. Update Mode B dictionary if UI exists
-        if hasattr(self, "combo_b_mult"):
-            self.preset_b["force_multiplier"] = self.combo_b_mult.currentData()
-            self.preset_b["dlss_preset"] = self.combo_b_preset.currentData()
-            self.preset_b["blackwell_kernels"] = 1 if self.chk_b_blackwell.isChecked() else 0
-            self.preset_b["thin_geometry_isr"] = 1 if self.chk_b_isr.isChecked() else 0
-            self.preset_b["thin_geometry_vwb"] = 1 if self.chk_b_vwb.isChecked() else 0
-            self.preset_b["thin_geometry_bam"] = 1 if self.chk_b_bam.isChecked() else 0
-            self.preset_b["hdr_ui_recomposition"] = 1 if self.chk_b_hdr.isChecked() else 0
-            self.preset_b["dynamic_mfg"] = 1 if self.chk_b_dynamic.isChecked() else 0
-            self.preset_b["temporal_fix"] = 1 if self.chk_b_temporal.isChecked() else 0
-            save_reshade_preset(self.preset_b)
-
-        # 2. Update Mode C dictionary & save to persistent storage
+        # 1. Update Mode B (OptiScaler) dictionary & save to persistent storage
         if hasattr(self, "combo_fg_out"):
-            self.preset_c["fg_output"] = self.combo_fg_out.currentData()
-            self.preset_c["interpolation_count"] = self.combo_mult.currentData()
-            self.preset_c["fg_input"] = self.combo_fg_in.currentData()
-            self.preset_c["dx12_upscaler"] = self.combo_upscaler.currentData()
-            self.preset_c["user_customized_upscaler"] = (self.combo_upscaler.currentData() != "auto")
-            self.preset_c["dlss_preset"] = self.combo_c_preset.currentData()
-            self.preset_c["menu_key"] = self.combo_c_key.currentData()
-            self.preset_c["menu_scale"] = float(self.combo_menu_scale.currentData())
-            self.preset_c["rcas_enabled"] = self.chk_rcas.isChecked()
-            self.preset_c["rcas_sharpness"] = round(self.slider_sharp.value() / 100.0, 2)
+            self.preset_b["fg_output"] = self.combo_fg_out.currentData()
+            self.preset_b["interpolation_count"] = self.combo_mult.currentData()
+            self.preset_b["fg_input"] = self.combo_fg_in.currentData()
+            self.preset_b["dx12_upscaler"] = self.combo_upscaler.currentData()
+            self.preset_b["user_customized_upscaler"] = (self.combo_upscaler.currentData() != "auto")
+            self.preset_b["dlss_preset"] = self.combo_c_preset.currentData()
+            self.preset_b["menu_key"] = self.combo_c_key.currentData()
+            self.preset_b["menu_scale"] = float(self.combo_menu_scale.currentData())
+            self.preset_b["rcas_enabled"] = self.chk_rcas.isChecked()
+            self.preset_b["rcas_sharpness"] = round(self.slider_sharp.value() / 100.0, 2)
             if hasattr(self, "chk_c_unlock_mfg"):
-                self.preset_c["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
-            save_optiscaler_preset(self.preset_c)
+                self.preset_b["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
+            save_optiscaler_preset(self.preset_b)
 
-
-
-        # 3. Update Mode C (dlssg_for_sm86) dictionary & save
+        # 2. Update Mode C (dlssg_for_sm86) dictionary & save
         if hasattr(self, "combo_sm86_mult"):
-            self.preset_sm86["max_generated_frames"] = self.combo_sm86_mult.currentData()
-            self.preset_sm86["optimized"] = self.combo_sm86_opt.currentData()
-            self.preset_sm86["dlssg_preset"] = self.combo_sm86_preset.currentData()
-            self.preset_sm86["engine"] = self.combo_sm86_engine.currentData()
-            self.preset_sm86["super_resolution_mode"] = self.combo_sm86_sr.currentData()
-            self.preset_sm86["proxy_dll"] = self.combo_sm86_proxy.currentData()
-            self.preset_sm86["logging_level"] = self.combo_sm86_log.currentData()
-            save_dlssg_sm86_preset(self.preset_sm86)
+            self.preset_c["max_generated_frames"] = self.combo_sm86_mult.currentData()
+            self.preset_c["optimized"] = self.combo_sm86_opt.currentData()
+            self.preset_c["dlssg_preset"] = self.combo_sm86_preset.currentData()
+            self.preset_c["engine"] = self.combo_sm86_engine.currentData()
+            self.preset_c["super_resolution_mode"] = self.combo_sm86_sr.currentData()
+            self.preset_c["proxy_dll"] = self.combo_sm86_proxy.currentData()
+            self.preset_c["logging_level"] = self.combo_sm86_log.currentData()
+            save_dlssg_sm86_preset(self.preset_c)
 
-        # 4. Forward synchronization to target game directory
+        # 3. Forward synchronization to target game directory
         if self.game and self.game.target_dir:
             IniConfigManager.sync_mode_a_forward(self.game.target_dir, self.preset_a)
-            IniConfigManager.sync_mode_c_forward(self.game.target_dir, self.preset_c, exe_name=self.game.exe_name)
-            IniConfigManager.sync_dlssg_sm86_forward(self.game.target_dir, self.preset_sm86, exe_name=self.game.exe_name)
+            IniConfigManager.sync_mode_b_forward(self.game.target_dir, self.preset_b, exe_name=self.game.exe_name)
+            IniConfigManager.sync_dlssg_sm86_forward(self.game.target_dir, self.preset_c, exe_name=self.game.exe_name)
             if hasattr(self, "combo_a_proxy"):
                 self._swap_mode_a_proxy(self.game.target_dir, self.combo_a_proxy.currentData())
             if hasattr(self, "combo_sm86_proxy"):
@@ -5827,9 +5811,10 @@ class ModernMFGGUI(QMainWindow):
         def update_thread():
             results = []
             backends = [
-                (BackendType.STANDALONE, "模式 A (dashdogy 原生通用解锁)", 0, 40),
-                (BackendType.OPTISCALER_FSR, "模式 B (OptiScaler 跨架构转译)", 40, 80),
-                (BackendType.RHI, "ReShade HDR (RHI 模组生态)", 80, 100)
+                (BackendType.STANDALONE, "模式 A (dashdogy 原生通用解锁)", 0, 25),
+                (BackendType.OPTISCALER_FSR, "模式 B (OptiScaler 跨架构转译)", 25, 50),
+                (BackendType.DLSSG_SM86, "模式 C (dlssg_for_sm86 原生插帧)", 50, 75),
+                (BackendType.RHI, "ReShade HDR (RHI 模组生态)", 75, 100)
             ]
             opti_channel = self.combo_opti_channel.currentData() if hasattr(self, "combo_opti_channel") else "nightly"
             for b, name, base_pct, end_pct in backends:

@@ -117,7 +117,7 @@ def get_mode_a_preset_summary(config: Optional[Dict[str, Any]] = None) -> str:
     proxy_str = f" | 代理: {proxy}" if proxy != "auto" else ""
     return f"dashdogy [{mult}X 倍率] | DLSS {preset} 档 | FG {dlssg_p} 模型 | 快捷键: {key}{proxy_str}"
 
-# ----------------- Mode C / OptiScaler Preset -----------------
+# ----------------- Mode B / OptiScaler Preset -----------------
 
 def load_optiscaler_preset() -> Dict[str, Any]:
     """Load user's saved OptiScaler preset, or return defaults if absent."""
@@ -415,3 +415,13 @@ def get_dlssg_sm86_preset_summary(config: Optional[Dict[str, Any]] = None) -> st
 
     return f"dlssg_for_sm86 [{eng} 原生插帧 {mult_str}] | {opt_str} | 预设 {preset}{sr_str} | 代理: {proxy}"
 
+
+# Mode B aliases
+load_mode_b_preset = load_optiscaler_preset
+save_mode_b_preset = save_optiscaler_preset
+get_mode_b_preset_summary = get_preset_summary
+
+# Mode C aliases
+load_mode_c_preset = load_dlssg_sm86_preset
+save_mode_c_preset = save_dlssg_sm86_preset
+get_mode_c_preset_summary = get_dlssg_sm86_preset_summary

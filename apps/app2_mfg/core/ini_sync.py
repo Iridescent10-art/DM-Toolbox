@@ -429,7 +429,17 @@ class IniConfigManager:
             return False
 
     @classmethod
-    def sync_mode_c_forward(cls, target_dir: Union[str, Path], preset: Dict[str, Any], exe_name: Optional[str] = None) -> bool:
+    def sync_mode_b_forward(cls, target_dir: Union[str, Path], preset: Dict[str, Any], exe_name: Optional[str] = None) -> bool:
+        """
+        Forward sync Mode B (OptiScaler / XeSS 2.0 / FSR 3.1) parameters into TargetExeDir/OptiScaler.ini.
+        """
+        return cls._sync_optiscaler_forward_impl(target_dir, preset, exe_name)
+
+    sync_mode_c_forward = sync_mode_b_forward  # backward compat alias
+    sync_optiscaler_forward = sync_mode_b_forward
+
+    @classmethod
+    def _sync_optiscaler_forward_impl(cls, target_dir: Union[str, Path], preset: Dict[str, Any], exe_name: Optional[str] = None) -> bool:
         """
         Forward sync the Mode C preset into the ONE legal config file: `OptiScaler.ini`.
 
@@ -769,7 +779,7 @@ class IniConfigManager:
                     warnings.append(
                         "当前显卡的 Intel XeFG 只支持 2X（libxess_fg 报告 Max supported interpolations = 1，"
                         "常见于非 Arc 显卡）。如需 3X/4X 原生多倍插帧，请改用"
-                        "【模式 A: dashdogy MFG-Unlocker】，XeFG 通道无法突破该硬件上限。"
+                        "【模式 A: dashdogy MFG-Unlocker】（RTX 40/50）或【模式 C: dlssg_for_sm86】（RTX 20/30），XeFG 通道无法突破该硬件上限。"
                     )
             else:
                 warnings.append(
@@ -1014,9 +1024,9 @@ class IniConfigManager:
         except Exception:
             pass
 
-    # ---------------- Mode B (RenoDX ReShade Addon) Sync ----------------
+    # ---------------- Legacy RenoDX ReShade Addon Sync ----------------
     @classmethod
-    def sync_mode_b_forward(cls, target_dir: Union[str, Path], config: Dict[str, Any]) -> bool:
+    def sync_legacy_reshade_forward(cls, target_dir: Union[str, Path], config: Dict[str, Any]) -> bool:
         """
         Forward sync Mode B parameters into TargetExeDir/ReShade.ini.
         Ensures early loading [ADDON] LoadFromDllMain and exact section/key names matching

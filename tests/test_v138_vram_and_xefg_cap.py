@@ -67,7 +67,7 @@ def test_xefg_cap_warning_suggests_native_mfg():
         assert report["interpolation_count"] == 1, "must clamp to the hardware max (2X)"
         assert report["interpolation_clamped"] is True
         joined = "\n".join(report["warnings"])
-        assert "模式 D" in joined and "模式 A" in joined, (
+        assert ("模式 C" in joined or "模式 D" in joined) and "模式 A" in joined, (
             "warning must point users to the native DLSS-G multi-frame modes"
         )
         print("   [PASS] 2X 上限被正确识别，并提示改用模式 A / 模式 D 获取 3X/4X")

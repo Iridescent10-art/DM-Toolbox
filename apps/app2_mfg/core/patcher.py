@@ -423,24 +423,25 @@ class PatchEngine:
         if active_backend == BackendType.DLSSG_SM86:
             return "version.dll"
 
-
-        imported = self._get_pe_imported_proxies(game.exe_path)
-        if "winmm.dll" in imported:
-            return "winmm.dll"
-        if "version.dll" in imported:
-            return "version.dll"
-        if "dinput8.dll" in imported:
-            return "dinput8.dll"
-
+        # 1. Standalone Mode (WITHOUT DLSS 5):
+        # dxgi.dll is the universal standard DirectX hook for Mode A (dashdogy) and Mode B (OptiScaler).
         if not is_coexisting_with_dlss5:
-            if active_backend in (BackendType.OPTISCALER_FSR, BackendType.STANDALONE):
+            if active_backend == BackendType.STANDALONE:
+                try:
+                    from core.optiscaler_config import load_mode_a_preset
+                    user_proxy = load_mode_a_preset().get("proxy_dll", "auto")
+                    if user_proxy and user_proxy != "auto":
+                        return user_proxy
+                except Exception:
+                    pass
+                return "dxgi.dll"
+            elif active_backend == BackendType.OPTISCALER_FSR:
                 return "dxgi.dll"
             return "dxgi.dll"
 
-        # Under DLSS 5 coexistence: dxgi.dll is strictly reserved for ReShade 6.8.
-        # The shared coexistence router picks the slot the game imports first
-        # (winmm.dll > version.dll > dinput8.dll > wininet.dll), and never returns
-        # dxgi.dll, so both orders of injection converge to the same layout.
+        # 2. Coexistence with DLSS 5:
+        # dxgi.dll is strictly reserved for DLSS 5 ReShade 6.8.
+        # Pick the optimal non-dxgi proxy slot that the game's PE Import Table loads.
         try:
             from core.coexistence import pick_fg_proxy_slot
             return pick_fg_proxy_slot(game.target_dir, game.exe_path)
@@ -591,7 +592,7 @@ class PatchEngine:
             from core.optiscaler_config import load_reshade_preset
             b_cfg = IniConfigManager.read_mode_b_reverse(target_dir)
             if not b_cfg:
-                IniConfigManager.sync_mode_b_forward(target_dir, load_reshade_preset())
+                IniConfigManager.sync_legacy_reshade_forward(target_dir, load_reshade_preset())
                 healed = True
         except Exception:
             pass
@@ -698,7 +699,7 @@ class PatchEngine:
             from core.ini_sync import IniConfigManager
             from core.optiscaler_config import load_reshade_preset, get_reshade_preset_summary
             r_cfg = load_reshade_preset()
-            IniConfigManager.sync_mode_b_forward(target_dir, r_cfg)
+            IniConfigManager.sync_legacy_reshade_forward(target_dir, r_cfg)
             summary_str = get_reshade_preset_summary(r_cfg)
             manifest.ini_modifications.append({
                 "file": "ReShade.ini",
@@ -997,7 +998,7 @@ class PatchEngine:
             if not preset:
                 preset = load_optiscaler_preset()
             IniConfigManager.purge_legacy_nvngx_ini(target_dir)
-            IniConfigManager.sync_mode_c_forward(target_dir, preset, exe_name=game.exe_name)
+            IniConfigManager.sync_mode_b_forward(target_dir, preset, exe_name=game.exe_name)
             report = IniConfigManager.last_report or {}
             if report.get("nvngx_ini_removed"):
                 manifest.ini_modifications.append({
