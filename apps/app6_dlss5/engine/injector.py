@@ -773,12 +773,12 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "ShowFrameTime": "0"
     },
     "RENODX-DLSS": {       'DLSSAutoExposure': '0',
-        'DLSSPresetBalanced': '0',
-        'DLSSPresetDLAA': '0',
-        'DLSSPresetPerformance': '0',
-        'DLSSPresetQuality': '0',
-        'DLSSPresetUltraPerformance': '0',
-        'DLSSPresetUltraQuality': '0',
+        'DLSSPresetBalanced': '11',
+        'DLSSPresetDLAA': '11',
+        'DLSSPresetPerformance': '11',
+        'DLSSPresetQuality': '11',
+        'DLSSPresetUltraPerformance': '11',
+        'DLSSPresetUltraQuality': '11',
         'DLSSQualityMode': '0',
         'DirectNeuralRenderingDiffuseWhiteNits': '100',
         'DirectNeuralRenderingDiffuseWhiteOverride': '0',
@@ -1893,6 +1893,20 @@ def ensure_reshade_chinese_ini(ini_path: Path, is_mode_c: bool = False, addon_na
             sections["INPUT"] = {}
         sections["INPUT"]["KeyOverlay"] = "36,0,0,0"
 
+    # Synchronize DLSS preset with Mode A / Mode B / Mode C (40/50系=13, 20/30系=11)
+    try:
+        from apps.app2_mfg.core.optiscaler_config import get_adaptive_default_dlss_preset, load_mode_a_preset
+        ma = load_mode_a_preset()
+        p_name = ma.get("dlss_preset") if ma.get("user_customized_dlss_preset") else get_adaptive_default_dlss_preset()
+        from apps.app2_mfg.core.ini_sync import DLSS_PRESET_MAP
+        target_preset = str(DLSS_PRESET_MAP.get(str(p_name).upper().strip(), 13 if str(p_name).upper().strip() == "M" else 11))
+    except Exception:
+        try:
+            from apps.app2_mfg.core.optiscaler_config import get_adaptive_default_dlss_preset
+            target_preset = "13" if get_adaptive_default_dlss_preset() == "M" else "11"
+        except Exception:
+            target_preset = "11"
+
     # d3d12.dll system path & dead-lock hardening
     if proxy_choice.lower() == "d3d12.dll":
         sections["GENERAL"]["NoReloadOnInit"] = "1"
@@ -2083,36 +2097,57 @@ class DLSS5Injector:
         if not clean_ok:
             return False, clean_msg
 
-        # Coexistence detection with Mode C (OptiScaler / XeSS 2.0 / XeFG)
-        has_mode_c = is_mode_c_present(td)
-        has_mfg = is_mfg_present(td) or has_mode_c
+        # Coexistence detection with Mode A / Mode B / Mode C
+        # Mode B is OptiScaler; libxess_fg alone must NEVER trigger Mode B!
+        has_mode_b = (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists()
+        has_mode_a = (
+            (td / "RTXMFG-Universal.json").exists()
+            or (td / "mfg_unlocker.ini").exists()
+            or (td / "MFGUnlocker.dll").exists()
+            or (td / "RTXMFG-UI.ini").exists()
+            or (td / "RTX40MFG-UI.ini").exists()
+            or (td / "RTXMFG-XeSS").exists()
+        )
+        has_mode_c = (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists()
+        has_mfg = is_mfg_present(td) or has_mode_b or has_mode_a or has_mode_c
         coex_slot: Optional[str] = None
 
-        # 5.1 DLSS 5 needs dxgi.dll for its ReShade host. If Mode C was injected
-        # first, OptiScaler owns that slot; moving it (instead of overwriting it)
-        # keeps the frame-generation hook alive. This was the silent failure that
-        # made "both injected" look like a crash: ReShade replaced OptiScaler's
-        # only proxy, the game then loaded a half-configured OptiScaler.ini.
-        if has_mode_c:
+        # 5.1 If Mode A is injected first, automatically adapt it for DLSS 5 coexistence:
+        # Move dashdogy proxy from dxgi.dll to secondary proxy (winmm.dll / version.dll).
+        if has_mode_a:
             try:
                 from apps.app2_mfg.core.coexistence import (
-                    ensure_optiscaler_proxy,
+                    adapt_mode_a_for_dlss5,
+                    detect_dashdogy_slot,
+                )
+                game_exe = _guess_game_exe(td)
+                adapt_ok, adapt_msg = adapt_mode_a_for_dlss5(td, game_exe)
+                coex_slot = detect_dashdogy_slot(td)
+            except Exception:
+                coex_slot = None
+        elif has_mode_b:
+            try:
+                from apps.app2_mfg.core.coexistence import (
+                    adapt_mode_b_for_dlss5,
+                    detect_optiscaler_slot,
                     purge_fakenvapi,
                     purge_secondary_reshade,
                 )
-                coex_slot = None
-                if (td / "OptiScaler.ini").exists():
-                    # Only a real Mode C install owns a proxy; a stray libxess_fg.dll
-                    # left over from a partial cleanup must not drag OptiScaler in.
-                    coex_slot = ensure_optiscaler_proxy(td, _guess_game_exe(td))
+                game_exe = _guess_game_exe(td)
+                adapt_ok, adapt_msg = adapt_mode_b_for_dlss5(td, game_exe)
+                coex_slot = detect_optiscaler_slot(td)
                 purge_fakenvapi(td)
                 purge_secondary_reshade(td)
             except Exception:
                 coex_slot = None
+        elif has_mode_c:
+            try:
+                from apps.app2_mfg.core.coexistence import adapt_mode_c_for_dlss5
+                adapt_mode_c_for_dlss5(td)
+            except Exception:
+                pass
 
-        if not has_mode_c:
-            # A leftover second ReShade host (ReShade64.dll / d3d12-ReShade64.dll)
-            # initializes a second D3D12 hook chain and crashes on teardown.
+        if not has_mode_b and not has_mode_a:
             try:
                 from apps.app2_mfg.core.coexistence import purge_secondary_reshade
                 purge_secondary_reshade(td)
@@ -2121,13 +2156,20 @@ class DLSS5Injector:
 
         # 6. Copy files into target directory
         try:
-            # 6.0 Never clobber a still-active OptiScaler proxy: if the slot could
-            # not be handed over, abort instead of silently killing Mode C.
-            if has_mode_c and coex_slot is None and is_optiscaler_dll_file(str(proxy_dest)):
+            # 6.0 Never clobber a still-active Mode A or Mode B proxy: if the slot could
+            # not be handed over, abort instead of silently killing frame generation.
+            if has_mode_b and coex_slot is None and is_optiscaler_dll_file(str(proxy_dest)):
                 return False, (
-                    f"检测到模式 C 的 OptiScaler 仍占用 {chosen_proxy}，且无法迁移到次级代理槽位。\n"
-                    "请先完全退出游戏，然后重新注入模式 C（或先卸载模式 C），再注入 DLSS 5。"
+                    f"检测到模式 B 的 OptiScaler 仍占用 {chosen_proxy}，且无法迁移到次级代理槽位。\n"
+                    "请先完全退出游戏，然后重新注入模式 B（或先卸载模式 B），再注入 DLSS 5。"
                 )
+            if has_mode_a and coex_slot is None:
+                from apps.app2_mfg.core.coexistence import is_dashdogy_binary
+                if is_dashdogy_binary(proxy_dest):
+                    return False, (
+                        f"检测到多帧生成模式 A 仍占用 {chosen_proxy}，且无法迁移到次级代理槽位。\n"
+                        "请先完全退出游戏，然后重新注入模式 A，再注入 DLSS 5。"
+                    )
 
             # 6.1 Copy ReShade base to chosen proxy slot
             is_ace_protected = (
@@ -2194,7 +2236,7 @@ class DLSS5Injector:
 
             # 6.5 Configure ReShade.ini with Chinese UI and screenshot-matched default parameters
             ini_dest = td / "ReShade.ini"
-            ensure_reshade_chinese_ini(ini_dest, is_mode_c=has_mode_c, addon_name=Path(addon_src).name, mode=mode, proxy_choice=chosen_proxy)
+            ensure_reshade_chinese_ini(ini_dest, is_mode_c=(has_mode_b or has_mode_c), addon_name=Path(addon_src).name, mode=mode, proxy_choice=chosen_proxy)
             if not is_clean_install or not (backup_dir / "ReShade.ini").exists():
                 manifest_data["injected_files"].append("ReShade.ini")
 
@@ -2395,7 +2437,7 @@ class DLSS5Injector:
         )
 
     @staticmethod
-    def restore(target_dir: str) -> Tuple[bool, str]:
+    def restore(target_dir: str, preserve_mfg: bool = True) -> Tuple[bool, str]:
         """
         Executes deep one-click clean uninstallation of DLSS 5 and RHI/ReShade remnants from target_dir,
         completely purging all mod runtimes, proxy DLLs, and restoring the game to 100% vanilla environment.
@@ -2466,6 +2508,109 @@ class DLSS5Injector:
                     restored_items.append("bink2w64.dll (从 bink2w64Hooked.dll 恢复)")
                 except Exception:
                     pass
+
+        # Layer 3: Check coexistence status for smart rollback & auto-restoration
+        coex_marker = td / ".mfg_coex_backup.json"
+        has_adapted_mfg = False
+        if coex_marker.exists():
+            try:
+                with open(coex_marker, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+                    has_adapted_mfg = bool(cdata.get("adapted_for_dlss5", False))
+            except Exception:
+                pass
+
+        has_mfg_present = has_adapted_mfg or (
+            (td / "OptiScaler.ini").exists()
+            or (td / "OptiScaler.dll").exists()
+            or (td / "RTXMFG-Universal.json").exists()
+            or (td / "RTXMFG-UI.ini").exists()
+            or (td / "dlssg_sm86.ini").exists()
+            or (td / "dlssg_sm86").exists()
+        )
+
+        if preserve_mfg and (has_adapted_mfg or has_mfg_present):
+            # Specialized DLSS 5-only removal preserving & restoring Mode B/A/C
+            # 1. Clean conflicting DLSS 5 addons
+            _, _, removed_conflicts = clean_conflicting_addons(td, keep_addon=None)
+            for rc in removed_conflicts:
+                if rc not in removed_items:
+                    removed_items.append(rc)
+            for addon_file in list(td.glob("*.addon64")) + list(td.glob("*.addon")):
+                name_lower = addon_file.name.lower()
+                if "mfgunlock" in name_lower:
+                    continue
+                if "renodx-dlss" in name_lower or "lecram" in name_lower:
+                    try:
+                        safe_force_remove(str(addon_file))
+                        if addon_file.name not in removed_items:
+                            removed_items.append(addon_file.name)
+                    except Exception:
+                        pass
+
+            # 2. Only remove ReShade proxy (never delete OptiScaler or dashdogy proxy!)
+            for proxy_name in ALL_DLSS5_PROXY_NAMES:
+                p_file = td / proxy_name
+                if p_file.exists() and is_reshade_dll_file(str(p_file)):
+                    safe_force_remove(str(p_file))
+                    removed_items.append(f"{proxy_name} (ReShade底座)")
+
+            # 3. Remove nvngx_dlssnr.dll
+            nr_file = td / "nvngx_dlssnr.dll"
+            if nr_file.exists():
+                safe_force_remove(str(nr_file))
+                removed_items.append("nvngx_dlssnr.dll (神经重构模型)")
+
+            # 4. Remove DLSS 5 specific folders
+            for fld in ["RenoDX", "dlss5-nr-runtime"]:
+                fld_path = td / fld
+                if fld_path.exists() and fld_path.is_dir():
+                    try:
+                        shutil.rmtree(fld_path, ignore_errors=True)
+                        removed_items.append(f"{fld}/ (目录)")
+                    except Exception:
+                        pass
+
+            # 5. Remove DLSS 5 config and log files
+            dlss5_files = [
+                "ReShade.ini", "ReShade.ini.v11-backup", "ReShadePreset.ini",
+                "ReShade64.dll", "ReShade.log", "dxgi.log",
+                DLSS5_MANIFEST_FILENAME, ".dlss5_config.json", ".dlss5_patch_manifest.json",
+                "dxgi.dll.dlss5_bak"
+            ]
+            for fname in dlss5_files:
+                fp = td / fname
+                if fp.exists():
+                    safe_force_remove(str(fp))
+                    removed_items.append(fname)
+
+            for pat in ["dlss5-nr-crash-*.txt", "ReShade*.ini*"]:
+                for match_f in td.glob(pat):
+                    safe_force_remove(str(match_f))
+                    removed_items.append(match_f.name)
+
+            # 6. Clean up DLSS 5 backup directory before restoring MFG so is_dlss5_present is cleared
+            if backup_dir.exists():
+                try:
+                    shutil.rmtree(backup_dir, ignore_errors=True)
+                except Exception:
+                    pass
+            if dm_backup_dir.exists():
+                try:
+                    shutil.rmtree(dm_backup_dir, ignore_errors=True)
+                except Exception:
+                    pass
+
+            # 7. Auto-restore pre-existing Multi-Frame Generation mode back to standalone!
+            try:
+                from apps.app2_mfg.core.coexistence import restore_mfg_after_dlss5_removal
+                res_ok, res_msg = restore_mfg_after_dlss5_removal(td, _guess_game_exe(td))
+                if res_ok:
+                    restored_items.append(res_msg)
+            except Exception:
+                pass
+
+            return True, f"DLSS 5 卸载成功，已自动恢复多帧生成组件独立运行状态: {', '.join(removed_items + restored_items)}"
 
         # Layer 3: Delete own injected mod files
         # (A) All addon files (including conflicting/legacy DLSS addons)

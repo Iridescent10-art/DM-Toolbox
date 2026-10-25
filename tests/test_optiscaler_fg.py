@@ -102,7 +102,7 @@ def run_tests():
         print("Resolved proxy priority for yysls.exe:", dynamic_priority)
         assert dynamic_priority[0] == "winmm.dll", f"Index 0 must be winmm.dll for yysls.exe, got {dynamic_priority[0]}"
 
-    print("=== 3. Testing Mode C MFGUnlocker.asi Deployment on RTX 40/50 GPUs ===")
+    print("=== 3. Testing Mode B Pure OptiScaler & Conditional MFGUnlocker.asi ===")
     with tempfile.TemporaryDirectory() as td:
         from core.updater import ComponentUpdater
         from unittest.mock import patch
@@ -110,7 +110,7 @@ def run_tests():
         updater = ComponentUpdater()
         patcher = PatchEngine(updater=updater)
         manifest = PatchManifest(
-            app_version="1.3.1",
+            app_version="2.0.0",
             game_name="TestGame",
             target_exe=os.path.join(td, "game.exe"),
             target_dir=td,
@@ -126,18 +126,34 @@ def run_tests():
             exe_name="game.exe",
             qualification=QualificationStatus.QUALIFIED
         )
+        # 3A: Default Mode B - Pure OptiScaler without redundant dashdogy 1.7.0 UI overlay
         with patch("core.patcher.get_system_gpu_name", return_value="NVIDIA GeForce RTX 4070 Laptop GPU"),              patch("core.patcher.is_rtx_40_or_newer", return_value=True):
             ok, err = patcher._apply_optiscaler_patch(fake_game, manifest)
             assert ok, f"_apply_optiscaler_patch failed: {err}"
             asi_path = os.path.join(td, "OptiScaler", "plugins", "MFGUnlocker.asi")
-            assert os.path.exists(asi_path), "MFGUnlocker.asi MUST exist on RTX 40/50 for XeSS multi-frame generation!"
-            assert "OptiScaler/plugins/MFGUnlocker.asi" in manifest.created_files, "MFGUnlocker.asi must be in created_files"
+            assert not os.path.exists(asi_path), "Mode B 默认严禁注入 MFGUnlocker.asi，杜绝 1.7.0 菜单重复弹出!"
             opti_ini = os.path.join(td, "OptiScaler.ini")
             secs = IniConfigManager.read_ini_sections(opti_ini)
-            assert secs["Plugins"]["LoadAsiPlugins"] == "true", "LoadAsiPlugins must be true"
+            assert secs["Plugins"]["LoadAsiPlugins"] == "false", "LoadAsiPlugins 默认必须为 false"
             assert secs["XeFG"]["IgnoreInitChecks"] == "true", "IgnoreInitChecks must be true"
-            assert secs["XeFG"]["InterpolationCount"] == "2", "InterpolationCount should default to 2 (3X)"
-            print("Mode C on RTX 40 series test passed: MFGUnlocker.asi deployed and active!")
+            print("Mode B default test passed: Pure OptiScaler without duplicate ASI injection!")
+
+        # 3B: Explicit unlock_mfg=True user toggle
+        with patch("core.optiscaler_config.load_optiscaler_preset", return_value={"unlock_mfg": True, "fg_output": "xefg", "interpolation_count": 2}),              patch("core.patcher.get_system_gpu_name", return_value="NVIDIA GeForce RTX 4070 Laptop GPU"),              patch("core.patcher.is_rtx_40_or_newer", return_value=True):
+            manifest_un = PatchManifest(
+                app_version="2.0.0",
+                game_name="TestGame",
+                target_exe=os.path.join(td, "game.exe"),
+                target_dir=td,
+                active_backend=BackendType.OPTISCALER_FSR.value,
+                installed_version="latest"
+            )
+            ok2, err2 = patcher._apply_optiscaler_patch(fake_game, manifest_un)
+            assert ok2, f"_apply_optiscaler_patch with unlock failed: {err2}"
+            assert os.path.exists(asi_path), "显式开启 unlock_mfg 时才部署 MFGUnlocker.asi"
+            secs2 = IniConfigManager.read_ini_sections(opti_ini)
+            assert secs2["Plugins"]["LoadAsiPlugins"] == "true", "显式开启时 LoadAsiPlugins 为 true"
+            print("Mode B explicit unlock_mfg=True test passed!")
 
     print("\nALL OPTISCALER XESS FG AND MENU CHECKS PASSED 100%!")
 

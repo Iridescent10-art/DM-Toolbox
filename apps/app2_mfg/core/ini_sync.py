@@ -606,7 +606,7 @@ class IniConfigManager:
                 # XeFG 2X ceiling; it must be loadable for 3X/4X. Users who hit a
                 # startup hook conflict with the DLSS 5 addon can turn it off in the
                 # Mode C panel (unlock_mfg=False) and fall back to plain 2X XeFG.
-                "LoadAsiPlugins": "true" if unlock_mfg else "false",
+                "LoadAsiPlugins": "true",
                 "LoadReshade": "false"
             }
             # XeFG own swapchain must survive the ReShade/DLSS 5 present path.
@@ -741,18 +741,30 @@ class IniConfigManager:
         if has_dlss5:
             cls.sync_dlss5_hook_point(target, hook_point="0")
 
-        # Also sync mfg_unlocker.ini in target and OptiScaler/plugins for MFGUnlocker.asi
-        mfg_updates = {
-            "General": {
-                "Multiplier": str(multiplier_num),
-                "Preset": dlss_p if not is_dlss_default else "Default",
-                "DLSSPreset": dlss_p if not is_dlss_default else "Default",
-                "RenderPreset": str(DLSS_PRESET_MAP.get(dlss_p, 13)) if not is_dlss_default else "0"
-            }
-        }
-        cls.write_ini_sections(target / "mfg_unlocker.ini", mfg_updates)
+        # Ensure silenced mfg_unlocker.ini is always synced to OptiScaler/plugins/ so ASI plugin UI never pops up
         plugins_dir = target / "OptiScaler" / "plugins"
-        if plugins_dir.exists():
+        asi_file = plugins_dir / "MFGUnlocker.asi"
+        if asi_file.exists():
+            mfg_updates = {
+                "Overlay": {
+                    "OverlayMenu": "false",
+                    "EnableImGui": "0",
+                    "EnableUI": "0",
+                    "ToggleKey": "0"
+                },
+                "General": {
+                    "OverlayMenu": "false",
+                    "EnableImGui": "0",
+                    "EnableUI": "0",
+                    "Multiplier": str(multiplier_num),
+                    "Preset": dlss_p if not is_dlss_default else "Default",
+                    "DLSSPreset": dlss_p if not is_dlss_default else "Default",
+                    "RenderPreset": str(DLSS_PRESET_MAP.get(dlss_p, 13)) if not is_dlss_default else "0"
+                },
+                "Compatibility": {
+                    "GpuNameOverride": "0"
+                }
+            }
             cls.write_ini_sections(plugins_dir / "mfg_unlocker.ini", mfg_updates)
 
         # 2. Strip keys that do not exist in v0.9.4 (written by older DM-Toolbox builds).
@@ -1049,7 +1061,14 @@ class IniConfigManager:
         hdr_compat = int(config.get("hdr_compatibility", 0))
 
         # Core keys used by renodx-mfgunlock.addon64
-        dlss_b_p = str(config.get("dlss_preset", "K")).strip()
+        dlss_b_p = str(config.get("dlss_preset") or "").strip()
+        if not dlss_b_p or dlss_b_p.lower() in ["default", "0", "none", ""]:
+            try:
+                from core.optiscaler_config import get_adaptive_default_dlss_preset
+                from core.utils import get_system_gpu_name
+                dlss_b_p = get_adaptive_default_dlss_preset(config.get("gpu_name") or get_system_gpu_name())
+            except Exception:
+                dlss_b_p = "K"
         is_dlss_b_def = dlss_b_p.lower() in ["default", "0", "none", ""]
         clean_dlss_b = "Default" if is_dlss_b_def else (
             "M" if dlss_b_p in ["M", "Preset M", "13"] else
@@ -1240,7 +1259,15 @@ class IniConfigManager:
 
         multiplier = int(config.get("multiplier", 3))
         menu_key = str(config.get("menu_key", "Backspace")).strip()
-        preset = config.get("dlss_preset", "K")
+        preset = config.get("dlss_preset")
+        if not preset or str(preset).strip() in ("0", "", "none", "None", "default", "Default"):
+            try:
+                from core.optiscaler_config import get_adaptive_default_dlss_preset
+                from core.utils import get_system_gpu_name
+                preset = get_adaptive_default_dlss_preset(config.get("gpu_name") or get_system_gpu_name())
+            except Exception:
+                preset = "K"
+        xemfg_standalone = bool(config.get("xemfg_standalone", False))
         dlssg_preset = str(config.get("dlssg_preset", "C")).strip()
         bink_hook = config.get("bink_hook", False)
 
@@ -1288,12 +1315,29 @@ class IniConfigManager:
             dlssg_preset_val = 3
             clean_dlssg_name = "C"
 
+        # Determine unlock / spoofing policy:
+        # On RTX 40/50 series GPUs: natively supported Ada/Blackwell OFA DLSS-G.
+        # Setting GpuNameOverride=1 / unlocked=True causes Streamline spoofing failure:
+        # "游戏帧生成选项未能在此次运行中应用。请查看日志。"
+        # On RTX 20/30 series GPUs: spoofing RTX 4090 is required to unlock the in-game Frame Generation toggle.
+        from core.utils import get_system_gpu_name, is_rtx_20_or_30_series
+        gpu_name = str(config.get("gpu_name") or get_system_gpu_name()).strip()
+        is_20_30 = is_rtx_20_or_30_series(gpu_name)
+
+        if "unlocked" in config:
+            unlocked_bool = bool(config["unlocked"])
+        else:
+            unlocked_bool = is_20_30
+
+        unlock_flag = "1" if unlocked_bool else "0"
+        flip_metering_flag = "on" if unlocked_bool else "off"
+
         # Write RTXMFG-Universal.json (dashdogy primary config)
         universal_json_path = target / "RTXMFG-Universal.json"
         try:
             has_dlss5_a = is_dlss5_present(target)
             universal_data = {
-                "version": 40,
+                "version": 41,
                 "followGame": True,
                 "mode": "follow",
                 "multiplier": multiplier,
@@ -1304,8 +1348,14 @@ class IniConfigManager:
                 "dlssPreset": 0 if is_default else int(render_preset_val),
                 "dlssSrPreset": 0 if is_default else int(render_preset_val),
                 "dlssgPreset": dlssg_preset_val,
+                "unlocked": unlocked_bool,
+                "gpuNameOverride": int(unlock_flag),
                 "enableImGui": not has_dlss5_a,
-                "overlayMenu": not has_dlss5_a
+                "overlayMenu": not has_dlss5_a,
+                "xemfgStandalone": 1 if xemfg_standalone else 0,
+                "xemfgFrames": multiplier,
+                "xemfgAllow1x": 0,
+                "xemfgDynamic": 0
             }
             with open(universal_json_path, "w", encoding="utf-8") as f:
                 json.dump(universal_data, f, indent=2, ensure_ascii=False)
@@ -1330,8 +1380,14 @@ class IniConfigManager:
                 "EnableUI": "0" if has_dlss5_a else "1"
             },
             "Compatibility": {
-                "GpuNameOverride": "1",
-                "Rtx30FlipMetering": "on"
+                "GpuNameOverride": unlock_flag,
+                "Rtx30FlipMetering": flip_metering_flag
+            },
+            "XeMFG": {
+                "Standalone": "1" if xemfg_standalone else "0",
+                "Frames": str(multiplier),
+                "Allow1X": "0",
+                "Dynamic": "0"
             }
         }
 
@@ -1346,8 +1402,8 @@ class IniConfigManager:
                 "EnableImGui": "0" if has_dlss5_a else "1"
             },
             "Compatibility": {
-                "GpuNameOverride": "1",
-                "Rtx30FlipMetering": "on"
+                "GpuNameOverride": unlock_flag,
+                "Rtx30FlipMetering": flip_metering_flag
             }
         }
         ok3 = cls.write_ini_sections(target / "RTX40MFG-UI.ini", overlay_updates)
@@ -1435,6 +1491,10 @@ class IniConfigManager:
         if "BinkHook" in sec:
             config["bink_hook"] = (sec["BinkHook"] in ["1", "true", "True"])
 
+        compat_sec = data.get("Compatibility", {})
+        if "GpuNameOverride" in compat_sec:
+            config["unlocked"] = (compat_sec["GpuNameOverride"] == "1")
+
         # Reverse sync DLSS-G preset from RTXMFG-Universal.json and INI
         univ_json = target / "RTXMFG-Universal.json"
         if univ_json.exists():
@@ -1448,6 +1508,8 @@ class IniConfigManager:
                     if "dlssgPreset" in u_data:
                         g_map = {3: "C", 2: "B", 1: "A", 0: "Auto"}
                         config["dlssg_preset"] = g_map.get(int(u_data["dlssgPreset"]), "C")
+                    if "unlocked" in u_data and "unlocked" not in config:
+                        config["unlocked"] = bool(u_data["unlocked"])
             except Exception:
                 pass
 

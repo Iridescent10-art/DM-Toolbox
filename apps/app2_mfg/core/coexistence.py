@@ -36,10 +36,10 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any
 
 # Proxy slots that may host a frame-generation core when dxgi.dll belongs to ReShade.
-FG_PROXY_SLOTS: List[str] = ["winmm.dll", "version.dll", "dinput8.dll", "wininet.dll"]
+FG_PROXY_SLOTS: List[str] = ["version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"]
 
 # Every proxy DLL a game may import that we could have created.
 ALL_PROXY_SLOTS: List[str] = ["dxgi.dll"] + FG_PROXY_SLOTS
@@ -89,6 +89,8 @@ def is_reshade_binary(path: os.PathLike | str) -> bool:
 
 def is_optiscaler_binary(path: os.PathLike | str) -> bool:
     """True for an OptiScaler core binary."""
+    if is_dashdogy_binary(path):
+        return False
     data = _read_signature_bytes(Path(path))
     return bool(data) and (b"OptiScaler" in data or b"libxess" in data)
 
@@ -115,10 +117,10 @@ def classify_slot(target_dir: os.PathLike | str, slot: str) -> str:
         return "missing"
     if is_reshade_binary(path):
         return "reshade"
-    if is_optiscaler_binary(path):
-        return "optiscaler"
     if is_dashdogy_binary(path):
         return "dashdogy"
+    if is_optiscaler_binary(path):
+        return "optiscaler"
     if is_dlssg_sm86_binary(path):
         return "dlssg_sm86"
     return "foreign"
@@ -299,6 +301,26 @@ def purge_fakenvapi(target_dir: os.PathLike | str) -> List[str]:
     return removed
 
 
+def _find_dashdogy_source() -> Optional[str]:
+    """Locate a cached MFGUnlocker.dll (v1.7.0 or v1.6.1) to deploy Mode A proxy."""
+    try:
+        from core.updater import ComponentUpdater
+        from core.models import BackendType
+        cached = ComponentUpdater().get_latest_cached_file(BackendType.STANDALONE)
+        if cached and Path(cached).is_file():
+            return str(cached)
+    except Exception:
+        pass
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    for cand in [
+        root / "apps" / "app2_mfg" / "embedded_components" / "dashdogy" / "v1.7.0" / "MFGUnlocker.dll",
+        root / "apps" / "app2_mfg" / "embedded_components" / "dashdogy" / "v1.6.1" / "MFGUnlocker.dll",
+    ]:
+        if cand.is_file():
+            return str(cand)
+    return None
+
+
 def _find_optiscaler_source() -> Optional[str]:
     """Locate a cached OptiScaler.dll to re-deploy a lost proxy."""
     try:
@@ -396,3 +418,352 @@ def coexistence_snapshot(target_dir: os.PathLike | str) -> Dict[str, object]:
         "fakenvapi": [n for n in FAKENVAPI_FILES if (td / n).exists()],
         "slots": slots,
     }
+
+
+def ensure_dashdogy_proxy(
+    target_dir: os.PathLike | str,
+    exe_path: Optional[os.PathLike | str] = None,
+) -> Optional[str]:
+    """Ensure dashdogy proxy is deployed in a secondary proxy slot (version.dll)."""
+    td = Path(target_dir)
+    current = detect_dashdogy_slot(td)
+    slot = pick_fg_proxy_slot(td, exe_path)
+    if slot == "dxgi.dll":
+        slot = "version.dll"
+
+    if current == slot:
+        for other in OPTISCALER_SLOTS:
+            if other != slot and classify_slot(td, other) == "dashdogy":
+                _remove(td / other)
+        return slot
+
+    if current is not None:
+        src = td / current
+        dst = td / slot
+        try:
+            _remove(dst)
+            shutil.move(str(src), str(dst))
+        except Exception:
+            try:
+                shutil.copy2(str(src), str(dst))
+                _remove(src)
+            except Exception:
+                return current
+        for other in OPTISCALER_SLOTS:
+            if other != slot and classify_slot(td, other) == "dashdogy":
+                _remove(td / other)
+        return slot
+
+    source = _find_dashdogy_source()
+    if source and Path(source).is_file():
+        dst = td / slot
+        try:
+            _remove(dst)
+            shutil.copy2(source, str(dst))
+            return slot
+        except Exception:
+            pass
+    return None
+
+
+def adapt_mode_b_for_dlss5(
+    target_dir: os.PathLike | str,
+    exe_path: Optional[os.PathLike | str] = None,
+) -> Tuple[bool, str]:
+    """
+    Called when DLSS 5 is injected into a directory where Mode B (OptiScaler) is already present.
+    1. Moves OptiScaler proxy from dxgi.dll to a secondary slot (version.dll).
+    2. Updates OptiScaler.ini for DLSS 5 coexistence:
+       - Dx12Upscaler = dlss (passthrough for DLSS 5 neural reconstruction)
+       - LoadReshade = false (prevents second ReShade instance crashing)
+       - LoadAsiPlugins = true
+       - FGInput = dlssg, FGOutput = xefg
+       - PreserveSwapChain = true
+       - IgnoreInitChecks = true, DepthInverted = true
+    3. Purges fakenvapi.dll (which causes GPU query failure in DLSS 5) and secondary ReShade binaries.
+    4. Records coexistence marker in target_dir / ".mfg_coex_backup.json".
+    """
+    td = Path(target_dir)
+    if not td.is_dir():
+        return False, f"目标目录不存在: {target_dir}"
+
+    slot = ensure_optiscaler_proxy(td, exe_path)
+    if not slot:
+        return False, "未能为 OptiScaler 迁移至次级代理槽位"
+
+    purge_fakenvapi(td)
+    purge_secondary_reshade(td)
+
+    # Forward sync OptiScaler.ini into coexistence mode (Direct reliable configparser update + optional ini_sync)
+    opti_ini = td / "OptiScaler.ini"
+    if opti_ini.exists():
+        try:
+            import configparser
+            cp = configparser.ConfigParser(interpolation=None, strict=False)
+            cp.read(opti_ini, encoding="utf-8")
+            if not cp.has_section("Upscalers"):
+                cp.add_section("Upscalers")
+            cp.set("Upscalers", "Dx12Upscaler", "dlss")
+            if not cp.has_section("Plugins"):
+                cp.add_section("Plugins")
+            cp.set("Plugins", "LoadReshade", "false")
+            if not cp.has_section("FrameGen"):
+                cp.add_section("FrameGen")
+            cp.set("FrameGen", "PreserveSwapChain", "true")
+            with open(opti_ini, "w", encoding="utf-8") as f:
+                cp.write(f)
+        except Exception:
+            pass
+        try:
+            from apps.app2_mfg.core.ini_sync import IniConfigManager
+            from apps.app2_mfg.core.optiscaler_config import load_optiscaler_preset
+            preset = IniConfigManager.read_mode_c_reverse(td) or load_optiscaler_preset()
+            preset["dx12_upscaler"] = "dlss"
+            if isinstance(preset, dict):
+                preset["plugins"] = preset.get("plugins", {})
+                if isinstance(preset["plugins"], dict):
+                    preset["plugins"]["LoadReshade"] = "false"
+            IniConfigManager.sync_mode_b_forward(td, preset, exe_name=Path(exe_path).name if exe_path else None)
+        except Exception:
+            pass
+
+    coex_marker = td / ".mfg_coex_backup.json"
+    marker_data = {
+        "backend": "B",
+        "original_proxy": "dxgi.dll",
+        "current_proxy": slot,
+        "adapted_for_dlss5": True
+    }
+    try:
+        import json
+        with open(coex_marker, "w", encoding="utf-8") as f:
+            json.dump(marker_data, f, indent=2)
+    except Exception:
+        pass
+
+    return True, f"模式 B 已自动回退适配为与 DLSS 5 双轨共存模式（OptiScaler 迁移至 {slot}，超分直通 DLSS，防冲突机制已生效）"
+
+
+def restore_mode_b_from_dlss5(
+    target_dir: os.PathLike | str,
+    exe_path: Optional[os.PathLike | str] = None,
+) -> Tuple[bool, str]:
+    """
+    Called when DLSS 5 is removed/uninstalled from a game that had Mode B.
+    1. Removes the DLSS 5 ReShade dxgi.dll.
+    2. Moves the OptiScaler proxy from version.dll (or secondary slot) back to dxgi.dll.
+    3. Restores OptiScaler.ini to standalone mode (Dx12Upscaler = auto, LoadReshade = auto).
+    4. Removes .mfg_coex_backup.json.
+    """
+    td = Path(target_dir)
+    if not td.is_dir():
+        return False, f"目标目录不存在: {target_dir}"
+
+    current_slot = detect_optiscaler_slot(td)
+    dxgi_dest = td / "dxgi.dll"
+
+    # Remove DLSS 5 dxgi.dll if it's ReShade
+    if dxgi_dest.exists() and is_reshade_binary(dxgi_dest):
+        _remove(dxgi_dest)
+
+    # Move OptiScaler back to dxgi.dll
+    if current_slot and current_slot != "dxgi.dll":
+        src_proxy = td / current_slot
+        if src_proxy.exists():
+            try:
+                _remove(dxgi_dest)
+                shutil.move(str(src_proxy), str(dxgi_dest))
+            except Exception:
+                try:
+                    shutil.copy2(str(src_proxy), str(dxgi_dest))
+                    _remove(src_proxy)
+                except Exception:
+                    pass
+    elif not dxgi_dest.exists():
+        source = _find_dashdogy_source()
+        if source and Path(source).is_file():
+            shutil.copy2(source, str(dxgi_dest))
+    elif not dxgi_dest.exists():
+        source = _find_optiscaler_source()
+        if source:
+            shutil.copy2(source, str(dxgi_dest))
+
+    # Clean up any leftover secondary OptiScaler copies
+    for other in FG_PROXY_SLOTS:
+        other_p = td / other
+        if other_p.exists() and is_optiscaler_binary(other_p):
+            _remove(other_p)
+
+    # Restore OptiScaler.ini to standalone mode
+    opti_ini = td / "OptiScaler.ini"
+    if opti_ini.exists():
+        try:
+            import configparser
+            cp = configparser.ConfigParser(interpolation=None, strict=False)
+            cp.read(opti_ini, encoding="utf-8")
+            if not cp.has_section("Upscalers"):
+                cp.add_section("Upscalers")
+            cp.set("Upscalers", "Dx12Upscaler", "auto")
+            if cp.has_section("Plugins"):
+                cp.set("Plugins", "LoadReshade", "auto")
+            with open(opti_ini, "w", encoding="utf-8") as f:
+                cp.write(f)
+        except Exception:
+            pass
+        try:
+            from apps.app2_mfg.core.ini_sync import IniConfigManager
+            IniConfigManager.write_ini_sections(opti_ini, {
+                "Upscalers": {"Dx12Upscaler": "auto"},
+                "Plugins": {"LoadReshade": "auto"}
+            })
+        except Exception:
+            pass
+
+    # Remove coex marker
+    (td / ".mfg_coex_backup.json").unlink(missing_ok=True)
+
+    return True, "已自动将多帧生成模式 B 恢复至独立运行状态（OptiScaler 重新挂载至 dxgi.dll，超分与渲染钩子已重置为独立运行）"
+
+
+def adapt_mode_a_for_dlss5(
+    target_dir: os.PathLike | str,
+    exe_path: Optional[os.PathLike | str] = None,
+) -> Tuple[bool, str]:
+    """Adapt Mode A (dashdogy) for DLSS 5 coexistence by moving it to secondary slot."""
+    td = Path(target_dir)
+    slot = ensure_dashdogy_proxy(td, exe_path)
+    if not slot:
+        return False, "未能为 MFG-Unlocker 迁移至次级代理槽位"
+
+    coex_marker = td / ".mfg_coex_backup.json"
+    marker_data = {
+        "backend": "A",
+        "original_proxy": "dxgi.dll",
+        "current_proxy": slot,
+        "adapted_for_dlss5": True
+    }
+    try:
+        import json
+        with open(coex_marker, "w", encoding="utf-8") as f:
+            json.dump(marker_data, f, indent=2)
+    except Exception:
+        pass
+    return True, f"模式 A 已自动回退适配为与 DLSS 5 双轨共存模式（MFG-Unlocker 迁移至 {slot}）"
+
+
+def restore_mode_a_from_dlss5(
+    target_dir: os.PathLike | str,
+    exe_path: Optional[os.PathLike | str] = None,
+) -> Tuple[bool, str]:
+    """Restore Mode A from DLSS 5 coexistence back to standalone dxgi.dll."""
+    td = Path(target_dir)
+    current_slot = detect_dashdogy_slot(td)
+    dxgi_dest = td / "dxgi.dll"
+
+    if dxgi_dest.exists() and is_reshade_binary(dxgi_dest):
+        _remove(dxgi_dest)
+
+    if current_slot and current_slot != "dxgi.dll":
+        src_proxy = td / current_slot
+        if src_proxy.exists():
+            try:
+                _remove(dxgi_dest)
+                shutil.move(str(src_proxy), str(dxgi_dest))
+            except Exception:
+                try:
+                    shutil.copy2(str(src_proxy), str(dxgi_dest))
+                    _remove(src_proxy)
+                except Exception:
+                    pass
+    elif not dxgi_dest.exists():
+        source = _find_dashdogy_source()
+        if source and Path(source).is_file():
+            shutil.copy2(source, str(dxgi_dest))
+
+    for other in FG_PROXY_SLOTS:
+        other_p = td / other
+        if other_p.exists() and is_dashdogy_binary(other_p):
+            _remove(other_p)
+
+    (td / ".mfg_coex_backup.json").unlink(missing_ok=True)
+    return True, "已自动将多帧生成模式 A 恢复至独立运行状态（MFG-Unlocker 重新挂载至 dxgi.dll）"
+
+
+def adapt_mode_c_for_dlss5(target_dir: os.PathLike | str) -> Tuple[bool, str]:
+    """Adapt Mode C (dlssg_for_sm86) for DLSS 5 coexistence by turning off internal SR."""
+    td = Path(target_dir)
+    ini_path = td / "dlssg_sm86.ini"
+    if ini_path.exists():
+        try:
+            from apps.app2_mfg.core.ini_sync import IniConfigManager
+            from apps.app2_mfg.core.optiscaler_config import load_dlssg_sm86_preset
+            sm86_p = IniConfigManager.read_dlssg_sm86_reverse(td) or load_dlssg_sm86_preset()
+            sm86_p["super_resolution_mode"] = "Off"
+            IniConfigManager.sync_dlssg_sm86_forward(td, sm86_p)
+        except Exception:
+            pass
+
+    coex_marker = td / ".mfg_coex_backup.json"
+    marker_data = {
+        "backend": "C",
+        "original_proxy": "version.dll",
+        "current_proxy": "version.dll",
+        "adapted_for_dlss5": True
+    }
+    try:
+        import json
+        with open(coex_marker, "w", encoding="utf-8") as f:
+            json.dump(marker_data, f, indent=2)
+    except Exception:
+        pass
+    return True, "模式 C 已自动适配为与 DLSS 5 共存模式（超分辨率托管已关闭，让位给 DLSS 5 神经重构）"
+
+
+def restore_mode_c_from_dlss5(target_dir: os.PathLike | str) -> Tuple[bool, str]:
+    """Restore Mode C from DLSS 5 coexistence by restoring internal SR to Auto."""
+    td = Path(target_dir)
+    dxgi_dest = td / "dxgi.dll"
+    if dxgi_dest.exists() and is_reshade_binary(dxgi_dest):
+        _remove(dxgi_dest)
+
+    ini_path = td / "dlssg_sm86.ini"
+    if ini_path.exists():
+        try:
+            from apps.app2_mfg.core.ini_sync import IniConfigManager
+            from apps.app2_mfg.core.optiscaler_config import load_dlssg_sm86_preset
+            sm86_p = IniConfigManager.read_dlssg_sm86_reverse(td) or load_dlssg_sm86_preset()
+            sm86_p["super_resolution_mode"] = "Auto"
+            IniConfigManager.sync_dlssg_sm86_forward(td, sm86_p)
+        except Exception:
+            pass
+
+    (td / ".mfg_coex_backup.json").unlink(missing_ok=True)
+    return True, "已自动将多帧生成模式 C 恢复至独立运行状态（超分辨率托管恢复为 Auto）"
+
+
+def restore_mfg_after_dlss5_removal(
+    target_dir: os.PathLike | str,
+    exe_path: Optional[os.PathLike | str] = None,
+) -> Tuple[bool, str]:
+    """Unified handler: detects active MFG mode and restores it to standalone."""
+    td = Path(target_dir)
+    coex_marker = td / ".mfg_coex_backup.json"
+    backend = None
+    if coex_marker.exists():
+        try:
+            import json
+            with open(coex_marker, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                backend = data.get("backend")
+        except Exception:
+            pass
+
+    if backend == "A" or (td / "RTXMFG-Universal.json").exists() or (td / "RTXMFG-UI.ini").exists():
+        return restore_mode_a_from_dlss5(td, exe_path)
+    elif backend == "B" or (td / "OptiScaler.ini").exists() or (td / "OptiScaler.dll").exists():
+        return restore_mode_b_from_dlss5(td, exe_path)
+    elif backend == "C" or (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
+        return restore_mode_c_from_dlss5(td)
+
+    return False, "未检测到多帧生成组件"
+

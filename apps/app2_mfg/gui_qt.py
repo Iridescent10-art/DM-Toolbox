@@ -1338,9 +1338,9 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_a_preset.setMinimumWidth(280)
         self.combo_a_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.combo_a_preset.addItem("Default (直通 · 不覆盖游戏或驱动模型)", "Default")
-        self.combo_a_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
+        self.combo_a_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 40/50系默认推荐)", "M")
         self.combo_a_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
-        self.combo_a_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
+        self.combo_a_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 20/30系默认推荐)", "K")
         self.combo_a_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 植被与铁丝网细节强化)", "J")
         self.combo_a_preset.addItem("Preset F (传统 CNN 模型 · 适用于 DLAA 与超性能模式)", "F")
         self.combo_a_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
@@ -1651,7 +1651,7 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_c_preset.addItem("Default (直通 · 不覆盖游戏或驱动模型)", "Default")
         self.combo_c_preset.addItem("Preset M (DLSS 4.5 第二代 Transformer · 极致画质与抗鬼影) [最新旗舰]", "M")
         self.combo_c_preset.addItem("Preset L (DLSS 4.5 第二代 Transformer · 专为高倍超分与 4K 优化)", "L")
-        self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 画面极度锐利稳定) [默认推荐]", "K")
+        self.combo_c_preset.addItem("Preset K (DLSS 4 第一代 Transformer · 20/30系默认推荐)", "K")
         self.combo_c_preset.addItem("Preset J (DLSS 4 第一代 Transformer · 植被与铁丝网细节强化)", "J")
         self.combo_c_preset.addItem("Preset F (传统 CNN 模型 · 适用于 DLAA 与超性能模式)", "F")
         self.combo_c_preset.addItem("Preset E (DLSS 3.7 改进型 CNN · 动态与静态平衡最佳)", "E")
@@ -2158,15 +2158,18 @@ class OptiScalerPresetDialog(QDialog):
         if idx_am >= 0:
             self.combo_a_mult.setCurrentIndex(idx_am)
 
-        a_preset = str(self.preset_a.get("dlss_preset", "K"))
-        if str(a_preset).strip() in ("0", "", "none", "None"):
-            a_preset = "K"
+        from core.optiscaler_config import get_adaptive_default_dlss_preset
+        gpu_name = self.detected_gpu_name or get_system_gpu_name()
+        adaptive_preset = get_adaptive_default_dlss_preset(gpu_name)
+        a_preset = self.preset_a.get("dlss_preset") if self.preset_a.get("user_customized_dlss_preset") else adaptive_preset
+        if not a_preset or str(a_preset).strip() in ("0", "", "none", "None"):
+            a_preset = adaptive_preset
         idx_ap = self.combo_a_preset.findData(a_preset)
         if idx_ap >= 0:
             self.combo_a_preset.setCurrentIndex(idx_ap)
         else:
-            idx_k = self.combo_a_preset.findData("K")
-            self.combo_a_preset.setCurrentIndex(idx_k if idx_k >= 0 else 0)
+            idx_adp = self.combo_a_preset.findData(adaptive_preset)
+            self.combo_a_preset.setCurrentIndex(idx_adp if idx_adp >= 0 else 0)
 
         a_dlssg = str(self.preset_a.get("dlssg_preset", "C")).strip()
         idx_ag = self.combo_a_dlssg_preset.findData(a_dlssg)
@@ -2267,7 +2270,7 @@ class OptiScalerPresetDialog(QDialog):
 
         self.chk_rcas.setChecked(bool(self.preset_c.get("rcas_enabled", False)))
         if hasattr(self, "chk_c_unlock_mfg"):
-            self.chk_c_unlock_mfg.setChecked(bool(self.preset_c.get("unlock_mfg", True)))
+            self.chk_c_unlock_mfg.setChecked(bool(self.preset_b.get("unlock_mfg", False)))
         val = int(round(float(self.preset_c.get("rcas_sharpness", 0.0)) * 100))
         self.slider_sharp.setValue(val)
         self.lbl_sharp_val.setText(f"{val/100.0:.2f}")
@@ -2370,6 +2373,7 @@ class OptiScalerPresetDialog(QDialog):
         if hasattr(self, "combo_a_mult"):
             self.preset_a["multiplier"] = self.combo_a_mult.currentData()
             self.preset_a["dlss_preset"] = self.combo_a_preset.currentData()
+            self.preset_a["user_customized_dlss_preset"] = True
             self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
             self.preset_a["menu_key"] = self.combo_a_key.currentData()
             self.preset_a["proxy_dll"] = self.combo_a_proxy.currentData()
@@ -2383,6 +2387,7 @@ class OptiScalerPresetDialog(QDialog):
             self.preset_b["dx12_upscaler"] = self.combo_upscaler.currentData()
             self.preset_b["user_customized_upscaler"] = (self.combo_upscaler.currentData() != "auto")
             self.preset_b["dlss_preset"] = self.combo_c_preset.currentData()
+            self.preset_b["user_customized_dlss_preset"] = True
             self.preset_b["menu_key"] = self.combo_c_key.currentData()
             self.preset_b["menu_scale"] = float(self.combo_menu_scale.currentData())
             self.preset_b["rcas_enabled"] = self.chk_rcas.isChecked()

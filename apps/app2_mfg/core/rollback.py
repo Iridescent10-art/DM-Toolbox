@@ -170,7 +170,7 @@ class RollbackEngine:
 
         # 4. Deep Directory Purge & Anti-Conflict Sweep
         # (A) Remove mod directories
-        dirs_to_clean = ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx", "dlssg_sm86", "RenoDX"]
+        dirs_to_clean = ["OptiScaler", "D3D12_Optiscaler", "XeSS", "amd_fidelityfx", "dlssg_sm86", "RenoDX", "RTXMFG-XeSS"]
         if clean_all:
             dirs_to_clean.append("dlss5-nr-runtime")
 

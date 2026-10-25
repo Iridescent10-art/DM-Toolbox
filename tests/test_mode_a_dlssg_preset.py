@@ -187,3 +187,110 @@ def test_dashdogy_disassembly_validator_rules():
         "dlssgPreset": 3
     }
     assert simulate_dashdogy_validator(new_fixed_config) is True, "New config MUST pass Dashdogy validator"
+
+
+def test_mode_a_gpu_unlock_policy(tmp_path):
+    """
+    Assertion 6: Mode A GPU-aware spoofing / unlock policy.
+    - RTX 40/50 GPUs natively support Ada/Blackwell OFA: default to NOT unlocking (GpuNameOverride=0, unlocked=False)
+      to prevent "游戏帧生成选项未能在此次运行中应用。请查看日志。" Streamline spoofing failure.
+    - RTX 20/30 GPUs lack native OFA: require spoofing RTX 4090 (GpuNameOverride=1, unlocked=True).
+    """
+    from unittest.mock import patch
+
+    # Case 1: RTX 40-series GPU
+    dir_40 = tmp_path / "rtx40"
+    dir_40.mkdir(parents=True, exist_ok=True)
+    cfg_40 = {
+        "multiplier": 3,
+        "dlss_preset": "M",
+        "dlssg_preset": "C",
+        "gpu_name": "NVIDIA GeForce RTX 4090"
+    }
+    IniConfigManager.sync_mode_a_forward(dir_40, cfg_40)
+
+    with open(dir_40 / "RTXMFG-Universal.json", "r", encoding="utf-8") as f:
+        d40 = json.load(f)
+    assert d40.get("unlocked") is False, "RTX 40 series must default to unlocked=False"
+    assert d40.get("gpuNameOverride") == 0, "RTX 40 series must default to gpuNameOverride=0"
+    assert d40.get("dlssPreset") == 13, "Preset M must map to 13"
+
+    ini_40 = IniConfigManager.read_ini_sections(dir_40 / "RTXMFG-UI.ini")
+    assert ini_40.get("Compatibility", {}).get("GpuNameOverride") == "0"
+    assert ini_40.get("Compatibility", {}).get("Rtx30FlipMetering") == "off"
+    assert ini_40.get("General", {}).get("Preset") == "M"
+
+    # Case 2: RTX 30-series GPU
+    dir_30 = tmp_path / "rtx30"
+    dir_30.mkdir(parents=True, exist_ok=True)
+    cfg_30 = {
+        "multiplier": 3,
+        "dlss_preset": "M",
+        "dlssg_preset": "C",
+        "gpu_name": "NVIDIA GeForce RTX 3080 Ti"
+    }
+    IniConfigManager.sync_mode_a_forward(dir_30, cfg_30)
+
+    with open(dir_30 / "RTXMFG-Universal.json", "r", encoding="utf-8") as f:
+        d30 = json.load(f)
+    assert d30.get("unlocked") is True, "RTX 30 series must default to unlocked=True"
+    assert d30.get("gpuNameOverride") == 1, "RTX 30 series must default to gpuNameOverride=1"
+
+    ini_30 = IniConfigManager.read_ini_sections(dir_30 / "RTXMFG-UI.ini")
+    assert ini_30.get("Compatibility", {}).get("GpuNameOverride") == "1"
+    assert ini_30.get("Compatibility", {}).get("Rtx30FlipMetering") == "on"
+
+
+def test_mode_a_xess_runtime_deployment(tmp_path):
+    """
+    Assertion 7: Mode A XeSS / XeMFG runtime deployment.
+    dashdogy 1.7.0 独立 XeMFG checks TargetExeDir / "RTXMFG-XeSS" for libxess_fg.dll and libxell.dll.
+    Verify that _apply_standalone_patch automatically deploys them, enabling XeMFG out of the box.
+    """
+    from core.updater import ComponentUpdater
+    from core.patcher import PatchEngine
+    from core.models import GameInfo, QualificationStatus, PatchManifest, BackendType
+    from core.rollback import RollbackEngine
+
+    updater = ComponentUpdater()
+    patcher = PatchEngine(updater=updater)
+
+    game_dir = tmp_path / "game"
+    game_dir.mkdir(parents=True, exist_ok=True)
+    exe_p = game_dir / "game.exe"
+    exe_p.write_bytes(b"MZ" + b"\x00" * 100)
+
+    game_info = GameInfo(
+        name="TestGame",
+        source="custom",
+        install_dir=str(game_dir),
+        target_dir=str(game_dir),
+        exe_path=str(exe_p),
+        exe_name="game.exe",
+        qualification=QualificationStatus.QUALIFIED
+    )
+
+    manifest = PatchManifest(
+        app_version="2.0.0",
+        game_name="TestGame",
+        target_exe=str(exe_p),
+        target_dir=str(game_dir),
+        active_backend=BackendType.STANDALONE.value,
+        installed_version="latest"
+    )
+
+    ok, err = patcher._apply_standalone_patch(game_info, manifest)
+    assert ok, f"_apply_standalone_patch failed: {err}"
+
+    # Verify RTXMFG-XeSS runtime folder and files
+    xess_folder = game_dir / "RTXMFG-XeSS"
+    assert xess_folder.exists() and xess_folder.is_dir(), "RTXMFG-XeSS folder must exist"
+    assert (xess_folder / "libxess_fg.dll").exists(), "libxess_fg.dll must exist in RTXMFG-XeSS"
+    assert (xess_folder / "libxell.dll").exists(), "libxell.dll must exist in RTXMFG-XeSS"
+    assert (xess_folder / "libxess.dll").exists(), "libxess.dll must exist in RTXMFG-XeSS"
+
+    # Verify rollback cleans it up
+    rollback = RollbackEngine()
+    rb_ok, rb_err = rollback.rollback(str(game_dir), clean_all=True)
+    assert rb_ok, f"rollback failed: {rb_err}"
+    assert not xess_folder.exists(), "RTXMFG-XeSS folder must be removed after rollback"

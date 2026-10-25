@@ -240,8 +240,8 @@ class PatchEngine:
         kill_locking_processes(target_dir, game.exe_name)
         cleanup_pending_files(target_dir)
 
-        # Purge Mode B & C conflicting files
-        for mode_bc_file in ["OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll", "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64", "dlssg_sm86.ini"]:
+        # Purge Mode B & C conflicting files and stale root XeSS runtime DLLs (Mode A runtimes live inside RTXMFG-XeSS/)
+        for mode_bc_file in ["OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll", "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64", "dlssg_sm86.ini", "libxess_fg.dll", "libxell.dll"]:
             f_p = os.path.join(target_dir, mode_bc_file)
             if os.path.exists(f_p):
                 safe_force_remove(f_p)
@@ -294,21 +294,21 @@ class PatchEngine:
                     safe_force_remove(p_p)
 
         dest_proxy_path = os.path.join(target_dir, selected_proxy)
-        dm_backup_dir = os.path.join(target_dir, ".dm_backup")
-        os.makedirs(dm_backup_dir, exist_ok=True)
-        dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
-
         if os.path.exists(dest_proxy_path):
-            if not os.path.exists(dm_proxy_bak) and not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path) and not self._is_dlssg_sm86_dll(dest_proxy_path):
-                try:
-                    shutil.copy2(dest_proxy_path, dm_proxy_bak)
-                except Exception:
-                    pass
+            if not self._is_dashdogy_dll(dest_proxy_path) and not self._is_optiscaler_dll(dest_proxy_path) and not self._is_reshade_dll(dest_proxy_path) and not self._is_dlssg_sm86_dll(dest_proxy_path):
+                dm_backup_dir = os.path.join(target_dir, ".dm_backup")
+                os.makedirs(dm_backup_dir, exist_ok=True)
+                dm_proxy_bak = os.path.join(dm_backup_dir, selected_proxy)
+                if not os.path.exists(dm_proxy_bak):
+                    try:
+                        shutil.copy2(dest_proxy_path, dm_proxy_bak)
+                    except Exception:
+                        pass
             safe_force_remove(dest_proxy_path)
         shutil.copy2(source_dll, dest_proxy_path)
         manifest.created_files.append(selected_proxy)
 
-        # If DLSS 5 is active in Mode A, ensure ReShade is deployed as dxgi.dll
+        # If DLSS 5 is active in Mode A, ensure ReShade is deployed as dxgi.dll and record coex marker
         if has_dlss5:
             dxgi_path = os.path.join(target_dir, "dxgi.dll")
             if not os.path.exists(dxgi_path) or not self._is_reshade_dll(dxgi_path):
@@ -319,6 +319,37 @@ class PatchEngine:
                     shutil.copy2(reshade_src, dxgi_path)
             # dxgi.dll belongs to DLSS 5, never register in created_files for Mode A!
             safe_force_remove(os.path.join(target_dir, "ReShade64.dll"))
+            coex_marker = os.path.join(target_dir, ".mfg_coex_backup.json")
+            try:
+                import json
+                with open(coex_marker, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "backend": "A",
+                        "original_proxy": "dxgi.dll",
+                        "current_proxy": selected_proxy,
+                        "adapted_for_dlss5": True
+                    }, f, indent=2)
+            except Exception:
+                pass
+
+        # Deploy Intel XeSS Frame Generation runtimes for dashdogy standalone XeMFG support
+        # dashdogy 1.7.0 checks TargetExeDir / "RTXMFG-XeSS" folder first for libxess_fg.dll and libxell.dll,
+        # or beside the game's executable in target_dir.
+        xess_src_dir = ROOT_DIR / "apps" / "app2_mfg" / "embedded_components" / "optiscaler" / "nightly-20261023" / "OptiScaler"
+        if xess_src_dir.exists():
+            xemfg_sub = os.path.join(target_dir, "RTXMFG-XeSS")
+            os.makedirs(xemfg_sub, exist_ok=True)
+            if "RTXMFG-XeSS" not in manifest.created_files:
+                manifest.created_files.append("RTXMFG-XeSS")
+
+            for lib_name in ["libxess_fg.dll", "libxell.dll", "libxess.dll", "libxess_dx11.dll"]:
+                lib_src = xess_src_dir / lib_name
+                if lib_src.exists():
+                    dst_sub = os.path.join(xemfg_sub, lib_name)
+                    safe_force_remove(dst_sub)
+                    shutil.copy2(str(lib_src), dst_sub)
+                    # Runtimes reside strictly in RTXMFG-XeSS/ to avoid polluting target_dir or triggering false Mode B detection
+                    pass
 
         # Forward sync Mode A INI configs
         try:
@@ -948,18 +979,23 @@ class PatchEngine:
 
         # 3.5. Deploy dashdogy MFGUnlocker as an ASI plugin in OptiScaler/plugins/
         # OptiScaler 10+ loads ASI plugins via LoadAsiPlugins=true; dashdogy's
-        # Universal MFG Unlocker (v1.5+) patches the XeSS-FG interpolation ceiling,
-        # which is what actually enables 3X/4X XeFG. libxess_fg alone caps non-Arc
-        # GPUs at "Max supported interpolations = 1" (2X), as the real session log
-        # in issue #v1.3.8 shows.
+        # Universal MFG Unlocker patches the XeSS-FG interpolation ceiling,
+        # which is what actually enables 2X/3X/4X XeFG on non-Arc / NVIDIA GPUs.
+        # CRITICAL: We deploy dashdogy v1.6.1 (which has NO DLSS 5 menu/tab)
+        # and configure mfg_unlocker.ini with EnableImGui = 0, EnableUI = 0,
+        # OverlayMenu = false, ToggleKey = 0.
+        # This completely suppresses the 1.7.0 DLSS 5 window while restoring
+        # multi-frame generation in Mode B!
         has_dlss5 = is_dlss5_present(target_dir)
         plugins_dir = os.path.join(target_dir, "OptiScaler", "plugins")
+        os.makedirs(plugins_dir, exist_ok=True)
         dst_asi = os.path.join(plugins_dir, "MFGUnlocker.asi")
-        unlock_mfg = bool(preset.get("unlock_mfg", True)) if isinstance(preset, dict) else True
-        mfg_dll_path = self.updater.get_latest_cached_file(BackendType.STANDALONE)
 
-        if unlock_mfg and mfg_dll_path and os.path.exists(mfg_dll_path):
-            os.makedirs(plugins_dir, exist_ok=True)
+        # Prioritize v1.6.1 for OptiScaler ASI plugin to guarantee zero DLSS 5 UI pollution
+        v161_path = ROOT_DIR / "apps" / "app2_mfg" / "embedded_components" / "dashdogy" / "v1.6.1" / "MFGUnlocker.dll"
+        mfg_dll_path = str(v161_path) if v161_path.exists() else self.updater.get_latest_cached_file(BackendType.STANDALONE)
+
+        if mfg_dll_path and os.path.exists(mfg_dll_path):
             # Remove a stale late-load copy so only one injection path exists.
             _late = os.path.join(plugins_dir, "MFGUnlocker-loadlate.asi")
             if os.path.exists(_late):
@@ -967,16 +1003,28 @@ class PatchEngine:
             shutil.copy2(mfg_dll_path, dst_asi)
             if "OptiScaler/plugins/MFGUnlocker.asi" not in manifest.created_files:
                 manifest.created_files.append("OptiScaler/plugins/MFGUnlocker.asi")
-        else:
-            # Unlock disabled (or component missing): remove every ASI variant so a
-            # stale unlocker can never hook the process behind the user's back.
-            for _asi_name in ["MFGUnlocker.asi", "MFGUnlocker-loadlate.asi"]:
-                _asi_path = os.path.join(plugins_dir, _asi_name)
-                if os.path.exists(_asi_path):
-                    try:
-                        safe_force_remove(_asi_path)
-                    except Exception:
-                        pass
+
+            # Write silenced mfg_unlocker.ini in plugins_dir to eliminate any UI overlay
+            mfg_ini_path = os.path.join(plugins_dir, "mfg_unlocker.ini")
+            from core.ini_sync import IniConfigManager
+            IniConfigManager.write_ini_sections(mfg_ini_path, {
+                "Overlay": {
+                    "OverlayMenu": "false",
+                    "EnableImGui": "0",
+                    "EnableUI": "0",
+                    "ToggleKey": "0"
+                },
+                "General": {
+                    "OverlayMenu": "false",
+                    "EnableImGui": "0",
+                    "EnableUI": "0"
+                },
+                "Compatibility": {
+                    "GpuNameOverride": "0"
+                }
+            })
+            if "OptiScaler/plugins/mfg_unlocker.ini" not in manifest.created_files:
+                manifest.created_files.append("OptiScaler/plugins/mfg_unlocker.ini")
 
         if has_dlss5:
             # Purge d3d12-ReShade64.dll: OptiScaler accepts both "ReShade64.dll" and

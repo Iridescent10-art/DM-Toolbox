@@ -16,9 +16,31 @@ except (ModuleNotFoundError, ImportError):
     except (ModuleNotFoundError, ImportError):
         from .ini_sync import IniConfigManager
 
+def get_adaptive_default_dlss_preset(gpu_name: Optional[str] = None) -> str:
+    """
+    根据显卡架构自适应判定默认 DLSS 超分模型：
+    - 40-50 系显卡 (Ada Lovelace / Blackwell)：默认为 M 模型 (Preset M)
+    - 20-30 系显卡 (Turing / Ampere)：默认为 K 模型 (Preset K)
+    - 其他/未知：默认为 K 模型
+    """
+    try:
+        from core.utils import get_system_gpu_name, is_rtx_40_or_newer
+    except (ModuleNotFoundError, ImportError):
+        try:
+            from apps.app2_mfg.core.utils import get_system_gpu_name, is_rtx_40_or_newer
+        except (ModuleNotFoundError, ImportError):
+            from .utils import get_system_gpu_name, is_rtx_40_or_newer
+
+    name = str(gpu_name or get_system_gpu_name() or "").strip()
+    if is_rtx_40_or_newer(name):
+        return "M"
+    return "K"
+
+
 DEFAULT_MODE_A_PRESET: Dict[str, Any] = {
     "multiplier": 3,              # 2=2X, 3=3X, 4=4X, 5=5X, 6=6X (默认 3X 三倍插帧)
     "dlss_preset": "K",           # 默认采用 DLSS 4 Transformer 模型 Preset K
+    "xemfg_standalone": False,    # 默认生效 DLSS 多帧生成 (False=原生 DLSS-G 插帧，True=独立 XeMFG 插帧)
     "dlssg_preset": "C",          # 默认采用 Model C (FG Lite 极速多帧 · 推荐跟随 nvapp)
     "menu_key": "Backspace",      # "Backspace", "F11", "Insert", "Home", "End"
     "proxy_dll": "auto"           # "auto" (智能避让), "dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll"
@@ -34,14 +56,14 @@ DEFAULT_OPTISCALER_PRESET: Dict[str, Any] = {
     "dlss_preset": "K",          # 默认采用 DLSS 4 Transformer 模型 Preset K (杜绝 D 模型)
     "menu_key": "Insert",        # "Insert", "Backspace", "Home", "F11", "End"
     "menu_scale": 2.0,           # In-game ImGui menu scale: 1.0 / 1.5 / 2.0 (4K default)
-    "unlock_mfg": True           # Deploy dashdogy MFGUnlocker.asi so XeFG can reach 3X/4X
+    "unlock_mfg": True          # 默认不注入 dashdogy ASI 插件，杜绝重复弹出 1.7.0 菜单
                                  # (libxess_fg alone caps non-Arc GPUs at 2X). Disable if the
                                  # ASI conflicts with the DLSS 5 addon on startup.
 }
 
 DEFAULT_RESHADE_PRESET: Dict[str, Any] = {
     "force_multiplier": 3,       # 0=Game controlled, 2, 3, 4, 5, 6
-    "dlss_preset": "K",          # 默认采用 DLSS 4 Transformer 模型 Preset K
+    "dlss_preset": "K",          # 默认采用 DLSS 4 Transformer 模型 Preset K (杜绝 D 模型)
     "blackwell_kernels": 1,      # 1=Enabled, 0=Disabled
     "thin_geometry_isr": 1,      # ThinGeometryIntermediateScatter
     "thin_geometry_vwb": 1,      # ThinGeometryPreviousScatter
@@ -65,10 +87,12 @@ def get_preset_config_file(filename: str = "optiscaler_preset.json") -> Path:
 
 # ----------------- Mode A / dashdogy Standalone Preset -----------------
 
-def load_mode_a_preset() -> Dict[str, Any]:
-    """Load user's saved Mode A preset, or return defaults if absent."""
+def load_mode_a_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
+    """Load user's saved Mode A preset, or return defaults if absent (40/50系=Preset M, 20/30系=Preset K)."""
     cfg_file = get_preset_config_file("mode_a_preset.json")
     preset = dict(DEFAULT_MODE_A_PRESET)
+    adaptive_default = get_adaptive_default_dlss_preset(gpu_name)
+    preset["dlss_preset"] = adaptive_default
     if cfg_file.exists():
         try:
             with open(cfg_file, "r", encoding="utf-8") as f:
@@ -78,18 +102,13 @@ def load_mode_a_preset() -> Dict[str, Any]:
         except Exception:
             pass
 
-
-        # 默认 DLSS 预设升级至 DLSS 4 Transformer 模型 Preset K
-    if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
-        preset["dlss_preset"] = "K"
-        try:
-            cfg_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(cfg_file, "w", encoding="utf-8") as f:
-                json.dump(preset, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
+    if not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = adaptive_default
+    if "xemfg_standalone" not in preset:
+        preset["xemfg_standalone"] = False
 
     return preset
+
 
 def save_mode_a_preset(preset: Dict[str, Any]) -> bool:
     """Save user's Mode A preset to persistent storage."""
@@ -119,7 +138,7 @@ def get_mode_a_preset_summary(config: Optional[Dict[str, Any]] = None) -> str:
 
 # ----------------- Mode B / OptiScaler Preset -----------------
 
-def load_optiscaler_preset() -> Dict[str, Any]:
+def load_optiscaler_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
     """Load user's saved OptiScaler preset, or return defaults if absent."""
     cfg_file = get_preset_config_file("optiscaler_preset.json")
     preset = dict(DEFAULT_OPTISCALER_PRESET)
@@ -133,13 +152,24 @@ def load_optiscaler_preset() -> Dict[str, Any]:
             pass
 
     # v1.3.8 一次性迁移：新出厂默认 = 开启 MFG-Unlocker 多帧解锁 + 3X XeFG。
-    # 旧版本保存的配置里没有 preset_schema_version，会残留“未解锁 / 2X”的旧默认，
-    # 这里统一升级一次；面板手动保存后会写入 version=2，之后不再覆盖用户选择。
     if int(preset.get("preset_schema_version", 0) or 0) < 2:
         preset["unlock_mfg"] = True
         if not preset.get("user_customized_interpolation"):
             preset["interpolation_count"] = 2
         preset["preset_schema_version"] = 2
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    # v2.0.1 模式 B 多帧恢复与 v1.6.1 专属静音挂载：
+    # 模式 B 重新启用 dashdogy v1.6.1 ASI 插件以恢复 2X/3X/4X 多帧生成能力，
+    # 同时在 OptiScaler/plugins/mfg_unlocker.ini 中强制静音 UI，杜绝弹出任何选项框
+    if int(preset.get("preset_schema_version", 0) or 0) < 4:
+        preset["unlock_mfg"] = True
+        preset["preset_schema_version"] = 4
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cfg_file, "w", encoding="utf-8") as f:
@@ -159,6 +189,10 @@ def load_optiscaler_preset() -> Dict[str, Any]:
         except Exception:
             pass
 
+    # 40-50 系默认为 M 模型，20-30 系默认为 K 模型
+    if not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = get_adaptive_default_dlss_preset(gpu_name)
+
     # 兼容性修复与默认锐化保护：
     # 若配置中 rcas_enabled 为旧版默认值 True (0.40) 且未被用户显式主动勾选，
     # 强制重置为最新官方规范默认值 False / 0.0，防止首次打开或重置时默认强开锐化
@@ -177,6 +211,8 @@ def load_optiscaler_preset() -> Dict[str, Any]:
         # 默认 DLSS 预设升级至 DLSS 4 Transformer 模型 Preset K (杜绝 D 模型)
     if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
         preset["dlss_preset"] = "K"
+    if "xemfg_standalone" not in preset:
+        preset["xemfg_standalone"] = False
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cfg_file, "w", encoding="utf-8") as f:
@@ -275,6 +311,8 @@ def load_reshade_preset() -> Dict[str, Any]:
     # 默认采用稳定锐利且杜绝重影抖动的 DLSS 4 Transformer 模型 Preset K
     if preset.get("dlss_preset") in ("Default", "0", "", None) and not preset.get("user_customized_dlss_preset", False):
         preset["dlss_preset"] = "K"
+    if "xemfg_standalone" not in preset:
+        preset["xemfg_standalone"] = False
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cfg_file, "w", encoding="utf-8") as f:
@@ -347,7 +385,7 @@ DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "preset_schema_version": 2
 }
 
-def load_dlssg_sm86_preset() -> Dict[str, Any]:
+def load_dlssg_sm86_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
     """Load user's saved DLSSG SM86 preset, or return defaults if absent."""
     cfg_file = get_preset_config_file("dlssg_sm86_preset.json")
     preset = dict(DEFAULT_DLSSG_SM86_PRESET)
@@ -376,6 +414,10 @@ def load_dlssg_sm86_preset() -> Dict[str, Any]:
                 json.dump(preset, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
+
+    # 40-50 系默认为 M 模型，20-30 系默认为 K 模型
+    if not preset.get("user_customized_dlss_preset", False):
+        preset["dlss_preset"] = get_adaptive_default_dlss_preset(gpu_name)
 
     return preset
 

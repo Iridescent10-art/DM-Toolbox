@@ -13,7 +13,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://microsoft.com)
 [![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
 [![Qt](https://img.shields.io/badge/GUI-PySide6%20%2F%20Fluent%20Design-orange.svg)](https://www.qt.io)
-[![Release](https://img.shields.io/badge/Release-v2.0.0-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
+[![Release](https://img.shields.io/badge/Release-v2.1.0-brightgreen.svg)](https://github.com/Iridescent10-art/DM-Toolbox/releases)
 
 </div>
 
@@ -62,17 +62,21 @@
     - **极简三件套安全注入**：严格只向游戏根目录注入 `version.dll`（单代理槽位）、`dlssg_sm86.ini` 与专属 `dlssg_sm86\` 内核目录，绝不污染系统环境。当游戏未加载 `version.dll` 时，支持从 `alternatives\` 单项无损热替换为 `winmm.dll`、`dbghelp.dll` 等代理，恪守“换，不是加”原则。
     - **GPU 智能硬件锁**：检测到 RTX 20/30 显卡时，UI 自动锁定默认注入方案为模式 C，未修补游戏自动首选推荐模式 C，杜绝误选与误操作。
   - **模式 A (dashdogy 原生多帧解锁器 · RTX 40/50 系列推荐)**：集成官方最新 Release **`v1.7.0`**，原生支持 NVIDIA RTX 40 / 50 全系列显卡！全面回归官方标准单代理 DLL 注入架构（独立运行默认 `dxgi.dll`，DLSS 5 共存态自动避让迁移至 `version.dll`），彻底移除 Bink2 侵入式劫持，100% 杜绝游戏原版视频播放与动态链接库冲突；内置全自动自愈机制安全恢复任何旧版遗留的 `bink2w64Hooked.dll`，预设面板支持代理槽位自由切换，支持 2X / 3X / 4X / 6X 以及 Dynamic 多倍率插帧，游戏内按 **`Backspace`**（退格键）即刻呼出控制面板实时调校。
+    - **原生 DLSS-G 优先与独立 XeMFG 解耦隔离**：默认启用 NVIDIA 原生 DLSS-G 多帧生成，RTX 40/50 系无需解锁开箱即用，20/30 系在模式 A 注入时按需解锁；XeSS 运行库全量收拢至 `RTXMFG-XeSS/` 独立子目录，杜绝污染游戏根目录与模式 B 误识别。
   - **模式 B (OptiScaler 跨架构转译 · 全显卡通用插帧)**：集成官方最新 **`nightly-20261023`** (OptiScaler v10.0.0-pre1) 完整运行库，跨架构将游戏内原生 DLSS 3 桥接至 Intel XeFG 2.0 (2X/3X/4X 官方插帧) 与 AMD FSR 3.1 算力管线。支持全显卡架构（N卡 / A卡 / Intel卡 / GTX 系列），游戏内默认按 **`Insert`** 键呼出专属控制面板。
   - **智能优选 (架构与环境自适应)**：
     - 检测为 NVIDIA RTX 20/30 架构显卡：**100% 自动优选模式 C (dlssg_for_sm86 原生插帧 · 官方首选推荐)**；
     - 检测为 NVIDIA RTX 40/50 架构显卡：**100% 自动优选模式 A (dashdogy 原生多帧解锁器)**；
     - 检测为非 RTX 卡或 AMD/Intel 显卡：**100% 自动优选模式 B (OptiScaler 跨架构转译)**。
-  - **与 DLSS 5 (RenoDX) 双注入深度协同与冲突规避**：
-    - `dxgi.dll` 严格独占归属 DLSS 5 (ReShade 6.8)，模式 C / 模式 A / 模式 B 动态自适应迁移至 `version.dll` / `winmm.dll`，完全避免动态库覆盖与 Agility SDK Loader Lock 闪退。
+  - **🎯 全模式显卡智能自适应模型矩阵 (40/50系默认 Model M · 20/30系默认 Model K)**：
+    - 模式 A、模式 B、模式 C 三大核心全面受显卡硬件探针驱动：
+      - **RTX 40 / 50 系列显卡**：默认自动匹配 **Model M**（DLSS 4.5 第二代 Transformer 旗舰超分画质模型，解决高动态拖影与模糊）；
+      - **RTX 20 / 30 系列显卡**：默认自动匹配 **Model K**（DLSS 4 经典高锐度与高能效模型，兼顾画质细腻度与流畅度）；
+    - 支持完整 AI 模型预设自由热切换：包含 Preset M / L / K / J 及 CNN 终极版（Preset E/C/F），支持 INI 正反向实时同步。
+  - **与 DLSS 5 (RenoDX) 双注入深度协同与自动回退保护**：
+    - `dxgi.dll` 严格独占归属 DLSS 5 (ReShade 6.8)，模式 C / 模式 A / 模式 B 动态自适应迁移至 `version.dll` / `winmm.dll`，完全避免动态库覆盖与 Agility SDK Loader Lock 闪退；
+    - **模式 B 智能自动回退与恢复**：若先注入模式 B 后注入 DLSS 5，系统自动将模式 B 安全回退避免底层 XESS 与 DLSS 5 冲突；当卸载 DLSS 5 时，模式 B 会自动检测并无缝恢复；
     - 协同调度：当检测到 DLSS 5 注入时，模式 C 自动设置 `[SuperResolution] Mode=Off`，超分画质全权交由 DLSS 5 神经网络处理，插帧由 dlssg_sm86 原生处理，实现【神经重构 + 原生 DLSS-G 插帧】双通道并行运作，零抢占零冲突！
-- **DLSS 4/4.5 Transformer 超分模型矩阵**：
-  - 扩充完整 AI 模型预设矩阵：包含 **Preset M**（DLSS 4.5 第二代 Transformer 旗舰画质）、**Preset L**（DLSS 4.5 超性能）、**Preset K**（DLSS 4 经典锐利推荐）、**Preset J**（DLSS 4 细节强化）以及 CNN 终极版（Preset E/C/F）；
-  - 默认选中项与一键恢复推荐统一设为 **`Default`**（保持游戏原生默认档位），支持 INI 正向反向双向无缝映射同步。
 - **ReShade 框架防冲突与 `dxgi.dll` 避让锁**：
   - 存在 ReShade 底座时，`dxgi.dll` 绝对锁死留给 ReShade，OptiScaler 自动退避使用 `version.dll` 或 `winmm.dll`，实现两大框架无冲突丝滑共存。
 - **游戏内外参数【双向实时同步】**：
@@ -117,7 +121,7 @@
 
 </div>
 
-- **RenoDX DLSS 5 v11.9 旗舰插件**：一键部署 ReShade 6.8 Add-on 底座 (`dxgi.dll`) + `renodx-dlss5-v11.9.addon64` + `nvngx_dlssnr.dll`，为 DLSS 超分接管神经网络渲染与画质重构。
+- **RenoDX DLSS 5 最新优化底座**：一键部署 ReShade 6.8 Add-on 底座 (`dxgi.dll`) + 最新官方底座 `renodx-dlss.addon64` + `nvngx_dlssnr.dll`，为 DLSS 超分接管神经网络渲染与画质重构，带来极高稳定性与抗伪影表现。
 - **架构自适应运行库**：按物理显卡自动选择模型——RTX 20/30/40 用 263.37 MB 版本、RTX 50 (Blackwell) 用 254.08 MB 版本，避免内核与硬件不匹配。
 - **极致显存与性能调优**：默认出厂预设采用最小显存缓冲占用（Minimal 显存模式），根治显存占用虚高；出厂默认挂钩点深度优化为“之后 (Upscaled)”，彻底解决 4K 分辨率下的 GPU 挂起与死锁。
 - **细腻真实的人像质感**：默认皮肤结构强度与神经重构参数深度优化（默认值设定为 100%），呈现细腻通透的真实人像质感。

@@ -3,5 +3,6 @@
   "dlss_preset": "K",
   "menu_key": "Backspace",
   "bink_hook": false,
-  "dlssg_preset": "C"
+  "dlssg_preset": "C",
+  "xemfg_standalone": false
 }

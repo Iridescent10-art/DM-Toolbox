@@ -40,6 +40,7 @@ from core.updater import ComponentUpdater
 from core.patcher import PatchEngine
 from core.rollback import RollbackEngine
 from core.state_cleaner import is_dlss5_present
+from core.coexistence import is_optiscaler_binary
 
 
 def _calculate_file_sha256(file_path: Path) -> str:
@@ -172,8 +173,13 @@ def test_assertion_2_dual_channel_isolation():
         cp = configparser.ConfigParser(interpolation=None, strict=False)
         cp.read(opti_ini, encoding="utf-8")
         assert cp.get("Plugins", "LoadReshade", fallback="").lower() == "false", "共存态下禁止 OptiScaler 重复加载 ReShade"
-        assert cp.get("Plugins", "LoadAsiPlugins", fallback="").lower() == "true", "必须允许加载 MFGUnlocker.asi 才能突破 XeFG 2X 上限"
-        assert (game_dir_c / "OptiScaler" / "plugins" / "MFGUnlocker.asi").is_file(), "MFGUnlocker.asi 必须部署以解锁 3X/4X"
+        assert cp.get("Plugins", "LoadAsiPlugins", fallback="").lower() == "true", "模式 B 默认加载 ASI 插件以恢复多帧生成能力"
+        asi_file = game_dir_c / "OptiScaler" / "plugins" / "MFGUnlocker.asi"
+        assert asi_file.exists(), "模式 B 部署 dashdogy v1.6.1 解锁多帧生成"
+        assert b"DLSS 5" not in asi_file.read_bytes(), "模式 B ASI 插件使用 v1.6.1，杜绝包含 DLSS 5"
+        p_ini = game_dir_c / "OptiScaler" / "plugins" / "mfg_unlocker.ini"
+        assert p_ini.exists(), "模式 B 必须部署静音 ini"
+        assert "EnableImGui=0" in p_ini.read_text(encoding="utf-8")
         assert cp.get("DLSS", "Enabled", fallback="").lower() == "true", "共存态下必须保留 DLSS 直通链路供 DLSS 5 神经重构接管"
         assert cp.get("Upscalers", "Dx12Upscaler", fallback="").lower() == "dlss", "Dx12Upscaler 必须是合法的 DLSS 直通值"
         print("   [PASS] 通道 C (DLSS 5 + OptiScaler) 隔离校验成功: DLSS 直通保留，无重复 ReShade 宿主")
@@ -345,9 +351,9 @@ def test_assertion_5_uninstallation_idempotency_and_restoration():
         assert (game_dir / "dxgi.dll").exists(), "还原前 dxgi.dll (DLSS 5) 应当存在"
         assert (game_dir / "nvngx_dlssnr.dll").exists(), "还原前 nvngx_dlssnr.dll 应当存在"
 
-        # 3. 执行 DLSS5Injector.restore 一键深度纯净化还原
+        # 3. 执行 DLSS5Injector.restore 一键深度纯净化还原 (preserve_mfg=False 全盘复原)
         print("   -> 执行一键深度彻底卸载与纯净化还原...")
-        ok_res, msg_res = DLSS5Injector.restore(str(game_dir))
+        ok_res, msg_res = DLSS5Injector.restore(str(game_dir), preserve_mfg=False)
         assert ok_res, f"还原应当成功: {msg_res}"
 
         # 4. 严格校验所有注入文件 100% 灭失
@@ -415,6 +421,7 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
     """
     print("\n----------------------------------------------------------------------")
     print("-> 执行 Assertion 6: DLSS 5 + 模式 C (XeSS FG / OptiScaler) 全链路协同测试...")
+    from core.coexistence import is_optiscaler_binary, detect_optiscaler_slot, coexistence_snapshot
     assets = scan_plugin_source_assets()
     ref_dxgi_hash = _calculate_file_sha256(Path(assets["dxgi_path"]))
     updater = ComponentUpdater()
@@ -459,11 +466,16 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         assert cp_opti.get("Hooks", "HookOriginalNvngxOnly", fallback="").lower() == "false", "HookOriginalNvngxOnly 必须为 'false'，否则会跳过游戏本地 NGX 模块"
         assert cp_opti.get("Hooks", "EarlyHooking", fallback="").lower() == "false", "EarlyHooking 必须为 'false'"
         assert cp_opti.get("Hooks", "UseNtdllHooks", fallback="").lower() == "false", "UseNtdllHooks 必须为 'false'"
-        assert cp_opti.get("Plugins", "LoadAsiPlugins", fallback="").lower() == "true", "LoadAsiPlugins 必须为 'true' 才能加载 MFGUnlocker.asi"
+        assert cp_opti.get("Plugins", "LoadAsiPlugins", fallback="").lower() == "true", "模式 B 开启 LoadAsiPlugins 以恢复多帧生成"
         assert cp_opti.get("Plugins", "LoadReshade", fallback="").lower() == "false", "LoadReshade 必须为 'false'"
-        assert (game_dir_a / "OptiScaler" / "plugins" / "MFGUnlocker.asi").is_file(), "MFGUnlocker.asi 必须部署以解锁 XeFG 3X/4X"
+        asi_file_a = game_dir_a / "OptiScaler" / "plugins" / "MFGUnlocker.asi"
+        assert asi_file_a.exists(), "模式 B 部署 dashdogy v1.6.1 解锁多帧生成"
+        assert b"DLSS 5" not in asi_file_a.read_bytes(), "模式 B ASI 插件严禁携带 DLSS 5 UI"
+        p_ini_a = game_dir_a / "OptiScaler" / "plugins" / "mfg_unlocker.ini"
+        assert p_ini_a.exists(), "模式 B 必须部署静音 ini"
+        assert "EnableImGui=0" in p_ini_a.read_text(encoding="utf-8")
         assert cp_opti.get("XeFG", "InterpolationCount", fallback="") == "2", \
-            "即使日志里 libxess_fg 只报 1，也必须保留 3X 请求交给 MFGUnlocker 解锁"
+            "加载 MFGUnlocker.asi 后突破上限，恢复 3X 插帧"
         assert cp_opti.get("FrameGen", "PreserveSwapChain", fallback="").lower() == "true", "[FrameGen] PreserveSwapChain 必须为 'true'（合法节区）"
         assert cp_opti.get("XeFG", "PreserveSwapChain", fallback="").lower() != "true", "[XeFG] 中不允许再写入 PreserveSwapChain（无效键）"
         assert cp_opti.get("FSRFG", "UseMutexForSwapchain", fallback="").lower() == "true", "[FSRFG] UseMutexForSwapchain 必须为 'true'"
@@ -494,14 +506,22 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         assert not (game_dir_a / "fakenvapi.dll").exists(), "DLSS 5 共存态下严禁部署 fakenvapi.dll"
         assert not (game_dir_a / "fakenvapi.ini").exists(), "DLSS 5 共存态下严禁部署 fakenvapi.ini"
 
-        # 验证 5: 卸载幂等性
+        # 验证 5: 卸载 DLSS 5 后模式 C 自动恢复
         ok_res_a, msg_res_a = DLSS5Injector.restore(str(game_dir_a))
         assert ok_res_a, f"还原应当成功: {msg_res_a}"
-        assert not (game_dir_a / "dxgi.dll").exists(), "还原后 dxgi.dll 应被清除"
-        assert not (game_dir_a / "version.dll").exists(), "还原后 version.dll 应被清除"
-        assert not (game_dir_a / "OptiScaler.ini").exists(), "还原后 OptiScaler.ini 应被清除"
+        assert (game_dir_a / "dxgi.dll").exists(), "还原 DLSS 5 后模式 C 应当自动恢复挂载为 dxgi.dll"
+        assert is_optiscaler_binary(game_dir_a / "dxgi.dll"), "dxgi.dll 应恢复为 OptiScaler"
+        assert not (game_dir_a / "version.dll").exists(), "version.dll 次级代理应被清理回迁"
+        assert (game_dir_a / "OptiScaler.ini").exists(), "OptiScaler.ini 必须保留"
         assert not (game_dir_a / "ReShade.ini").exists(), "还原后 ReShade.ini 应被清除"
-        print("   [PASS] 场景 A 校验全部通过，还原 100% 幂等")
+        assert not (game_dir_a / "nvngx_dlssnr.dll").exists(), "神经重构模型应被清除"
+
+        # 随后卸载模式 C，验证彻底恢复为 100% 纯净目录
+        ok_unpatch_a, _ = RollbackEngine().rollback(str(game_dir_a))
+        assert ok_unpatch_a
+        assert not (game_dir_a / "dxgi.dll").exists(), "卸载模式 C 后 dxgi.dll 应被彻底清除"
+        assert not (game_dir_a / "OptiScaler.ini").exists(), "卸载模式 C 后 OptiScaler.ini 应被清除"
+        print("   [PASS] 场景 A 校验全部通过，DLSS 5 移除后模式 C 自动恢复，模式 C 卸载后 100% 纯净")
 
     # ====== 场景 B: 先注入 模式 C，后注入 DLSS 5 ======
     print("   [场景 B] 先注入 模式 C -> 后注入 DLSS 5...")
@@ -526,7 +546,6 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         assert _calculate_file_sha256(game_dir_b / "dxgi.dll") == ref_dxgi_hash, "dxgi.dll 必须为 DLSS 5 ReShade 6.8"
 
         # 关键回归：先注入模式 C 时，OptiScaler 代理必须被迁移而不是被 ReShade 覆盖
-        from core.coexistence import detect_optiscaler_slot, is_optiscaler_binary, coexistence_snapshot
         slot_b = detect_optiscaler_slot(str(game_dir_b))
         assert slot_b in ("version.dll", "winmm.dll", "dinput8.dll", "wininet.dll"), \
             f"OptiScaler 插帧代理必须迁移至次级槽位，实际: {slot_b}"
@@ -559,11 +578,24 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         assert not (game_dir_b / "fakenvapi.dll").exists(), "遗留的 fakenvapi.dll 必须被清理"
         assert not (game_dir_b / "fakenvapi.ini").exists(), "遗留的 fakenvapi.ini 必须被清理"
 
-        # 验证卸载还原
+        # 验证卸载还原：移除 DLSS 5 后模式 B/C 自动恢复
         ok_res_b, _ = DLSS5Injector.restore(str(game_dir_b))
         assert ok_res_b
-        assert not (game_dir_b / "dxgi.dll").exists()
-        print("   [PASS] 场景 B 校验全部通过，反向注入协同与还原 100% 幂等")
+        assert (game_dir_b / "dxgi.dll").exists(), "移除 DLSS 5 后模式 B 应自动恢复至 dxgi.dll"
+        assert is_optiscaler_binary(game_dir_b / "dxgi.dll"), "dxgi.dll 应恢复为 OptiScaler 二进制"
+        assert not (game_dir_b / "version.dll").exists(), "次级代理 version.dll 必须已清理回迁"
+        assert not (game_dir_b / "nvngx_dlssnr.dll").exists(), "DLSS 5 神经重构模型应已移除"
+        assert not (game_dir_b / "renodx-dlss.addon64").exists(), "DLSS 5 Addon 应已移除"
+        # 验证 OptiScaler.ini 恢复独立模式
+        cp_opti_restored = configparser.ConfigParser(interpolation=None, strict=False)
+        cp_opti_restored.read(game_dir_b / "OptiScaler.ini", encoding="utf-8")
+        assert cp_opti_restored.get("Upscalers", "Dx12Upscaler", fallback="").lower() == "auto"
+
+        # 随后卸载模式 B/C，验证彻底恢复为 100% 纯净目录
+        ok_unpatch_b, _ = RollbackEngine().rollback(str(game_dir_b))
+        assert ok_unpatch_b
+        assert not (game_dir_b / "dxgi.dll").exists(), "卸载模式 B 后 dxgi.dll 应彻底清除"
+        print("   [PASS] 场景 B 校验全部通过，反向注入协同、自动修改回退与移除自动恢复 100% 闭环")
 
 
 def test_assertion_7_legacy_state_repair_and_purges():
@@ -658,11 +690,19 @@ def test_assertion_8_repeated_injection_is_idempotent():
 
         ok, msg = DLSS5Injector.restore(str(game_dir))
         assert ok, msg
+        # DLSS 5 卸载后，模式 B 自动恢复
+        assert (game_dir / "dxgi.dll").exists(), "DLSS 5 卸载后模式 B 自动恢复至 dxgi.dll"
+        assert not (game_dir / "version.dll").exists(), "次级代理已迁回"
+        assert not (game_dir / "nvngx_dlssnr.dll").exists(), "DLSS 5 已卸载"
+
+        # 卸载模式 B，校验目录 100% 纯净
+        ok_unpatch, _ = RollbackEngine().rollback(str(game_dir))
+        assert ok_unpatch
         native_keep = {"nvngx_dlssg.dll", "sl.interposer.dll"}
         leftovers = [p.name for p in game_dir.iterdir()
                      if p.suffix.lower() in (".dll", ".addon64", ".ini") and p.name not in native_keep]
         assert leftovers == [], f"卸载后仍有残留: {leftovers}"
-        print("   [PASS] 三次重复注入后布局不变，卸载后无残留")
+        print("   [PASS] 三次重复注入后布局不变，DLSS 5 移除自动恢复模式 B，模式 B 卸载后无残留")
 
 
 def test_assertion_9_mode_a_dlss5_coexistence_and_synergy():
@@ -710,10 +750,13 @@ def test_assertion_9_mode_a_dlss5_coexistence_and_synergy():
         assert "NRPresentAlways=0" in txt_mylook
         assert "NRFollowInputRes=1" in txt_mylook
 
-        # 5. 执行卸载还原
+        # 5. 执行卸载还原：模式 A 自动从 version.dll 恢复回退为 dxgi.dll 独立代理
         ok_res, _ = DLSS5Injector.restore(str(game_dir))
         assert ok_res
-        assert not (game_dir / "dxgi.dll").exists()
+        from apps.app2_mfg.core.coexistence import is_dashdogy_binary
+        assert (game_dir / "dxgi.dll").exists() and is_dashdogy_binary(game_dir / "dxgi.dll"), "移除 DLSS 5 后模式 A 必须自动恢复为 dxgi.dll 独立代理"
+        assert not (game_dir / "version.dll").exists(), "避让槽位 version.dll 必须已被还原清理"
+        assert not (game_dir / "nvngx_dlssnr.dll").exists(), "DLSS 5 神经重构模型必须已彻底卸载"
         print("   [PASS] 模式 A 与 DLSS 5 共存态参数协同、防 GPU 挂起与卸载校验 100% PASS")
 
 
