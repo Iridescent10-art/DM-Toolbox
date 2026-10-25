@@ -63,3 +63,11 @@ def test_nr_vram_settings_roundtrip(tmp_path, monkeypatch):
     loaded = inj.load_nr_vram_settings()
     assert loaded["guard"] is False
     assert loaded["margin"] == 50
+
+
+def test_nr_vram_defaults_are_guard_on_with_10pct(tmp_path, monkeypatch):
+    """Factory default: guard enabled with a 10% reserve (4K + MFG safety net)."""
+    monkeypatch.setattr(inj, "_nr_vram_settings_path", lambda: tmp_path / "missing.json")
+    settings = inj.load_nr_vram_settings()
+    assert settings["guard"] is True
+    assert settings["margin"] == 10

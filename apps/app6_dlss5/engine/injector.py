@@ -1137,10 +1137,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "AlwaysPresent": "0",
@@ -1306,10 +1306,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "AlwaysPresent": "0",
@@ -1359,10 +1359,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "AlwaysPresent": "0",
@@ -1416,10 +1416,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
@@ -1447,10 +1447,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
         "NRGpuTimers": "0",
@@ -1495,10 +1495,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRRuntimePath": ".\\nvngx_dlssnr.dll",
         "NRToggleKey": "0,0,0,0",
         "NRGpuTimers": "0",
@@ -1539,10 +1539,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NeuralUplift": "1",
         "NRVramBuffering": "1",
         "VramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRPresentGuides": "0",
         "NRPresentAlways": "0",
         "NRPresentNonBlocking": "1",
@@ -1715,15 +1715,20 @@ def _nr_vram_settings_path() -> Path:
 
 
 def load_nr_vram_settings() -> Dict[str, Any]:
-    """Read the NR VRAM guard preference (default: guard off, margin 0)."""
-    settings: Dict[str, Any] = {"guard": False, "margin": 0}
+    """Read the NR VRAM guard preference (default: guard on, 10% margin).
+
+    4K + DLSS 5 NR + multi-frame generation can exhaust a 12 GB card and the
+    driver then times out (TDR 0x141). Keeping the guard on by default trades a
+    little NR work in extreme cases for a stable session.
+    """
+    settings: Dict[str, Any] = {"guard": True, "margin": 10}
     path = _nr_vram_settings_path()
     try:
         if path.exists():
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
-            settings["guard"] = bool(data.get("guard", False))
-            settings["margin"] = max(0, min(50, int(data.get("margin", 0) or 0)))
+            settings["guard"] = bool(data.get("guard", True))
+            settings["margin"] = max(0, min(50, int(data.get("margin", 10) or 0)))
     except Exception:
         pass
     return settings
@@ -1833,10 +1838,10 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -
         "NRVramBuffering": "1",
         "VramBuffering": "1",
         "DirectNeuralRenderingVramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
         "NRPresentAlways": always_pres,
         "AlwaysPresent": always_pres,
     }
@@ -1853,10 +1858,10 @@ def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -
         "NRVramBuffering": "1",
         "VramBuffering": "1",
         "DirectNeuralRenderingVramBuffering": "1",
-        "NRVramBudgetGuard": "0",
-        "NRVramBudgetMargin": "0",
-        "VramBudgetGuard": "0",
-        "BudgetGuard": "0",
+        "NRVramBudgetGuard": "1",
+        "NRVramBudgetMargin": "10",
+        "VramBudgetGuard": "1",
+        "BudgetGuard": "1",
     }
 
     combined_updates = {**hook_updates_mode_b, **hook_updates_mode_a}
@@ -2362,8 +2367,8 @@ class DLSS5Injector:
                     "NRVramBuffering=1\n"
                     "VramBuffering=1\n"
                     "DirectNeuralRenderingVramBuffering=1\n"
-                    "NRVramBudgetGuard=0\n"
-                    "NRVramBudgetMargin=0\n"
+                    "NRVramBudgetGuard=1\n"
+                    "NRVramBudgetMargin=10\n"
                     "VramBudgetGuard=0\n"
                     "BudgetGuard=0\n"
                     "NRPresetGuides=0\n"

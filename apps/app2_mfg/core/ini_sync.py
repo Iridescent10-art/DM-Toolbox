@@ -1014,10 +1014,10 @@ class IniConfigManager:
             "NRVramBuffering": "1",
             "VramBuffering": "1",
             "DirectNeuralRenderingVramBuffering": "1",
-            "NRVramBudgetGuard": "0",
-            "NRVramBudgetMargin": "0",
-            "VramBudgetGuard": "0",
-            "BudgetGuard": "0",
+            "NRVramBudgetGuard": "1",
+            "NRVramBudgetMargin": "10",
+            "VramBudgetGuard": "1",
+            "BudgetGuard": "1",
         }
 
         # 1. Update ReShade.ini
