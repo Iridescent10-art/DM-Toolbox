@@ -199,3 +199,46 @@ def test_streamline_spoofing_stays_auto_on_pre_ada_cards(monkeypatch, tmp_path):
     assert cp.get("Spoofing", "StreamlineSpoofing") == "auto"
     assert cp.get("Spoofing", "Dxgi") == "auto"
     assert cp.get("fakenvapi", "UseFakenvapi").lower() == "false"
+
+
+def test_adapt_mode_a_stops_mfg_from_overriding_dlss5_sr_preset(tmp_path):
+    """Mode A + DLSS 5: MFG-Unlocker must not fight DLSS 5 for the SR preset.
+
+    The native DLSS feature it would target no longer exists once DLSS 5 owns
+    super resolution, so the in-game panel answers "DLSS 拒绝了新预设" and stays
+    locked on a stale preset. The coexistence adapter re-syncs the Mode A config:
+    panel/SR override off, frame generation untouched.
+    """
+    game = tmp_path / "game"
+    game.mkdir()
+    (game / "Game.exe").write_bytes(b"MZ" + b"\x00" * 64)
+    # Mode A standalone: dashdogy proxy on dxgi.dll + its config files.
+    (game / "dxgi.dll").write_bytes(b"MFGUnlocker proxy" + b"\x00" * 32)
+    (game / "RTXMFG-Universal.json").write_text(
+        json.dumps({"version": 41, "enableImGui": True, "overlayMenu": True,
+                    "dlssSrPreset": 11, "overrideDlssPreset": True}),
+        encoding="utf-8",
+    )
+    (game / "mfg_unlocker.ini").write_text(
+        "[General]\nDlssSrPreset=11\nEnableImGui=1\nOverlayMenu=true\nMultiplier=3\n",
+        encoding="utf-8",
+    )
+    # DLSS 5 already injected.
+    (game / ".dlss5_manifest.json").write_text("{}", encoding="utf-8")
+
+    ok, message = coex.adapt_mode_a_for_dlss5(game, game / "Game.exe")
+    assert ok, message
+    assert coex.detect_dashdogy_slot(game) in ("version.dll", "winmm.dll", "dinput8.dll")
+
+    data = json.loads((game / "RTXMFG-Universal.json").read_text(encoding="utf-8"))
+    assert data["enableImGui"] is False, "panel must stay hidden in coexistence"
+    assert data["overlayMenu"] is False
+    assert data["dlssSrPreset"] == 0, "SR preset must be left to DLSS 5"
+    assert data["overrideDlssPreset"] is False
+
+    cp = _read_ini(game / "mfg_unlocker.ini")
+    assert cp.get("General", "DlssSrPreset") == "0"
+    assert cp.get("General", "OverrideDlssPreset") == "0"
+    assert cp.get("General", "EnableImGui") == "0"
+    # Frame generation settings survive.
+    assert cp.get("General", "Multiplier") == "3"

@@ -1398,6 +1398,10 @@ class IniConfigManager:
         universal_json_path = target / "RTXMFG-Universal.json"
         try:
             has_dlss5_a = is_dlss5_present(target)
+            # 共存态：DLSS 超分由 DLSS 5 接管，MFG-Unlocker 不能再往原生 DLSS 特性上套
+            # SR 预设（没有该特性 -> DLSS 拒绝新预设，面板锁在旧值）。这里把 SR 相关
+            # 键复位为「不覆盖」，只保留帧生成（倍率 / DLSS-G 预设）能力。
+            sr_override = (not is_default) and not has_dlss5_a
             universal_data = {
                 "version": 41,
                 "followGame": True,
@@ -1406,9 +1410,9 @@ class IniConfigManager:
                 "forcedMaximumMultiplier": multiplier,
                 "hotkey": vk_code,
                 "menuKey": menu_key,
-                "overrideDlssPreset": False if is_default else True,
-                "dlssPreset": 0 if is_default else int(render_preset_val),
-                "dlssSrPreset": 0 if is_default else int(render_preset_val),
+                "overrideDlssPreset": sr_override,
+                "dlssPreset": int(render_preset_val) if sr_override else 0,
+                "dlssSrPreset": int(render_preset_val) if sr_override else 0,
                 "dlssgPreset": dlssg_preset_val,
                 "unlocked": unlocked_bool,
                 "gpuNameOverride": int(unlock_flag),
@@ -1425,6 +1429,7 @@ class IniConfigManager:
             pass
 
         has_dlss5_a = is_dlss5_present(target)
+        sr_override_ini = (not is_default) and not has_dlss5_a
         updates = {
             "General": {
                 "MenuKey": menu_key,
@@ -1433,9 +1438,9 @@ class IniConfigManager:
                 "Preset": clean_preset_name,
                 "DLSSPreset": clean_preset_name,
                 "DLSSGPreset": clean_dlssg_name,
-                "RenderPreset": render_preset_val,
-                "OverrideDlssPreset": "0" if is_default else "1",
-                "DlssSrPreset": render_preset_val,
+                "RenderPreset": render_preset_val if sr_override_ini else "0",
+                "OverrideDlssPreset": "1" if sr_override_ini else "0",
+                "DlssSrPreset": render_preset_val if sr_override_ini else "0",
                 "BinkHook": "1" if bink_hook else "0",
                 "OverlayMenu": "false" if has_dlss5_a else "true",
                 "EnableImGui": "0" if has_dlss5_a else "1",

@@ -892,6 +892,20 @@ def adapt_mode_a_for_dlss5(
     if not slot:
         return False, "未能为 MFG-Unlocker 迁移至次级代理槽位"
 
+    # Re-sync the Mode A config now that DLSS 5 owns super resolution:
+    # MFG-Unlocker must stop offering its ImGui panel / SR preset switch, because
+    # the native DLSS feature it would target no longer exists - the panel answers
+    # "DLSS 拒绝了新预设" and locks to a stale preset. Frame generation stays.
+    try:
+        from apps.app2_mfg.core.ini_sync import IniConfigManager
+        from apps.app2_mfg.core.optiscaler_config import load_mode_a_preset
+        cfg_a = IniConfigManager.read_mode_a_reverse(td) or load_mode_a_preset()
+        if hasattr(cfg_a, "get"):
+            cfg_a["sr_preset_managed_by"] = "dlss5"
+        IniConfigManager.sync_mode_a_forward(td, cfg_a)
+    except Exception:
+        pass
+
     coex_marker = td / ".mfg_coex_backup.json"
     marker_data = {
         "backend": "A",
