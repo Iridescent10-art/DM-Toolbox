@@ -12,7 +12,7 @@ import sys
 import shutil
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Callable
 
 # Primary storage directory in %APPDATA%/ToolboxMaster
 def resolve_toolbox_root() -> Path:
@@ -196,6 +196,47 @@ def get_total_cache_size_mb() -> float:
     return round(get_total_cache_size_bytes() / (1024 * 1024), 2)
 
 
+# Live viewers (QFileSystemWatcher owners) that must re-attach their watch paths
+# after a factory reset, because the reset removes the watched config entries.
+_RESET_HOOKS: List[Callable[[], None]] = []
+
+
+def register_reset_hook(hook: Callable[[], None]) -> None:
+    """Register a callback that runs after a factory reset rebuilt the data tree."""
+    if hook not in _RESET_HOOKS:
+        _RESET_HOOKS.append(hook)
+
+
+def _notify_reset_hooks() -> None:
+    """Notify registered viewers that the config/cache tree was rebuilt."""
+    for hook in list(_RESET_HOOKS):
+        try:
+            hook()
+        except Exception:
+            pass
+
+
+def _clear_children(directory: Path) -> None:
+    """Empties a directory but keeps the directory itself alive.
+
+    The directory objects are preserved on purpose: open QFileSystemWatcher
+    handles reference them, and deleting them makes every watcher log a
+    "FindNextChangeNotification failed" error and stop hot-reloading.
+    """
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        for child in list(directory.iterdir()):
+            try:
+                if child.is_dir() and not child.is_symlink():
+                    shutil.rmtree(child, ignore_errors=True)
+                else:
+                    child.unlink(missing_ok=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str, float]:
     """
     Executes complete factory reset of %APPDATA%/ToolboxMaster:
@@ -208,14 +249,12 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
     freed_mb = get_total_cache_size_mb()
 
     try:
-        # Clear Cache
-        if CACHE_ROOT.exists():
-            shutil.rmtree(CACHE_ROOT, ignore_errors=True)
+        # Clear Cache (keep the directories themselves alive for open watchers)
+        _clear_children(CACHE_ROOT)
         CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 
-        # Clear Config
-        if CONFIG_ROOT.exists():
-            shutil.rmtree(CONFIG_ROOT, ignore_errors=True)
+        # Clear Config (same reason: QFileSystemWatcher handles stay valid)
+        _clear_children(CONFIG_ROOT)
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
 
         # Re-create subdirectories
@@ -256,6 +295,9 @@ def reset_all_data(defaults_base_dir: Optional[Path] = None) -> Tuple[bool, str,
                                         shutil.copytree(ec_item, target_app_cache / ec_item.name, dirs_exist_ok=True)
                                     elif ec_item.is_file():
                                         shutil.copy2(ec_item, target_app_cache / ec_item.name)
+
+        # Re-attach live config watchers (wallpaper hot-reload) to the rebuilt tree.
+        _notify_reset_hooks()
 
         return True, f"已成功清空 AppData 缓存并还原初始配置！释放空间: {freed_mb:.2f} MB", freed_mb
     except Exception as e:

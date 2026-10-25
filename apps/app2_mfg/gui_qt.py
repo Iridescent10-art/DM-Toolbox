@@ -3304,8 +3304,13 @@ class ModernMFGGUI(QMainWindow):
         self.center_on_screen()
         self._load_cache_status()
         self._load_cached_games_instant()
-        self.trigger_background_scan()
-        self.start_mirror_speed_test()
+        self._scan_cancelled = False
+        # Automated tests and headless smoke runs disable the automatic drive scan
+        # and the mirror speed test: both spawn background workers that outlive the
+        # window and make the whole process unstable during teardown.
+        if os.environ.get("DM_DISABLE_AUTO_SCAN") != "1":
+            self.trigger_background_scan()
+            self.start_mirror_speed_test()
 
         # 实时监听全局主题切换，实现全软件毫秒级无感同步
         self.theme_sync_timer = QTimer(self)
@@ -5374,7 +5379,11 @@ class ModernMFGGUI(QMainWindow):
 
         def scan_thread():
             games = self.scanner.scan_all_libraries()
+            # The window may already be closed; emitting into a dead widget crashes.
+            if getattr(self, "_scan_cancelled", False):
+                return
             self.signals.scan_finished.emit(games)
+        self._scan_cancelled = False
         threading.Thread(target=scan_thread, daemon=True).start()
 
     def _on_scan_finished(self, games: List[GameInfo]):
@@ -6375,6 +6384,9 @@ class ModernMFGGUI(QMainWindow):
         return ""
 
     def closeEvent(self, event):
+        # Drop the result of an in-flight library scan so it cannot be emitted into
+        # a window whose Qt objects are already being destroyed.
+        self._scan_cancelled = True
         if getattr(self, "speed_test_worker", None) and self.speed_test_worker.isRunning():
             try:
                 self.speed_test_worker.cancel()

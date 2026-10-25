@@ -74,10 +74,16 @@ def test_wallpaper_default_config():
     assert cfg["sync_mode"] == "unified"
     assert "blur0.png" in cfg["cached_image_path"]
 
-    # Verify blur0 image asset exists in defaults
-    cached_path = Path(cfg["cached_image_path"])
-    blur0_asset = cached_path if cached_path.is_absolute() else (ROOT_DIR / cached_path)
-    assert blur0_asset.exists(), f"Asset {blur0_asset} must exist in defaults"
+    # The shipped config points into the per-user cache, so resolve the file name it
+    # references and verify that this factory asset ships in defaults/wallpapers/
+    # (first run seeds that directory into %APPDATA%). Checking the raw %APPDATA%
+    # string against the repo root would always fail on a clean machine.
+    asset_name = Path(cfg["cached_image_path"].replace("\\", "/")).name
+    factory_asset = ROOT_DIR / "defaults" / "wallpapers" / asset_name
+    resolved_asset = Path(os.path.expandvars(cfg["cached_image_path"]))
+    assert factory_asset.exists() or resolved_asset.exists(), (
+        f"Default wallpaper asset {asset_name} must exist in defaults/wallpapers"
+    )
 
 
 def test_mode_c_ini_forward_sync_and_coexistence():

@@ -446,7 +446,9 @@ class ToolboxLauncher(BaseWindow):
         # Preloaded releases cache & silent background update checker
         self.preloaded_releases = []
         self.silent_updater = None
-        QTimer.singleShot(2000, self.start_background_update_check)
+        # Tests / headless smoke runs must not fire a network update check.
+        if os.environ.get("DM_DISABLE_AUTO_UPDATE_CHECK") != "1":
+            QTimer.singleShot(2000, self.start_background_update_check)
 
     def init_launcher_ui(self):
         # Outer scroll area with NO horizontal scrollbar and responsive stretching
@@ -978,6 +980,14 @@ class ToolboxLauncher(BaseWindow):
             if not confirmed:
                 event.ignore()
                 return
+
+        # Stop the background update check before the window (and its QThread) dies.
+        if self.silent_updater is not None:
+            try:
+                self.silent_updater.stop()
+            except Exception:
+                pass
+            self.silent_updater = None
 
         event.accept()
 

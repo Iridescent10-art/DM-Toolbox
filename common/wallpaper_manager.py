@@ -22,6 +22,7 @@ import json
 import time
 import shutil
 import hashlib
+import weakref
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, Union, List
@@ -47,7 +48,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.config_manager import (
     resolve_toolbox_root, CACHE_ROOT, CONFIG_ROOT,
-    get_global_theme, set_global_theme
+    get_global_theme, set_global_theme, register_reset_hook
 )
 
 # Dedicated storage paths in AppData
@@ -85,9 +86,9 @@ SUBAPP_TITLES = {
 DEFAULT_WALLPAPER_CONFIG = {
     "enabled": True,
     "sync_mode": "unified",  # "unified" | "main_only" | "per_app"
-    "source_hash": "1d529e28b4d9",
+    "source_hash": "51a11db7f98b",
     "source_path": "默认壁纸",
-    "cached_image_path": "%APPDATA%/ToolboxMaster/cache/wallpapers/bg_1d529e28b4d9_blur0.png",
+    "cached_image_path": "%APPDATA%/ToolboxMaster/cache/wallpapers/bg_51a11db7f98b_blur0.png",
     "blur_radius": 0,
     "tint_opacity_dark": 0.20,
     "tint_opacity_light": 0.20,
@@ -176,6 +177,38 @@ def resolve_cached_image_path(path_str: str) -> Optional[Path]:
             except Exception:
                 return defaults_f
     return p if p.exists() else None
+
+
+# Windows that watch the wallpaper config for cross-process hot reload. A factory
+# reset rewrites those entries, so every live watcher is re-attached afterwards.
+_CONFIG_WATCHERS: "weakref.WeakSet" = weakref.WeakSet()
+
+
+def register_config_watcher(watcher: QFileSystemWatcher) -> None:
+    """Track a widget's config watcher so a factory reset can re-attach its paths."""
+    try:
+        _CONFIG_WATCHERS.add(watcher)
+    except TypeError:
+        pass
+
+
+def refresh_config_watchers() -> None:
+    """Re-add the config dir/file watch paths that a factory reset invalidated."""
+    for watcher in list(_CONFIG_WATCHERS):
+        try:
+            watched = set(watcher.files()) | set(watcher.directories())
+            for target in (GLOBAL_WALLPAPER_CONFIG_PATH.parent, GLOBAL_WALLPAPER_CONFIG_PATH):
+                if target.exists() and str(target) not in watched:
+                    watcher.addPath(str(target))
+                    watched.add(str(target))
+        except RuntimeError:
+            # The C++ object is already gone (window closed); nothing to re-attach.
+            pass
+        except Exception:
+            pass
+
+
+register_reset_hook(refresh_config_watchers)
 
 
 def load_wallpaper_config(subapp_id: Optional[str] = None) -> Dict[str, Any]:

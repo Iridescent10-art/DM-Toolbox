@@ -25,7 +25,7 @@ from common.wallpaper_manager import (
     load_wallpaper_config, resolve_cached_image_path,
     render_wallpaper_background, get_acrylic_qss_styles,
     GLOBAL_WALLPAPER_NOTIFIER, DMWallpaperDialog,
-    GLOBAL_WALLPAPER_CONFIG_PATH
+    GLOBAL_WALLPAPER_CONFIG_PATH, register_config_watcher
 )
 from common.dm_ui_core import (
     DMBaseWindow,
@@ -1716,6 +1716,7 @@ class BaseWindow(QMainWindow):
             self.wallpaper_file_watcher.addPath(str(GLOBAL_WALLPAPER_CONFIG_PATH.parent))
         if GLOBAL_WALLPAPER_CONFIG_PATH.exists():
             self.wallpaper_file_watcher.addPath(str(GLOBAL_WALLPAPER_CONFIG_PATH))
+        register_config_watcher(self.wallpaper_file_watcher)
         self.wallpaper_file_watcher.fileChanged.connect(self._on_wallpaper_file_changed)
         self.wallpaper_file_watcher.directoryChanged.connect(self._on_wallpaper_file_changed)
         self._wp_debounce_timer = QTimer(self)

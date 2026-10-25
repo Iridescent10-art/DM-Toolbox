@@ -184,6 +184,14 @@ class CheckUpdateWorker(QThread):
     """Asynchronous background worker to check GitHub Releases with multi-source fallback."""
     finished = Signal(bool, list, str)
 
+    def __init__(self):
+        super().__init__()
+        self._cancelled = False
+
+    def cancel(self):
+        """Stop before the next mirror attempt; used when the app shuts down."""
+        self._cancelled = True
+
     def run(self):
         urls = [
             GITHUB_API_RELEASES,
@@ -198,6 +206,8 @@ class CheckUpdateWorker(QThread):
 
         last_err = ""
         for url in urls:
+            if self._cancelled:
+                return
             try:
                 req = urllib.request.Request(url, headers=headers)
                 with urllib.request.urlopen(req, timeout=8) as resp:
@@ -1151,6 +1161,23 @@ class SilentUpdateChecker:
         self.worker = CheckUpdateWorker()
         self.worker.finished.connect(self._on_check_finished)
         self.worker.start()
+
+    def stop(self, timeout_ms: int = 3000):
+        """Cancel a running background check and wait briefly for the thread to exit.
+
+        Without this the QThread can still be running when the window is torn down,
+        which crashes the process at shutdown ("QThread: Destroyed while thread is
+        still running").
+        """
+        worker = self.worker
+        if worker is None:
+            return
+        try:
+            worker.cancel()
+            if worker.isRunning():
+                worker.wait(timeout_ms)
+        except Exception:
+            pass
 
     def _on_check_finished(self, success: bool, releases: list, err: str):
         if not success or not releases:
