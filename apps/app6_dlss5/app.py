@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QScrollArea, QComboBox, QLineEdit,
     QFileDialog, QRadioButton, QButtonGroup, QSizePolicy,
-    QSpacerItem
+    QCheckBox, QSpacerItem
 )
 
 # Root directory resolution
@@ -514,6 +514,31 @@ class DLSS5MainWindow(DMBaseWindow):
         arch_row.addWidget(self.rb_50)
 
         card_plugin_layout.addLayout(arch_row)
+
+        # ---- NR VRAM budget guard (防 4K + 多帧生成打爆显存导致 TDR 闪退) ----
+        vram_row = QHBoxLayout()
+        vram_row.setSpacing(10)
+        self.chk_nr_vram_guard = QCheckBox("🛡️ 启用 NR 显存预算守卫（显存不足时自动降档，防 TDR 闪退）")
+        self.chk_nr_vram_guard.setToolTip(
+            "NR 神经重构会额外占用显存（模型 + 中间缓冲）。\n"
+            "开启后 RenoDX 在分配前检查剩余显存，不足时自动降低 NR 负载，\n"
+            "而不是把显存吃满触发驱动超时（0x141 TDR）。\n"
+            "4K + 多帧生成同时开启时强烈建议打开。"
+        )
+        vram_row.addWidget(self.chk_nr_vram_guard, 1)
+
+        lbl_margin = QLabel("预留余量:")
+        vram_row.addWidget(lbl_margin)
+        self.combo_nr_vram_margin = QComboBox()
+        for _label, _val in [("0% (不预留)", 0), ("5%", 5), ("10% (推荐)", 10), ("15%", 15), ("20% (保守)", 20)]:
+            self.combo_nr_vram_margin.addItem(_label, _val)
+        self.combo_nr_vram_margin.setMinimumWidth(130)
+        vram_row.addWidget(self.combo_nr_vram_margin)
+        card_plugin_layout.addLayout(vram_row)
+
+        self._load_nr_vram_settings()
+
+        card_plugin_layout.addLayout(arch_row) if False else None
         self.content_layout.addWidget(self.card_plugin)
 
         # -------------------------------------------------------------
@@ -689,6 +714,48 @@ class DLSS5MainWindow(DMBaseWindow):
     # -----------------------------------------------------------------
     # Backend Logic & Data Loading
     # -----------------------------------------------------------------
+    # ---- NR VRAM budget guard ----
+    def _load_nr_vram_settings(self):
+        """Load the persisted NR VRAM guard preference and wire change handlers."""
+        try:
+            from apps.app6_dlss5.engine.injector import load_nr_vram_settings
+            settings = load_nr_vram_settings()
+        except Exception:
+            settings = {"guard": False, "margin": 0}
+        self.chk_nr_vram_guard.setChecked(bool(settings.get("guard", False)))
+        idx = self.combo_nr_vram_margin.findData(int(settings.get("margin", 0) or 0))
+        if idx >= 0:
+            self.combo_nr_vram_margin.setCurrentIndex(idx)
+        self.chk_nr_vram_guard.toggled.connect(self._on_nr_vram_changed)
+        self.combo_nr_vram_margin.currentIndexChanged.connect(self._on_nr_vram_changed)
+
+    def _nr_vram_values(self):
+        guard = bool(self.chk_nr_vram_guard.isChecked())
+        try:
+            margin = int(self.combo_nr_vram_margin.currentData() or 0)
+        except Exception:
+            margin = 0
+        return guard, margin
+
+    def _on_nr_vram_changed(self, *_args):
+        """Persist the choice and push it into the currently selected game."""
+        guard, margin = self._nr_vram_values()
+        try:
+            from apps.app6_dlss5.engine.injector import (
+                save_nr_vram_settings,
+                sync_nr_vram_settings,
+            )
+            save_nr_vram_settings(guard, margin)
+            game = getattr(self, "selected_game", None)
+            if game is not None:
+                sync_nr_vram_settings(game.target_dir, guard, margin)
+                self.set_status(
+                    "NR 显存预算守卫：%s（余量 %d%%）已应用到当前游戏，重启游戏生效"
+                    % ("开启" if guard else "关闭", margin)
+                )
+        except Exception:
+            pass
+
     def _load_cached_games(self):
         """Loads game cache shared with App 2."""
         try:
@@ -1250,13 +1317,16 @@ class DLSS5MainWindow(DMBaseWindow):
             self._update_inject_button_text()
             return
 
+        nr_guard, nr_margin = self._nr_vram_values()
         ok, msg = DLSS5Injector.inject(
             target_dir=self.selected_game.target_dir,
             source_dir=str(self.active_source_dir),
             arch_choice=arch_choice,
             hook_point=chosen_hook,
             mode=chosen_mode,
-            proxy_choice=chosen_proxy
+            proxy_choice=chosen_proxy,
+            nr_vram_guard=nr_guard,
+            nr_vram_margin=nr_margin,
         )
 
         self._update_status_card()

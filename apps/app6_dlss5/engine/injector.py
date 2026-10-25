@@ -1706,6 +1706,90 @@ def _update_preset_file_kv(file_path: Path, kv: Dict[str, str]):
         pass
 
 
+def _nr_vram_settings_path() -> Path:
+    try:
+        from common.config_manager import get_app_config_dir
+        return get_app_config_dir("app6_dlss5") / "nr_vram.json"
+    except Exception:
+        return Path(os.environ.get("APPDATA", ".")) / "ToolboxMaster" / "config" / "app6_dlss5" / "nr_vram.json"
+
+
+def load_nr_vram_settings() -> Dict[str, Any]:
+    """Read the NR VRAM guard preference (default: guard off, margin 0)."""
+    settings: Dict[str, Any] = {"guard": False, "margin": 0}
+    path = _nr_vram_settings_path()
+    try:
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+            settings["guard"] = bool(data.get("guard", False))
+            settings["margin"] = max(0, min(50, int(data.get("margin", 0) or 0)))
+    except Exception:
+        pass
+    return settings
+
+
+def save_nr_vram_settings(guard: bool, margin: int) -> bool:
+    """Persist the NR VRAM guard preference so every later injection uses it."""
+    path = _nr_vram_settings_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"guard": bool(guard), "margin": max(0, min(50, int(margin)))}, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def sync_nr_vram_settings(
+    target_dir: Union[str, Path],
+    guard: Optional[bool] = None,
+    margin: Optional[int] = None,
+) -> bool:
+    """
+    Write the NR VRAM budget guard keys into every RenoDX preset the game reads.
+
+    4K + DLSS 5 NR + multi-frame generation can exhaust a 12 GB card; without the
+    guard the driver times out (TDR 0x141) and the game disappears. The guard makes
+    NR give up some work instead of over-committing VRAM.
+    """
+    if guard is None or margin is None:
+        settings = load_nr_vram_settings()
+        if guard is None:
+            guard = settings["guard"]
+        if margin is None:
+            margin = settings["margin"]
+
+    flag = "1" if guard else "0"
+    updates = {
+        "NRVramBudgetGuard": flag,
+        "VramBudgetGuard": flag,
+        "BudgetGuard": flag,
+        "NRVramBudgetMargin": str(max(0, min(50, int(margin)))),
+    }
+
+    td = Path(target_dir)
+    if not td.is_dir():
+        return False
+
+    touched = False
+    preset_file = td / "ReShadePreset.ini"
+    if preset_file.exists():
+        _update_preset_file_kv(preset_file, updates)
+        touched = True
+    preset_dir = td / "RenoDX" / "DLSS5" / "Presets"
+    if preset_dir.is_dir():
+        for p_file in preset_dir.glob("*.ini"):
+            _update_preset_file_kv(p_file, updates)
+            touched = True
+    appdata_presets = Path(os.environ.get("LOCALAPPDATA", "")) / "RenoDX" / "DLSS5" / "Presets"
+    if appdata_presets.is_dir():
+        for p_file in appdata_presets.glob("*.ini"):
+            _update_preset_file_kv(p_file, updates)
+            touched = True
+    return touched
+
+
 def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -> bool:
     """
     Synchronizes DLSS 5 hook point for BOTH Mode A (ShortFuse renodx-dlss) and Mode B (Lecram-v12).
@@ -1955,7 +2039,9 @@ class DLSS5Injector:
         arch_choice: str = "auto",
         hook_point: str = "0",
         mode: str = "MODE_A",
-        proxy_choice: str = "auto"
+        proxy_choice: str = "auto",
+        nr_vram_guard: Optional[bool] = None,
+        nr_vram_margin: Optional[int] = None,
     ) -> Tuple[bool, str]:
         """
         Executes one-click standalone injection of DLSS 5 into target_dir.
@@ -2411,6 +2497,12 @@ class DLSS5Injector:
         try:
             from apps.app2_mfg.core.utils import auto_heal_game_dependencies
             auto_heal_game_dependencies(td)
+        except Exception:
+            pass
+
+        # 应用 NR 显存预算守卫设置（面板可调，防 4K + 多帧生成把 12GB 显存打爆导致 TDR）
+        try:
+            sync_nr_vram_settings(td, nr_vram_guard, nr_vram_margin)
         except Exception:
             pass
 
