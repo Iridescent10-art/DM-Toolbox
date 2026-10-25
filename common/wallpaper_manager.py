@@ -648,7 +648,9 @@ def get_acrylic_qss_styles(is_dark: bool, card_opacity: float, has_wallpaper: bo
         Border:       1px solid rgba(0, 0, 0, 0.06)
     When wallpaper is disabled, falls back to solid design system defaults.
     """
-    card_op = max(0.4, min(1.0, card_opacity))
+    # Readability floor: below ~0.62 the wallpaper shines through the text and
+    # the card reads as "fully transparent" on bright wallpapers.
+    card_op = max(0.62, min(1.0, card_opacity))
 
     if not has_wallpaper:
         # Default solid styling

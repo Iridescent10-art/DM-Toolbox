@@ -2752,7 +2752,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(sheet)
 
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
         if hasattr(self, "central_widget") and self.central_widget:
             if has_wp:
                 self.central_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)

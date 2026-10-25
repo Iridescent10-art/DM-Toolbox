@@ -578,7 +578,7 @@ class ToolboxLauncher(BaseWindow):
         super().apply_theme()
         is_dark = getattr(self, "is_dark_mode", False)
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
 
         # 顶部信息栏与快捷卡片使用同一层半透明亚克力，避免出现一块不透明的「顶栏」
         if hasattr(self, "header_card") and self.header_card is not None:

@@ -164,7 +164,7 @@ def glass_control_qss(is_dark: bool) -> str:
         accent = "#3E9E69"
         grid = "rgba(255, 255, 255, 0.08)"
         header_bg = "rgba(18, 20, 25, 0.88)"
-        surface_bg = "rgba(22, 24, 30, 0.74)"
+        surface_bg = "rgba(22, 24, 30, 0.58)"
     else:
         bg = "rgba(255, 255, 255, 0.62)"
         hover = "rgba(255, 255, 255, 0.80)"
@@ -178,7 +178,7 @@ def glass_control_qss(is_dark: bool) -> str:
         accent = "#2F8F5B"
         grid = "rgba(0, 0, 0, 0.06)"
         header_bg = "rgba(255, 255, 255, 0.92)"
-        surface_bg = "rgba(255, 255, 255, 0.82)"
+        surface_bg = "rgba(255, 255, 255, 0.68)"
 
     return f"""
     QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox {{
@@ -253,7 +253,7 @@ def glass_control_qss(is_dark: bool) -> str:
 
 def glass_surface_color(is_dark: bool) -> str:
     """Background used by the large frosted surfaces (tables, lists, editors)."""
-    return "rgba(22, 24, 30, 0.74)" if is_dark else "rgba(255, 255, 255, 0.82)"
+    return "rgba(22, 24, 30, 0.58)" if is_dark else "rgba(255, 255, 255, 0.68)"
 
 
 
@@ -274,7 +274,12 @@ def apply_page_surface(widget, is_dark: bool, card_opacity: float = 0.55) -> Non
     bg = f"rgba(24, 26, 33, {op:.2f})" if is_dark else f"rgba(255, 255, 255, {op:.2f})"
     bd = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
     try:
+        # Plain QWidget subclasses ignore stylesheet backgrounds unless this
+        # attribute is set; without it the page sheet is painted but invisible.
+        from PySide6.QtCore import Qt
+        widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         widget.setObjectName("PageSurface")
+        widget.setAutoFillBackground(False)
         widget.setStyleSheet(
             "QWidget#PageSurface { background-color: %s; border: 1px solid %s; border-radius: 16px; }"
             % (bg, bd)

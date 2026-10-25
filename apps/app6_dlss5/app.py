@@ -177,7 +177,7 @@ class DLSS5MainWindow(DMBaseWindow):
             self._apply_theme_styles(self.is_dark_mode)
         try:
             from common.ui_theme import apply_glass_controls, apply_page_surface
-            card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+            card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
             apply_page_surface(self.scroll.widget(), self.is_dark_mode, card_op)
             apply_glass_controls(self, self.is_dark_mode)
         except Exception:
@@ -1371,7 +1371,7 @@ class DLSS5MainWindow(DMBaseWindow):
             pass
 
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
 
         if hasattr(self, "card_game"):
             self.card_game.apply_theme(is_dark, wallpaper_active=has_wp, card_opacity=card_op)

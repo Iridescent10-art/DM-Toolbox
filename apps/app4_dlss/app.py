@@ -913,7 +913,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
         is_dark = self.is_dark_mode
 
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
         if has_wp:
             card_bg = f"rgba(26, 28, 36, {card_op:.2f})" if is_dark else f"rgba(255, 255, 255, {card_op:.2f})"
             card_border = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
@@ -961,7 +961,15 @@ class DLSSIndicatorWindow(DMBaseWindow):
         self.scroll_area.setStyleSheet(card_qss)
         self.scroll_area.verticalScrollBar().setStyleSheet(scrollbar_qss)
         if self.scroll_area.viewport():
-            self.scroll_area.viewport().setStyleSheet("background: transparent;")
+            # 半透明页面底板：viewport 直接铺磨砂色，避免整页「全透明」导致文字看不清
+            if has_wp:
+                vp_bg = (f"rgba(24, 26, 33, {card_op:.2f})" if is_dark
+                         else f"rgba(255, 255, 255, {card_op:.2f})")
+            else:
+                vp_bg = "#2A2B2C" if is_dark else "#FFFFFF"
+            self.scroll_area.viewport().setStyleSheet(
+                f"background-color: {vp_bg}; border-radius: 16px;"
+            )
 
         if hasattr(self, "t_lbl"):
             self.t_lbl.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {text_primary};")
@@ -996,7 +1004,7 @@ class DLSSIndicatorWindow(DMBaseWindow):
         # 半透明玻璃质感输入控件，覆盖上面按主题写死的实色样式
         try:
             from common.ui_theme import apply_glass_controls, apply_page_surface
-            card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+            card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
             apply_page_surface(self.scroll_area.widget(), self.is_dark_mode, card_op)
             apply_glass_controls(self, self.is_dark_mode)
         except Exception:

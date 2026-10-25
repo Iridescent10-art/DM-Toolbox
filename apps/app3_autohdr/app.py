@@ -329,7 +329,7 @@ class AutoHDRWindow(BaseWindow):
         """深度应用当前日间 / 夜间模式，重绘表格、下拉框与搜索框"""
         super().apply_theme()
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
-        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        card_op = max(0.62, float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86)))
 
         # Acrylic styling for 3 main cards
         card_bg = f"rgba(26, 28, 36, {card_op:.2f})" if self.is_dark_mode else f"rgba(255, 255, 255, {card_op:.2f})"
