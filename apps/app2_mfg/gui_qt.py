@@ -775,6 +775,7 @@ class OptiScalerPresetDialog(QDialog):
         super().__init__(parent)
         self.is_dark = is_dark
         self.game = game or (parent.selected_game if hasattr(parent, "selected_game") else None)
+        self.detected_gpu_name = getattr(parent, "detected_gpu_name", None) or get_system_gpu_name()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
@@ -1966,14 +1967,19 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_sm86_mult.setMinimumHeight(36)
         self.combo_sm86_mult.setMinimumWidth(280)
         self.combo_sm86_mult.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_sm86_mult.addItem("3X 三倍帧率 (高刷电竞 · 生成 2 帧 · 推荐 165Hz~240Hz) [出厂推荐]", 2)
-        self.combo_sm86_mult.addItem("2X 双倍帧率 (标准平滑 · 生成 1 帧 · 推荐 60Hz~144Hz)", 1)
-        self.combo_sm86_mult.addItem("4X 四倍帧率 (超高刷极速 · 生成 3 帧 · 推荐 240Hz+)", 3)
-        self.combo_sm86_mult.addItem("6X 六倍帧率 (极致高刷 · 生成 5 帧 · DLSS 4.5+)", 5)
+        self.combo_sm86_mult.addItem("3X 三倍帧率 (生成 2 帧 · 推荐 165Hz~240Hz) [出厂推荐]", 2)
+        self.combo_sm86_mult.addItem("2X 双倍帧率 (生成 1 帧 · 标准平滑 · 推荐 60Hz~144Hz)", 1)
+        self.combo_sm86_mult.addItem("4X 四倍帧率 (生成 3 帧 · 原生 4X 上限 · 推荐 240Hz+)", 3)
+        self.combo_sm86_mult.addItem("6X 六倍帧率 (生成 5 帧 · 极致超高刷 · DLSS 4.5+)", 5)
         self.combo_sm86_mult.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_sm86_mult.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_mult.addWidget(self.combo_sm86_mult, 1)
         fg_layout.addLayout(h_mult)
+
+        lbl_sm86_note = QLabel("💡 说明: 模式 C (dlssg_for_sm86) 内置 SM86/SM75 原生多帧生成引擎，已通过 Blackwell (0x1b0) 架构伪装向游戏及 Streamline 解锁多帧生成能力。出厂默认设定为 3X (生成 2 帧) / 4X (生成 3 帧) 多帧生成上限；在支持动态多帧的游戏中将直接跑满多帧倍率。若部分传统游戏未提供多帧开关或固定以 2X 渲染，亦可选用驱动覆盖或切换【模式 A (dashdogy)】强制倍数注入。")
+        lbl_sm86_note.setStyleSheet(f"font-size: 11px; color: {'#10b981' if is_dark else '#047857'}; line-height: 1.3;")
+        lbl_sm86_note.setWordWrap(True)
+        fg_layout.addWidget(lbl_sm86_note)
 
         # Row 2: Optimized Pipeline Level
         h_opt = QHBoxLayout()
@@ -2159,7 +2165,7 @@ class OptiScalerPresetDialog(QDialog):
             self.combo_a_mult.setCurrentIndex(idx_am)
 
         from core.optiscaler_config import get_adaptive_default_dlss_preset
-        gpu_name = self.detected_gpu_name or get_system_gpu_name()
+        gpu_name = getattr(self, "detected_gpu_name", None) or get_system_gpu_name()
         adaptive_preset = get_adaptive_default_dlss_preset(gpu_name)
         a_preset = self.preset_a.get("dlss_preset") if self.preset_a.get("user_customized_dlss_preset") else adaptive_preset
         if not a_preset or str(a_preset).strip() in ("0", "", "none", "None"):
@@ -2279,10 +2285,12 @@ class OptiScalerPresetDialog(QDialog):
 
         # 3. Mode C (dlssg_for_sm86)
         if hasattr(self, "combo_sm86_mult"):
-            sm86_mult = int(self.preset_sm86.get("max_generated_frames", 2))
+            sm86_mult = int(self.preset_sm86.get("max_generated_frames", 1))
             idx_sm = self.combo_sm86_mult.findData(sm86_mult)
             if idx_sm >= 0:
                 self.combo_sm86_mult.setCurrentIndex(idx_sm)
+            else:
+                self.combo_sm86_mult.setCurrentIndex(0)
 
             sm86_opt = int(self.preset_sm86.get("optimized", 2))
             idx_so = self.combo_sm86_opt.findData(sm86_opt)
@@ -4637,15 +4645,15 @@ class ModernMFGGUI(QMainWindow):
             if hasattr(self, "lbl_rhi_desc_hint"):
                 self.lbl_rhi_desc_hint.setText("当前为模式 B 跨卡转译 · 可使用 RHI 部署 HDR 高级色彩生态")
         elif backend_str in [BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
-            self.lbl_backend_desc.setText("模式 C (dlssg_for_sm86): 🔥 RTX 20/30 系首选！搭载专属 SM75/SM86 本地插帧内核，与 DLSS 5 (dxgi.dll) 完美共存")
+            self.lbl_backend_desc.setText("模式 C (dlssg_for_sm86): 🔥 RTX 20/30 系首选！官方原生 2X 插帧内核，与 DLSS 5 (dxgi.dll) 完美共存")
             self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600;")
             if hasattr(self, "lbl_rhi_desc_hint"):
-                self.lbl_rhi_desc_hint.setText("当前为模式 C dlssg 原生插帧 · 与 DLSS 5 完美共存")
+                self.lbl_rhi_desc_hint.setText("当前为模式 C 原生 2X 插帧 · 零冲突共存 DLSS 5 (若需 3X/4X 多帧请选模式 A)")
         else:
             gpu_name = get_system_gpu_name()
             gpu_upper = gpu_name.upper()
             if is_rtx_20_or_30_series(gpu_name):
-                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 20/30 系列(含笔记本/移动端)，自动优选【模式 C: dlssg_for_sm86 原生插帧】(与 DLSS 5 完美共存)")
+                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 20/30 系列(含笔记本/移动端)，自动优选【模式 C: dlssg_for_sm86 原生 2X 插帧】(若需3X~6X多帧可切换模式A)")
                 self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600;")
             elif is_rtx_40_or_newer(gpu_name):
                 self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 40/50 系列(含笔记本/移动端)，自动优选【模式 A (Universal 多帧解锁器)】")

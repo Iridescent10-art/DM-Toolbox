@@ -442,11 +442,11 @@ def get_dlssg_sm86_preset_summary(config: Optional[Dict[str, Any]] = None) -> st
 
     eng = config.get("engine", "DLSS")
     max_f = int(config.get("max_generated_frames", 2))
-    mult_map = {1: "2X", 2: "3X (推荐)", 3: "4X", 5: "6X (DLSS 4.5)"}
-    mult_str = mult_map.get(max_f, f"{max_f+1}X")
+    mult_map = {1: "2X 插帧", 2: "3X 多帧 (推荐)", 3: "4X 多帧", 5: "6X 多帧 (DLSS 4.5)"}
+    mult_str = mult_map.get(max_f, f"{max_f+1}X 多帧")
 
     opt = int(config.get("optimized", 2))
-    opt_map = {0: "原厂内核", 1: "逐位一致", 2: "轻量加速(默认)", 3: "极速加速"}
+    opt_map = {0: "原版内核", 1: "逐位一致", 2: "轻量加速(默认)", 3: "激进加速"}
     opt_str = opt_map.get(opt, f"档位{opt}")
 
     preset = config.get("dlssg_preset", "Auto")
@@ -455,8 +455,7 @@ def get_dlssg_sm86_preset_summary(config: Optional[Dict[str, Any]] = None) -> st
 
     proxy = config.get("proxy_dll", "version.dll")
 
-    return f"dlssg_for_sm86 [{eng} 原生插帧 {mult_str}] | {opt_str} | 预设 {preset}{sr_str} | 代理: {proxy}"
-
+    return f"dlssg_for_sm86 [{eng} 原生 {mult_str}] | {opt_str} | 预设 {preset}{sr_str} | 代理: {proxy}"
 
 # Mode B aliases
 load_mode_b_preset = load_optiscaler_preset

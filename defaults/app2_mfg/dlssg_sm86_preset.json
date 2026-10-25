@@ -5,7 +5,7 @@
   "optimized": 2,
   "dlssg_preset": "C",
   "super_resolution_mode": "Off",
-  "proxy_dll": "version.dll",
   "logging_level": 1,
+  "proxy_dll": "version.dll",
   "preset_schema_version": 2
 }

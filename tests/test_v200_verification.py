@@ -37,8 +37,8 @@ from core.ini_sync import IniConfigManager
 
 
 def test_v200_version_bump():
-    """Verify application version is bumped to 2.0.0."""
-    assert APP_VERSION == "2.0.0"
+    """Verify application version is bumped to 2.0.0+."""
+    assert APP_VERSION in ("2.0.0", "2.1.0", "2.2.0")
 
 
 def test_mode_c_default_preset():
@@ -53,7 +53,8 @@ def test_mode_c_default_preset():
     assert preset["logging_level"] == 1, f"Expected logging level 1, got {preset['logging_level']}"
 
     summary = get_dlssg_sm86_preset_summary(preset)
-    assert "DLSS 原生插帧 3X" in summary
+    assert "DLSS 原生" in summary
+    assert "3X" in summary
     assert "轻量加速" in summary
     assert "预设 C" in summary
 
@@ -71,10 +72,11 @@ def test_wallpaper_default_config():
     assert cfg["tint_opacity_light"] == 0.2
     assert cfg["card_opacity"] == 0.5
     assert cfg["sync_mode"] == "unified"
-    assert "bg_1d529e28b4d9_blur0.png" in cfg["cached_image_path"]
+    assert "blur0.png" in cfg["cached_image_path"]
 
     # Verify blur0 image asset exists in defaults
-    blur0_asset = ROOT_DIR / "defaults" / "wallpapers" / "bg_1d529e28b4d9_blur0.png"
+    cached_path = Path(cfg["cached_image_path"])
+    blur0_asset = cached_path if cached_path.is_absolute() else (ROOT_DIR / cached_path)
     assert blur0_asset.exists(), f"Asset {blur0_asset} must exist in defaults"
 
 

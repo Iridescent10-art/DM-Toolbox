@@ -1266,7 +1266,7 @@ class IniConfigManager:
         multiplier = int(config.get("multiplier", 3))
         menu_key = str(config.get("menu_key", "Backspace")).strip()
         preset = config.get("dlss_preset")
-        if not preset or str(preset).strip() in ("0", "", "none", "None", "default", "Default"):
+        if preset is None or str(preset).strip() in ("", "none", "None"):
             try:
                 from core.optiscaler_config import get_adaptive_default_dlss_preset
                 from core.utils import get_system_gpu_name

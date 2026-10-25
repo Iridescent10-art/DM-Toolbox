@@ -86,7 +86,7 @@ def test_mock_launcher_auto_upgrade():
 def test_real_cyberpunk_resolution_if_present():
     """If real Cyberpunk 2077 is installed on the user's system, verify exact detection."""
     real_cp = Path(r"D:\game\steam\steamapps\common\Cyberpunk 2077")
-    if not real_cp.exists():
+    if not real_cp.exists() or not (real_cp / "bin" / "x64" / "Cyberpunk2077.exe").exists():
         pytest.skip("Cyberpunk 2077 not installed at default test path")
 
     scanner = GameScanner()

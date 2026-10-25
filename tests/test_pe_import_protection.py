@@ -18,7 +18,7 @@ def test_witcher3_and_cp2077_pe_imports():
         assert "libxess_fg.dll" in imported
 
     cp_dir = Path(r"D:\game\steam\steamapps\common\Cyberpunk 2077\bin\x64")
-    if cp_dir.exists():
+    if cp_dir.exists() and (cp_dir / "Cyberpunk2077.exe").exists():
         imported_cp = get_game_statically_imported_dlls(cp_dir)
         assert "libxess.dll" in imported_cp
         assert "libxell.dll" in imported_cp
