@@ -1,11 +1,11 @@
-{
+﻿{
   "enabled": 1,
   "engine": "DLSS",
-  "max_generated_frames": 2,
+  "max_generated_frames": 3,
   "optimized": 2,
-  "dlssg_preset": "C",
+  "dlssg_preset": "Auto",
   "super_resolution_mode": "Off",
   "logging_level": 1,
   "proxy_dll": "version.dll",
-  "preset_schema_version": 2
+  "preset_schema_version": 3
 }

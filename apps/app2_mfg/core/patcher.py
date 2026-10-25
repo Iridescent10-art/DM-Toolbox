@@ -1317,4 +1317,21 @@ class PatchEngine:
         except Exception:
             pass
 
+        # 5. 三件套完整性校验（上游教程：只复制 DLL 什么都不会发生）
+        # 缺任何一项都直接报错，不再让用户面对「注入了但没效果」。
+        required = {
+            "代理 DLL": os.path.join(target_dir, selected_proxy),
+            "dlssg_sm86.ini": dst_ini,
+            r"dlssg_sm86\runtime\nvngx_dlssg.dll": os.path.join(target_dir, "dlssg_sm86", "runtime", "nvngx_dlssg.dll"),
+            r"dlssg_sm86\backend\sm86_backend.dll": os.path.join(target_dir, "dlssg_sm86", "backend", "sm86_backend.dll"),
+            r"dlssg_sm86\kernels\fg_kernels.dll": os.path.join(target_dir, "dlssg_sm86", "kernels", "fg_kernels.dll"),
+        }
+        missing = [name for name, path in required.items() if not os.path.exists(path)]
+        if missing:
+            return False, (
+                "模式 C 注入不完整，缺少：" + "、".join(missing) +
+                "\n上游教程要求复制三样：代理 DLL、dlssg_sm86.ini、整个 dlssg_sm86\\ 目录。"
+                "\n请先在主界面点击【检查并同步最新版本】重新下载组件后重试。"
+            )
+
         return True, ""

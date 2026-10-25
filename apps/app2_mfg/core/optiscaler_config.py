@@ -376,13 +376,13 @@ def apply_preset_to_ini(ini_path: str, preset: Optional[Dict[str, Any]] = None) 
 DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "enabled": 1,                      # 1=开启插帧, 0=关闭
     "engine": "DLSS",                  # "DLSS" (默认 NVIDIA 原生模型) / "XeSS" (Intel XeSS-FG 引擎)
-    "max_generated_frames": 2,         # 1=最高2X, 2=最高3X(出厂推荐), 3=最高4X, 5=最高6X
+    "max_generated_frames": 3,         # 1=最高2X, 2=最高3X, 3=最高4X(上游出厂), 5=最高6X
     "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=轻量加速(默认), 3=极速加速
-    "dlssg_preset": "C",               # "Auto", "A", "B", "C"(FG Lite 轻量插帧 · 出厂推荐)
+    "dlssg_preset": "Auto",            # "Auto"(上游出厂), "A", "B", "C"(FG Lite 轻量插帧)
     "super_resolution_mode": "Off",    # "Off"(默认，与 DLSS 5 完美共存), "On"(RTX 20/30 INT8 超分加速)
     "proxy_dll": "version.dll",        # "version.dll"(默认), "winmm.dll", "dbghelp.dll", "dinput8.dll"
     "logging_level": 1,                # 0=关闭, 1=错误, 2=配置, 3=跟踪
-    "preset_schema_version": 2
+    "preset_schema_version": 3
 }
 
 def load_dlssg_sm86_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
@@ -408,6 +408,20 @@ def load_dlssg_sm86_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
         preset["proxy_dll"] = "version.dll"
         preset["logging_level"] = 1
         preset["preset_schema_version"] = 2
+
+    # v2.3.x 迁移：回到上游 0.4.0 的出厂值（4X 上限 + Preset=Auto）。
+    # v2.0.0 曾把这两个值改成 3X / C，偏离上游出厂配置后，4X 会被静默钳到 3X。
+    # 只迁移「旧出厂组合」，用户自己选过的倍率 / 预设保持不动。
+    if int(preset.get("preset_schema_version", 0) or 0) < 3:
+        try:
+            old_frames = int(preset.get("max_generated_frames", 0) or 0)
+        except Exception:
+            old_frames = 0
+        old_preset = str(preset.get("dlssg_preset", "")).strip().upper()
+        if old_frames == 2 and old_preset == "C":
+            preset["max_generated_frames"] = 3
+            preset["dlssg_preset"] = "Auto"
+        preset["preset_schema_version"] = 3
         try:
             cfg_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cfg_file, "w", encoding="utf-8") as f:

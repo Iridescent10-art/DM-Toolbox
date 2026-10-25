@@ -29,7 +29,13 @@
 - **`[Libraries]` 精准路由**：新增运行库探测（游戏根目录 → `Streamline/` → 引擎深层目录，限深 4 层），`NvngxDlssPath` / `NvngxFeaturePath` 指向游戏真实 DLL，杜绝 OptiScaler 报 `nvngx_dlss.dll not found, disabling DLSS`；
 - **`StreamlineSpoofing` 保持 `auto`**（20/30 系共存态），不再被误写 `false` 导致游戏内 DLSS 超分菜单消失；`UseFakenvapi=false` 且无条件清理 `fakenvapi.*`，让 `nvngx_dlssnr.dll` 读到真实 GPU 架构内核。
 
-### 🛠 5. 基线修复
+### 🔥 5. 模式 C 注入严格对齐上游教程（dlssg_for_sm86 0.4.0）
+
+- **只注入三样**：单一代理 DLL（默认 ersion.dll，不加载时可在面板换 winmm.dll / dbghelp.dll / dinput8.dll，换不是加）、dlssg_sm86.ini、整个 dlssg_sm86\ 目录；
+- **出厂值回到上游**：[FrameGeneration] MaxGeneratedFrames=3（最多 4X）、[DLSSG] Preset=Auto。v2.0.0 曾改成 3X / C，会让游戏请求的 4X 被静默钳到 3X；
+- **部署完整性校验**：注入后检查代理 DLL、INI、untime\nvngx_dlssg.dll、ackend\sm86_backend.dll、kernels\fg_kernels.dll，缺任何一项直接报错，不再出现「注入了但没效果」；
+- 老用户预设自动迁移：仅当仍是旧出厂组合（3X + Preset C）时升级为 4X + Auto，手动改过的不动。
+### 🛠 6. 基线修复
 
 - **出厂壁纸**：默认壁纸哈希统一为 `51a11db7f98b`（荷花水景少女），修正校验测试把 `%APPDATA%` 路径当成仓库相对路径的错误判断；
 - **一键还原**：清空 AppData 时保留 `cache` / `config` 目录本身，还原后自动重挂所有窗口的壁纸监听路径，修复还原后壁纸热更新彻底失效的问题；
