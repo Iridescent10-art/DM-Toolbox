@@ -222,6 +222,122 @@ def guess_game_executable(target_dir: os.PathLike | str) -> Optional[str]:
     return str(best) if best else None
 
 
+DLSS_RUNTIME_FILES: Tuple[str, ...] = ("nvngx_dlss.dll", "nvngx_dlssg.dll")
+
+# Directories that must never be scanned for the game's own DLSS runtime: they
+# hold the payload we ship, or backups of the game's files.
+_DLSS_SCAN_SKIP_DIRS = {
+    "optiscaler",
+    "reshade",
+    "renodx",
+    "dm_backup",
+    "dmbackup",
+    "__pycache__",
+    "backup",
+}
+
+# Bounded breadth-first walk; deep engine trees must not turn an injection into
+# a multi-second disk crawl.
+_DLSS_SCAN_MAX_DEPTH = 4
+_DLSS_SCAN_MAX_DIRS = 4000
+
+
+def find_dlss_runtime(target_dir: os.PathLike | str) -> Dict[str, str]:
+    """
+    Locate the game's own DLSS runtime DLLs and return root-relative paths.
+
+    Looks at the game root first, then ``Streamline/``, then a bounded breadth-first
+    walk of the engine tree, so a game that keeps ``nvngx_dlss.dll`` under
+    ``Engine/Binaries/ThirdParty/...`` is still found. Every returned path is
+    relative to the game root with backslashes, which is the format OptiScaler's
+    ``[Libraries] NvngxDlssPath`` override expects.
+
+    Only files that already belong to the game are reported; the OptiScaler /
+    ReShade payload directories are skipped so we never point the game at our copy.
+    """
+    td = Path(target_dir)
+    found: Dict[str, str] = {}
+    if not td.is_dir():
+        return found
+
+    def _record(directory: Path) -> None:
+        for name in DLSS_RUNTIME_FILES:
+            if name in found:
+                continue
+            candidate = directory / name
+            try:
+                if candidate.is_file():
+                    found[name] = str(candidate.relative_to(td)).replace("/", "\\")
+            except Exception:
+                continue
+
+    _record(td)
+    streamline = td / "Streamline"
+    if streamline.is_dir():
+        _record(streamline)
+    if len(found) == len(DLSS_RUNTIME_FILES):
+        return found
+
+    visited = 0
+    level: List[Tuple[Path, int]] = [(td, 0)]
+    while level and visited < _DLSS_SCAN_MAX_DIRS and len(found) < len(DLSS_RUNTIME_FILES):
+        nxt: List[Tuple[Path, int]] = []
+        for directory, depth in level:
+            visited += 1
+            _record(directory)
+            if depth >= _DLSS_SCAN_MAX_DEPTH:
+                continue
+            try:
+                children = list(directory.iterdir())
+            except Exception:
+                continue
+            for child in children:
+                try:
+                    if child.is_dir() and not child.is_symlink():
+                        if child.name.lower() not in _DLSS_SCAN_SKIP_DIRS:
+                            nxt.append((child, depth + 1))
+                except Exception:
+                    continue
+            if visited >= _DLSS_SCAN_MAX_DIRS:
+                break
+        level = nxt
+    return found
+
+
+def expose_dlss_runtime(target_dir: os.PathLike | str) -> List[str]:
+    """
+    Mirror the game's DLSS runtime at the game root when it only lives in a subfolder.
+
+    Some engines (and OptiScaler's own startup probe) resolve ``nvngx_dlss.dll``
+    from the game root. Without the root copy, OptiScaler logs
+    ``nvngx_dlss.dll not found, disabling DLSS``: the in-game DLSS super-resolution
+    entry vanishes and neither the DLSS 5 hand-off nor the XeFG motion-vector input
+    reaches the frame-generation chain.
+
+    Returns the names of the files that were copied, so the coexistence marker can
+    record them and uninstall removes only the copies this tool created.
+    """
+    td = Path(target_dir)
+    copied: List[str] = []
+    if not td.is_dir():
+        return copied
+    runtime = find_dlss_runtime(td)
+    for name in DLSS_RUNTIME_FILES:
+        rel = runtime.get(name)
+        if not rel:
+            continue
+        source = td / rel
+        destination = td / name
+        if destination.exists() or not source.is_file():
+            continue
+        try:
+            shutil.copy2(source, destination)
+            copied.append(name)
+        except Exception:
+            continue
+    return copied
+
+
 def pick_fg_proxy_slot(
     target_dir: os.PathLike | str,
     exe_path: Optional[os.PathLike | str] = None,
@@ -523,16 +639,28 @@ def adapt_mode_b_for_dlss5(
                 preset["plugins"] = preset.get("plugins", {})
                 if isinstance(preset["plugins"], dict):
                     preset["plugins"]["LoadReshade"] = "false"
-            IniConfigManager.sync_mode_b_forward(td, preset, exe_name=Path(exe_path).name if exe_path else None)
+            IniConfigManager.sync_mode_b_forward(
+                td,
+                preset,
+                exe_name=Path(exe_path).name if exe_path else None,
+                # ReShade / addon / nvngx_dlssnr.dll are copied only after this
+                # adaptation runs, so is_dlss5_present() is still false here. Tell
+                # the writer explicitly that this is a coexistence layout, otherwise
+                # it writes the standalone policy (LoadReshade=auto, ...).
+                force_dlss5_coexistence=True,
+            )
         except Exception:
             pass
+
+    exposed_files = expose_dlss_runtime(td)
 
     coex_marker = td / ".mfg_coex_backup.json"
     marker_data = {
         "backend": "B",
         "original_proxy": "dxgi.dll",
         "current_proxy": slot,
-        "adapted_for_dlss5": True
+        "adapted_for_dlss5": True,
+        "exposed_root_files": exposed_files,
     }
     try:
         import json
@@ -619,8 +747,23 @@ def restore_mode_b_from_dlss5(
         except Exception:
             pass
 
+    # Remove the runtime copies this tool exposed at the game root (they only ever
+    # exist because of coexistence; the game's originals stay where they were).
+    marker_path = td / ".mfg_coex_backup.json"
+    if marker_path.exists():
+        try:
+            import json
+            with open(marker_path, "r", encoding="utf-8") as f:
+                marker = json.load(f)
+            for name in marker.get("exposed_root_files") or []:
+                exposed = td / str(name)
+                if exposed.is_file() and exposed.name in DLSS_RUNTIME_FILES:
+                    _remove(exposed)
+        except Exception:
+            pass
+
     # Remove coex marker
-    (td / ".mfg_coex_backup.json").unlink(missing_ok=True)
+    marker_path.unlink(missing_ok=True)
 
     return True, "已自动将多帧生成模式 B 恢复至独立运行状态（OptiScaler 重新挂载至 dxgi.dll，超分与渲染钩子已重置为独立运行）"
 

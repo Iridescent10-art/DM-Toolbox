@@ -928,22 +928,19 @@ class PatchEngine:
             if not was_preexisting:
                 manifest.created_files.append(item)
 
-        # 2.5 Expose game-local Streamline DLSS runtime at root for OptiScaler
-        # Streamline games place nvngx_dlss.dll under Streamline/ subdirectory.
-        # OptiScaler's root scan looks for nvngx_dlss.dll at game root. Exposing it ensures
-        # OptiScaler finds DLSS and does not disable it ("nvngx_dlss.dll not found, disabling DLSS"),
-        # keeping in-game DLSS Super Resolution 100% available and stable.
-        sl_dir = os.path.join(target_dir, "Streamline")
-        if os.path.exists(sl_dir) and os.path.isdir(sl_dir):
-            for sl_file in ["nvngx_dlss.dll", "nvngx_dlssg.dll"]:
-                sl_src = os.path.join(sl_dir, sl_file)
-                root_dst = os.path.join(target_dir, sl_file)
-                if os.path.exists(sl_src) and not os.path.exists(root_dst):
-                    try:
-                        shutil.copy2(sl_src, root_dst)
-                        manifest.created_files.append(sl_file)
-                    except Exception:
-                        pass
+        # 2.5 Expose the game's own DLSS runtime at the game root for OptiScaler.
+        # Streamline titles keep nvngx_dlss.dll under Streamline/, engine builds may
+        # bury it deeper. OptiScaler probes the game root first and otherwise logs
+        # "nvngx_dlss.dll not found, disabling DLSS", which removes the in-game DLSS
+        # menu and with it the DLSS 5 hand-off / XeFG motion-vector input.
+        # The shared helper also finds nested copies; every copy is recorded so
+        # rollback restores the directory to its original layout.
+        try:
+            from core.coexistence import expose_dlss_runtime
+            for exposed in expose_dlss_runtime(target_dir):
+                manifest.created_files.append(exposed)
+        except Exception:
+            pass
 
         # 3. Deploy OptiScaler subdirectory (OptiScaler 10+ backend libraries) if exists
         opti_sub = os.path.join(opti_dir, "OptiScaler")

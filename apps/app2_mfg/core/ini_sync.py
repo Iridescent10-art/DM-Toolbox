@@ -435,17 +435,37 @@ class IniConfigManager:
             return False
 
     @classmethod
-    def sync_mode_b_forward(cls, target_dir: Union[str, Path], preset: Dict[str, Any], exe_name: Optional[str] = None) -> bool:
+    def sync_mode_b_forward(
+        cls,
+        target_dir: Union[str, Path],
+        preset: Dict[str, Any],
+        exe_name: Optional[str] = None,
+        force_dlss5_coexistence: bool = False,
+    ) -> bool:
         """
         Forward sync Mode B (OptiScaler / XeSS 2.0 / FSR 3.1) parameters into TargetExeDir/OptiScaler.ini.
+
+        ``force_dlss5_coexistence`` is used while DLSS 5 is being injected: at that
+        moment ReShade/addon are not on disk yet, so ``is_dlss5_present()`` is still
+        false and the standalone policy would be written (LoadReshade=auto,
+        HookOriginalNvngxOnly=auto, SkipResizeBuffers=auto) - exactly the state that
+        makes a second ReShade load and breaks the XeFG swapchain.
         """
-        return cls._sync_optiscaler_forward_impl(target_dir, preset, exe_name)
+        return cls._sync_optiscaler_forward_impl(
+            target_dir, preset, exe_name, force_dlss5_coexistence=force_dlss5_coexistence
+        )
 
     sync_mode_c_forward = sync_mode_b_forward  # backward compat alias
     sync_optiscaler_forward = sync_mode_b_forward
 
     @classmethod
-    def _sync_optiscaler_forward_impl(cls, target_dir: Union[str, Path], preset: Dict[str, Any], exe_name: Optional[str] = None) -> bool:
+    def _sync_optiscaler_forward_impl(
+        cls,
+        target_dir: Union[str, Path],
+        preset: Dict[str, Any],
+        exe_name: Optional[str] = None,
+        force_dlss5_coexistence: bool = False,
+    ) -> bool:
         """
         Forward sync the Mode C preset into the ONE legal config file: `OptiScaler.ini`.
 
@@ -542,7 +562,9 @@ class IniConfigManager:
             is_rtx40_50 = is_rtx_40_or_newer(gpu_name)
         except Exception:
             gpu_name = ""
-            is_rtx40_50 = True
+            # Unknown GPU: assume a pre-Ada card, because that is the architecture
+            # that needs StreamlineSpoofing=auto to keep the DLSS menu alive.
+            is_rtx40_50 = False
         is_nvidia = "nvidia" in gpu_name.lower() or "geforce" in gpu_name.lower() or "rtx" in gpu_name.lower() or "gtx" in gpu_name.lower()
 
         menu_key = str(preset.get("menu_key", "Insert")).strip()
@@ -555,7 +577,7 @@ class IniConfigManager:
 
         # 1. Update the ONE legal config file: OptiScaler.ini
         opti_ini = target / OPTISCALER_INI_NAME
-        has_dlss5 = is_dlss5_present(target)
+        has_dlss5 = is_dlss5_present(target) or bool(force_dlss5_coexistence)
 
         frame_gen_sec = {
             "Enabled": "true",
@@ -667,13 +689,29 @@ class IniConfigManager:
             "OptiDllPath": "auto",
             "NvngxPath": "auto",
         }
-        sl_dlss = target / "Streamline" / "nvngx_dlss.dll"
-        local_dlss = target / "nvngx_dlss.dll"
-        if sl_dlss.exists():
-            libraries_sec["NvngxDlssPath"] = r"Streamline\nvngx_dlss.dll"
-            libraries_sec["NvngxFeaturePath"] = "Streamline"
-        elif local_dlss.exists():
-            libraries_sec["NvngxDlssPath"] = "nvngx_dlss.dll"
+        # Point OptiScaler at the game's own nvngx_dlss.dll. Titles ship it at the
+        # game root, in Streamline/, or deeper inside the engine tree; when the
+        # lookup misses, OptiScaler logs "nvngx_dlss.dll not found, disabling DLSS",
+        # the in-game DLSS menu disappears and DLSS 5 has nothing to hook.
+        # The path is relative to the game root and uses backslashes, exactly like
+        # the overrides documented in the bundled OptiScaler.ini [Libraries] block.
+        try:
+            from core.coexistence import find_dlss_runtime
+        except Exception:  # pragma: no cover - package layout differences
+            from apps.app2_mfg.core.coexistence import find_dlss_runtime  # type: ignore
+        try:
+            dlss_runtime = find_dlss_runtime(target)
+        except Exception:
+            dlss_runtime = {}
+        dlss_rel = dlss_runtime.get("nvngx_dlss.dll")
+        if dlss_rel:
+            libraries_sec["NvngxDlssPath"] = dlss_rel
+        dlssg_rel = dlss_runtime.get("nvngx_dlssg.dll")
+        if dlssg_rel:
+            # Folder that holds the NGX feature DLLs (nvngx_dlssg.dll lives beside
+            # nvngx_dlss.dll in Streamline/ or at the game root).
+            feature_dir = str(Path(dlssg_rel).parent).replace("/", "\\")
+            libraries_sec["NvngxFeaturePath"] = feature_dir if feature_dir not in ("", ".") else "auto"
 
         opti_updates: Dict[str, Dict[str, str]] = {
             "FrameGen": frame_gen_sec,
@@ -706,11 +744,20 @@ class IniConfigManager:
             "Hooks": hooks_sec,
             "Spoofing": {
                 "Dxgi": "false" if is_rtx40_50 else "auto",
-                "StreamlineSpoofing": "false" if (is_rtx40_50 or has_dlss5) else "auto",
+                # StreamlineSpoofing must stay "auto" on pre-Ada cards even while
+                # DLSS 5 is injected: it is what makes Streamline see an Ada-class
+                # device and keep the native DLSS/DLSS-G menus enabled. Writing
+                # "false" here (the old coexistence branch did) removed the in-game
+                # DLSS super-resolution entry and the XeFG motion-vector input with it.
+                "StreamlineSpoofing": "false" if is_rtx40_50 else "auto",
                 "DxgiFactoryWrapping": "false"
             },
             "fakenvapi": {
-                "UseFakenvapi": "false" if is_nvidia else "auto"
+                # Coexistence with DLSS 5: never emulate an NVAPI device. The neural
+                # reconstruction runtime (nvngx_dlssnr.dll) queries the real adapter
+                # through NVAPI to pick its kernels; a faked device makes it load
+                # kernels the physical GPU cannot execute and crash on the first frame.
+                "UseFakenvapi": "false" if (is_nvidia or has_dlss5) else "auto"
             },
             "Menu": {
                 # OptiScaler refuses to create its D3D12/FG hooks when the overlay
