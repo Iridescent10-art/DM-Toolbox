@@ -507,6 +507,13 @@ class AutoHDRWindow(BaseWindow):
             if hasattr(self, "filtered_apps") and self.filtered_apps:
                 self.render_table()
 
+        # 半透明玻璃质感输入控件 / 表格，覆盖上面按主题写死的实色样式
+        try:
+            from common.ui_theme import apply_glass_controls
+            apply_glass_controls(self, self.is_dark_mode)
+        except Exception:
+            pass
+
     def load_data(self):
         self.all_apps = AutoHDRManager.list_applications()
         self.badge_count.setText(f"已配置 {len(self.all_apps)} 款游戏")

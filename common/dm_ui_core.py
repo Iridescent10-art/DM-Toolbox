@@ -897,6 +897,13 @@ class DMBaseWindow(QMainWindow):
         scrollbar_qss = SCROLLBAR_DARK_QSS if self.is_dark_mode else SCROLLBAR_LIGHT_QSS
         self.setStyleSheet(scrollbar_qss)
 
+        # 半透明玻璃质感输入控件（下拉框 / 输入框），与启动器卡片保持一致的透光效果
+        try:
+            from common.ui_theme import apply_glass_controls
+            apply_glass_controls(self, self.is_dark_mode)
+        except Exception:
+            pass
+
         has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
         card_op = float(self.wallpaper_config.get("card_opacity", 0.80))
         styles = get_acrylic_qss_styles(self.is_dark_mode, card_op, has_wallpaper=has_wp)

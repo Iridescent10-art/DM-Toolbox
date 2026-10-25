@@ -175,6 +175,11 @@ class DLSS5MainWindow(DMBaseWindow):
         super().apply_theme()
         if hasattr(self, "card_game"):
             self._apply_theme_styles(self.is_dark_mode)
+        try:
+            from common.ui_theme import apply_glass_controls
+            apply_glass_controls(self, self.is_dark_mode)
+        except Exception:
+            pass
 
     def _init_ui(self):
         # Create a smooth scroll area inside body_layout

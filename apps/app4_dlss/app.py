@@ -993,6 +993,13 @@ class DLSSIndicatorWindow(DMBaseWindow):
 
         self.refresh_all_statuses()
 
+        # 半透明玻璃质感输入控件，覆盖上面按主题写死的实色样式
+        try:
+            from common.ui_theme import apply_glass_controls
+            apply_glass_controls(self, self.is_dark_mode)
+        except Exception:
+            pass
+
     def auto_refresh_check(self):
         """Silently verifies state and updates UI if state changed externally."""
         self.refresh_all_statuses(silent=True)

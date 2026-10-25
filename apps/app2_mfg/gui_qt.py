@@ -3469,6 +3469,13 @@ class ModernMFGGUI(QMainWindow):
         # Apply DWM hardware rounded corners and theme border
         apply_dm_window_frame(self, self.is_dark_mode)
 
+        # 半透明玻璃质感输入控件，与启动器卡片一致的透光效果
+        try:
+            from common.ui_theme import apply_glass_controls
+            apply_glass_controls(self, self.is_dark_mode)
+        except Exception:
+            pass
+
     def open_wallpaper_settings(self):
         dlg = DMWallpaperDialog(self, subapp_id="app2_mfg")
         dlg.exec()

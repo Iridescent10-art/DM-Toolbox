@@ -463,8 +463,9 @@ class ToolboxLauncher(BaseWindow):
         vbox.setSpacing(14)
 
         # ------------------ TOP HERO & ACTION HEADER ------------------
-        header_card = QFrame()
-        header_card.setProperty("class", "GridCard")
+        self.header_card = QFrame()
+        self.header_card.setProperty("class", "GridCard")
+        header_card = self.header_card
         h_layout = QHBoxLayout(header_card)
         h_layout.setContentsMargins(18, 14, 18, 14)
         h_layout.setSpacing(14)
@@ -578,6 +579,42 @@ class ToolboxLauncher(BaseWindow):
         is_dark = getattr(self, "is_dark_mode", False)
         has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull() and getattr(self, "wallpaper_config", {}).get("enabled", False))
         card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+
+        # 顶部信息栏与快捷卡片使用同一层半透明亚克力，避免出现一块不透明的「顶栏」
+        if hasattr(self, "header_card") and self.header_card is not None:
+            if has_wp:
+                if is_dark:
+                    self.header_card.setStyleSheet(f"""
+                        QFrame.GridCard {{
+                            background-color: rgba(26, 28, 36, {card_op:.2f});
+                            border: 1px solid rgba(255, 255, 255, 0.12);
+                            border-radius: 16px;
+                        }}
+                        QFrame.GridCard:hover {{
+                            border-color: #69DB9B;
+                        }}
+                    """)
+                else:
+                    self.header_card.setStyleSheet(f"""
+                        QFrame.GridCard {{
+                            background-color: rgba(255, 255, 255, {card_op:.2f});
+                            border: 1px solid rgba(0, 0, 0, 0.08);
+                            border-radius: 16px;
+                        }}
+                        QFrame.GridCard:hover {{
+                            border-color: #2F8F5B;
+                        }}
+                    """)
+            else:
+                bg = "#2A2B2C" if is_dark else "#FFFFFF"
+                border = "#3A3A3A" if is_dark else "#E5E5E5"
+                self.header_card.setStyleSheet(f"""
+                    QFrame.GridCard {{
+                        background-color: {bg};
+                        border: 1px solid {border};
+                        border-radius: 16px;
+                    }}
+                """)
 
         if hasattr(self, "t_lbl"):
             self.t_lbl.setStyleSheet(f"font-size: 19px; font-weight: 800; color: {'#FFFFFF' if is_dark else '#111827'};")

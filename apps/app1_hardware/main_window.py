@@ -2832,6 +2832,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, "heybox_path_input"):
             self.update_heybox_path_status_ui(self.heybox_path_input.text().strip())
 
+        # 半透明玻璃质感输入控件，与启动器卡片一致的透光效果
+        try:
+            from common.ui_theme import apply_glass_controls
+            apply_glass_controls(self, self.is_dark_mode)
+        except Exception:
+            pass
+
     def nativeEvent(self, eventType, message):
         return super().nativeEvent(eventType, message)
 

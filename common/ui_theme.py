@@ -141,6 +141,181 @@ def install_combo_arrows(app=None) -> None:
     app.setStyleSheet(combo_arrow_qss(False))
 
 
+# ---------------------------------------------------------------------------
+# Translucent "glass" controls
+# ---------------------------------------------------------------------------
+# The launcher cards keep the wallpaper visible behind a light acrylic layer.
+# Combo boxes / text inputs used solid fills, which punched opaque holes through
+# that layer on every sub-app page. The helpers below give those controls the same
+# translucent surface while keeping the text at full contrast; the drop-down popup
+# stays nearly opaque so the list is always readable over the game/wallpaper.
+def glass_control_qss(is_dark: bool) -> str:
+    """QSS for translucent but readable combo boxes, inputs and spin boxes."""
+    if is_dark:
+        bg = "rgba(28, 30, 36, 0.55)"
+        hover = "rgba(42, 45, 53, 0.70)"
+        pressed = "rgba(52, 56, 64, 0.78)"
+        border = "rgba(255, 255, 255, 0.16)"
+        text = "#F4F4F5"
+        disabled_bg = "rgba(48, 48, 52, 0.45)"
+        disabled_text = "#8A8A93"
+        popup_bg = "#22242A"
+        popup_sel = "rgba(62, 158, 105, 0.35)"
+        accent = "#3E9E69"
+        grid = "rgba(255, 255, 255, 0.08)"
+        header_bg = "rgba(18, 20, 25, 0.88)"
+        surface_bg = "rgba(22, 24, 30, 0.74)"
+    else:
+        bg = "rgba(255, 255, 255, 0.62)"
+        hover = "rgba(255, 255, 255, 0.80)"
+        pressed = "rgba(240, 253, 244, 0.88)"
+        border = "rgba(0, 0, 0, 0.12)"
+        text = "#111827"
+        disabled_bg = "rgba(240, 240, 240, 0.55)"
+        disabled_text = "#8A8A8A"
+        popup_bg = "#FFFFFF"
+        popup_sel = "rgba(16, 185, 129, 0.20)"
+        accent = "#2F8F5B"
+        grid = "rgba(0, 0, 0, 0.06)"
+        header_bg = "rgba(255, 255, 255, 0.92)"
+        surface_bg = "rgba(255, 255, 255, 0.82)"
+
+    return f"""
+    QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox {{
+        background-color: {bg};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: 8px;
+        padding: 4px 10px;
+    }}
+    QComboBox:hover, QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
+        background-color: {hover};
+        border: 1px solid {accent};
+    }}
+    QComboBox:focus, QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+        background-color: {hover};
+        border: 1px solid {accent};
+    }}
+    QComboBox:on, QComboBox:pressed {{
+        background-color: {pressed};
+    }}
+    QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
+        background-color: {disabled_bg};
+        color: {disabled_text};
+        border: 1px solid {border};
+    }}
+    QComboBox::drop-down {{
+        border: none;
+        width: 24px;
+    }}
+    QComboBox QAbstractItemView {{
+        background-color: {popup_bg};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: 8px;
+        padding: 4px;
+        outline: none;
+        selection-background-color: {popup_sel};
+        selection-color: {text};
+    }}
+    QComboBox QAbstractItemView::item {{
+        min-height: 28px;
+        padding: 2px 8px;
+        border-radius: 6px;
+    }}
+    QTableWidget, QListWidget, QTreeWidget, QTextEdit, QPlainTextEdit {{
+        background-color: {surface_bg};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: 10px;
+        gridline-color: {grid};
+        selection-background-color: {popup_sel};
+        selection-color: {text};
+    }}
+    QTableWidget::item, QListWidget::item, QTreeWidget::item {{
+        padding: 4px 8px;
+        border: none;
+    }}
+    QHeaderView::section {{
+        background-color: {header_bg};
+        color: {text};
+        border: none;
+        border-bottom: 1px solid {border};
+        padding: 6px 8px;
+    }}
+    QTableCornerButton::section {{
+        background-color: {header_bg};
+        border: none;
+    }}
+    """
+
+
+
+def glass_surface_color(is_dark: bool) -> str:
+    """Background used by the large frosted surfaces (tables, lists, editors)."""
+    return "rgba(22, 24, 30, 0.74)" if is_dark else "rgba(255, 255, 255, 0.82)"
+
+
+def apply_glass_controls(root, is_dark: bool) -> None:
+    """Apply the translucent control style to every input-like child of ``root``."""
+    if root is None:
+        return
+    try:
+        from PySide6.QtWidgets import (
+            QComboBox,
+            QLineEdit,
+            QSpinBox,
+            QDoubleSpinBox,
+        )
+    except Exception:
+        return
+
+    qss = glass_control_qss(is_dark)
+    try:
+        from PySide6.QtWidgets import (
+            QTableWidget,
+            QTableWidgetItem,
+            QListWidget,
+            QTreeWidget,
+            QTextEdit,
+            QPlainTextEdit,
+        )
+    except Exception:
+        QTableWidget = QListWidget = QTreeWidget = QTextEdit = QPlainTextEdit = None
+
+    targets = [QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox]
+    for extra in (QTableWidget, QListWidget, QTreeWidget, QTextEdit, QPlainTextEdit):
+        if extra is not None:
+            targets.append(extra)
+
+    for cls in targets:
+        try:
+            children = root.findChildren(cls)
+        except Exception:
+            continue
+        for widget in children:
+            try:
+                # Editable combos host an internal QLineEdit; styling it would
+                # paint a second, differently shaped box inside the combo.
+                if isinstance(widget, QLineEdit) and widget.parent() is not None:
+                    parent = widget.parent()
+                    if isinstance(parent, QComboBox):
+                        continue
+                widget.setStyleSheet(qss)
+                # Item views paint their background through the viewport, so the
+                # viewport carries the frosted surface (transparent would let the
+                # wallpaper through the rows and destroy readability).
+                viewport = getattr(widget, "viewport", None)
+                if callable(viewport):
+                    vp = viewport()
+                    if vp is not None:
+                        vp.setStyleSheet(
+                            "background-color: %s; border: none;" % glass_surface_color(is_dark)
+                        )
+            except Exception:
+                continue
+
+
 # =========================================================================
 # Unified Light Theme (Fluent Modern Card - Primary Default)
 # =========================================================================
@@ -1858,6 +2033,7 @@ class BaseWindow(QMainWindow):
         ss = DARK_STYLE_SHEET if self.is_dark_mode else LIGHT_STYLE_SHEET
         self.setStyleSheet(ss)
         self._apply_theme_button_style()
+        apply_glass_controls(self, self.is_dark_mode)
 
         has_wp = bool(self.wallpaper_pixmap and not self.wallpaper_pixmap.isNull() and self.wallpaper_config.get("enabled", False))
         card_op = float(self.wallpaper_config.get("card_opacity", 0.80))
