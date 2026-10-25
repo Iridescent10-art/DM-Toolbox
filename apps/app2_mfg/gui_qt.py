@@ -1,4 +1,4 @@
-"""
+﻿"""
 Universal MFG Patcher - High-DPI Modern Frameless Qt UI with Light/Dark Themes.
 Updated:
 - RHI (ReShade HDR Installer) Full Integration
@@ -3469,6 +3469,13 @@ class ModernMFGGUI(QMainWindow):
         # Apply DWM hardware rounded corners and theme border
         apply_dm_window_frame(self, self.is_dark_mode)
 
+        # 页面临时底板跟随主题刷新（与首页卡片同一材质）
+        for surface in getattr(self, "_page_surfaces", []):
+            try:
+                surface.setStyleSheet(self._page_surface_qss())
+            except Exception:
+                pass
+
         # 半透明玻璃质感输入控件，与启动器卡片一致的透光效果
         try:
             from common.ui_theme import apply_glass_controls
@@ -3699,6 +3706,38 @@ class ModernMFGGUI(QMainWindow):
         body_layout.addWidget(self.stacked_widget)
         root_vbox.addWidget(body_widget)
 
+        # 每个页面统一铺一层半透明磨砂底板（与首页卡片同一材质），
+        # 避免出现「有的区域不透明、有的全透明」和文字压在壁纸上看不清。
+        self._page_surfaces = []
+        for i in range(self.stacked_widget.count()):
+            page = self.stacked_widget.widget(i)
+            try:
+                page.setObjectName("PageSurface")
+                page.setStyleSheet(self._page_surface_qss())
+                self._page_surfaces.append(page)
+            except Exception:
+                continue
+
+    def _page_surface_qss(self) -> str:
+        """磨砂「页面底板」样式：让整页内容像首页卡片一样透光但可读。"""
+        has_wp = bool(getattr(self, "wallpaper_pixmap", None) and not self.wallpaper_pixmap.isNull()
+                      and getattr(self, "wallpaper_config", {}).get("enabled", False))
+        card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+        if has_wp:
+            bg = (f"rgba(24, 26, 33, {max(card_op, 0.55):.2f})" if self.is_dark_mode
+                  else f"rgba(255, 255, 255, {max(card_op, 0.55):.2f})")
+            bd = "rgba(255, 255, 255, 0.12)" if self.is_dark_mode else "rgba(0, 0, 0, 0.08)"
+        else:
+            bg = "#2A2B2C" if self.is_dark_mode else "#FFFFFF"
+            bd = "#3A3A3A" if self.is_dark_mode else "#E5E5E5"
+        return f"""
+            QWidget#PageSurface {{
+                background-color: {bg};
+                border: 1px solid {bd};
+                border-radius: 16px;
+            }}
+        """
+
     def _wrap_scroll(self, content_widget: QWidget) -> QScrollArea:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -3706,6 +3745,14 @@ class ModernMFGGUI(QMainWindow):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        # 页面内容统一铺一层半透明磨砂底板（与首页卡片同一材质），
+        # 避免文字直接压在壁纸上导致「有的全透明、有的不透明」。
+        content_widget.setObjectName("PageSurface")
+        content_widget.setContentsMargins(14, 12, 14, 12)
+        content_widget.setStyleSheet(self._page_surface_qss())
+        if not hasattr(self, "_page_surfaces"):
+            self._page_surfaces = []
+        self._page_surfaces.append(content_widget)
         scroll.setWidget(content_widget)
         return scroll
 

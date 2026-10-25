@@ -995,7 +995,9 @@ class DLSSIndicatorWindow(DMBaseWindow):
 
         # 半透明玻璃质感输入控件，覆盖上面按主题写死的实色样式
         try:
-            from common.ui_theme import apply_glass_controls
+            from common.ui_theme import apply_glass_controls, apply_page_surface
+            card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+            apply_page_surface(self.scroll_area.widget(), self.is_dark_mode, card_op)
             apply_glass_controls(self, self.is_dark_mode)
         except Exception:
             pass

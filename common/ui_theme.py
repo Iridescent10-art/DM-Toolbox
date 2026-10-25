@@ -256,6 +256,33 @@ def glass_surface_color(is_dark: bool) -> str:
     return "rgba(22, 24, 30, 0.74)" if is_dark else "rgba(255, 255, 255, 0.82)"
 
 
+
+def apply_page_surface(widget, is_dark: bool, card_opacity: float = 0.55) -> None:
+    """Give a page's content container the same frosted material as the launcher cards.
+
+    Several sub-app pages place their labels straight on the wallpaper, which made
+    them unreadable while other areas stayed opaque. This paints one translucent
+    "sheet" behind the whole page so the text contrast no longer depends on what
+    part of the wallpaper happens to be behind it.
+    """
+    if widget is None:
+        return
+    try:
+        op = max(float(card_opacity), 0.55)
+    except Exception:
+        op = 0.55
+    bg = f"rgba(24, 26, 33, {op:.2f})" if is_dark else f"rgba(255, 255, 255, {op:.2f})"
+    bd = "rgba(255, 255, 255, 0.12)" if is_dark else "rgba(0, 0, 0, 0.08)"
+    try:
+        widget.setObjectName("PageSurface")
+        widget.setStyleSheet(
+            "QWidget#PageSurface { background-color: %s; border: 1px solid %s; border-radius: 16px; }"
+            % (bg, bd)
+        )
+    except Exception:
+        pass
+
+
 def apply_glass_controls(root, is_dark: bool) -> None:
     """Apply the translucent control style to every input-like child of ``root``."""
     if root is None:

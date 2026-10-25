@@ -176,7 +176,9 @@ class DLSS5MainWindow(DMBaseWindow):
         if hasattr(self, "card_game"):
             self._apply_theme_styles(self.is_dark_mode)
         try:
-            from common.ui_theme import apply_glass_controls
+            from common.ui_theme import apply_glass_controls, apply_page_surface
+            card_op = float(getattr(self, "wallpaper_config", {}).get("card_opacity", 0.86))
+            apply_page_surface(self.scroll.widget(), self.is_dark_mode, card_op)
             apply_glass_controls(self, self.is_dark_mode)
         except Exception:
             pass
