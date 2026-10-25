@@ -1,4 +1,4 @@
-try:
+﻿try:
     from core.state_cleaner import is_dlss5_present
 except ImportError:
     try:
@@ -1398,10 +1398,10 @@ class IniConfigManager:
         universal_json_path = target / "RTXMFG-Universal.json"
         try:
             has_dlss5_a = is_dlss5_present(target)
-            # 共存态：DLSS 超分由 DLSS 5 接管，MFG-Unlocker 不能再往原生 DLSS 特性上套
-            # SR 预设（没有该特性 -> DLSS 拒绝新预设，面板锁在旧值）。这里把 SR 相关
-            # 键复位为「不覆盖」，只保留帧生成（倍率 / DLSS-G 预设）能力。
-            sr_override = (not is_default) and not has_dlss5_a
+            # 共存态仍然把用户选的 DLSS 超分预编写进配置：它是在特性创建时随 NGX
+            # 参数下发的（游戏内实时切换才会被 DLSS 5 拒绝）。共存时只关掉面板
+            # （enableImGui / overlayMenu），避免用户在游戏内做无效的实时切换。
+            sr_override = not is_default
             universal_data = {
                 "version": 41,
                 "followGame": True,
@@ -1429,7 +1429,7 @@ class IniConfigManager:
             pass
 
         has_dlss5_a = is_dlss5_present(target)
-        sr_override_ini = (not is_default) and not has_dlss5_a
+        sr_override_ini = not is_default
         updates = {
             "General": {
                 "MenuKey": menu_key,

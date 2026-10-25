@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Mode B (OptiScaler / XeFG) x DLSS 5 coexistence contract.
 
@@ -220,7 +220,7 @@ def test_adapt_mode_a_stops_mfg_from_overriding_dlss5_sr_preset(tmp_path):
         encoding="utf-8",
     )
     (game / "mfg_unlocker.ini").write_text(
-        "[General]\nDlssSrPreset=11\nEnableImGui=1\nOverlayMenu=true\nMultiplier=3\n",
+        "[General]\nPreset=K\nDLSSPreset=K\nDlssSrPreset=11\nOverrideDlssPreset=1\nEnableImGui=1\nOverlayMenu=true\nMultiplier=3\n",
         encoding="utf-8",
     )
     # DLSS 5 already injected.
@@ -233,12 +233,12 @@ def test_adapt_mode_a_stops_mfg_from_overriding_dlss5_sr_preset(tmp_path):
     data = json.loads((game / "RTXMFG-Universal.json").read_text(encoding="utf-8"))
     assert data["enableImGui"] is False, "panel must stay hidden in coexistence"
     assert data["overlayMenu"] is False
-    assert data["dlssSrPreset"] == 0, "SR preset must be left to DLSS 5"
-    assert data["overrideDlssPreset"] is False
+    assert data["dlssSrPreset"] == 11, "user-selected SR preset must still be written (applied at feature creation)"
+    assert data["overrideDlssPreset"] is True
 
     cp = _read_ini(game / "mfg_unlocker.ini")
-    assert cp.get("General", "DlssSrPreset") == "0"
-    assert cp.get("General", "OverrideDlssPreset") == "0"
+    assert cp.get("General", "DlssSrPreset") == "11"
+    assert cp.get("General", "OverrideDlssPreset") == "1"
     assert cp.get("General", "EnableImGui") == "0"
     # Frame generation settings survive.
     assert cp.get("General", "Multiplier") == "3"
