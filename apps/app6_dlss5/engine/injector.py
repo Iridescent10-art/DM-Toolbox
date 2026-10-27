@@ -349,7 +349,8 @@ def clean_conflicting_addons(target_dir: Union[str, Path], keep_addon: Optional[
     return True, "", removed
 
 
-def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_A") -> Dict[str, Any]:
+def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_A",
+                              mode_b_variant: str = "v12") -> Dict[str, Any]:
     """
     Scans the given source directory (or auto-detected paths) for:
     - dxgi.dll (ReShade base)
@@ -370,6 +371,10 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         "mode_b_path": None,
         "mode_b_size_mb": 0.0,
         "mode_b_exists": False,
+        "mode_b_v125_path": None,
+        "mode_b_v125_size_mb": 0.0,
+        "mode_b_v125_exists": False,
+        "mode_b_variant": "v12",
         "addon_path": None,
         "addon_name": "",
         "addon_size_mb": 0.0,
@@ -440,8 +445,35 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
             result["mode_b_size_mb"] = round(cands_b[0].stat().st_size / (1024 * 1024), 2)
             result["mode_b_exists"] = True
 
+    # 3b. Search for Mode B v12.5 base (optional newer Lecram build)
+    v125_names = ("renodx-dlss5-Lecram-v12.5.addon64", "Lecram-v12.5.addon64", "lecram-v12.5.addon64")
+    v125_file = None
+    for _name in v125_names:
+        _cand = s_dir / _name
+        if _cand.exists() and _cand.is_file():
+            v125_file = _cand
+            break
+    if v125_file is None:
+        _local = LOCAL_ASSETS_DIR / "renodx-dlss5-Lecram-v12.5.addon64"
+        if _local.exists():
+            v125_file = _local
+        else:
+            _glob = [p for p in s_dir.glob("*v12.5*.addon64") if p.is_file()]
+            if _glob:
+                v125_file = _glob[0]
+    if v125_file is not None:
+        result["mode_b_v125_path"] = str(v125_file)
+        result["mode_b_v125_size_mb"] = round(v125_file.stat().st_size / (1024 * 1024), 2)
+        result["mode_b_v125_exists"] = True
+
     # Configure active addon based on mode
     if mode == "MODE_B":
+        wants_v125 = str(mode_b_variant).lower().replace("v", "") in ("12.5", "125")
+        if wants_v125 and result["mode_b_v125_path"]:
+            result["mode_b_path"] = result["mode_b_v125_path"]
+            result["mode_b_size_mb"] = result["mode_b_v125_size_mb"]
+            result["mode_b_exists"] = True
+            result["mode_b_variant"] = "v12.5"
         if result["mode_b_path"]:
             result["addon_path"] = result["mode_b_path"]
             result["addon_name"] = Path(result["mode_b_path"]).name
@@ -466,6 +498,8 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         all_addons.append(result["mode_a_path"])
     if result["mode_b_path"]:
         all_addons.append(result["mode_b_path"])
+    if result["mode_b_v125_path"] and result["mode_b_v125_path"] not in all_addons:
+        all_addons.append(result["mode_b_v125_path"])
     result["all_addons"] = all_addons
 
     # 4. Search for RTX 50 NR model
@@ -589,16 +623,21 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
     has_addon = len(dlss_addons) > 0
 
     has_mode_a = (td / "renodx-dlss.addon64").exists()
-    has_mode_b = (td / "Lecram-v12.addon64").exists() or (td / "lecram-v12.addon64").exists()
+    has_mode_b_v125 = any("v12.5" in a.lower() and "lecram" in a.lower() for a in dlss_addons)
+    has_mode_b = (td / "Lecram-v12.addon64").exists() or (td / "lecram-v12.addon64").exists() or has_mode_b_v125
     has_legacy = any("v11.9" in a.lower() or "dlss5." in a.lower() or "beta" in a.lower() for a in dlss_addons)
 
     detected_mode = None
+    detected_mode_b_variant = "v12.5" if has_mode_b_v125 else "v12"
     if has_mode_a and not has_mode_b:
         detected_mode = "MODE_A"
         mode_status_display = "🟢 已注入 DLSS 5 [模式 A · ShortFuse 原生底座]"
     elif has_mode_b and not has_mode_a:
         detected_mode = "MODE_B"
-        mode_status_display = "🔵 已注入 DLSS 5 [模式 B · Lecram v12 扩展底座]"
+        if has_mode_b_v125:
+            mode_status_display = "🔵 已注入 DLSS 5 [模式 B · Lecram v12.5 扩展底座]"
+        else:
+            mode_status_display = "🔵 已注入 DLSS 5 [模式 B · Lecram v12 扩展底座]"
     elif has_mode_a and has_mode_b:
         detected_mode = "MODE_A"
         mode_status_display = "⚠️ 检测到双底座冲突 (模式 A + 模式 B)，建议重新一键注入整理"
@@ -733,6 +772,7 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
         "hook_point_label": current_hook_label,
         "manifest_data": manifest_data,
         "detected_mode": detected_mode,
+        "mode_b_variant": detected_mode_b_variant,
         "mode_status_display": mode_status_display,
         "is_legacy": has_legacy
     }
@@ -2047,6 +2087,7 @@ class DLSS5Injector:
         proxy_choice: str = "auto",
         nr_vram_guard: Optional[bool] = None,
         nr_vram_margin: Optional[int] = None,
+        mode_b_variant: str = "v12",
     ) -> Tuple[bool, str]:
         """
         Executes one-click standalone injection of DLSS 5 into target_dir.
@@ -2103,7 +2144,8 @@ class DLSS5Injector:
             except Exception:
                 pass
 
-        assets = scan_plugin_source_assets(Path(source_dir) if source_dir else None, mode=mode)
+        assets = scan_plugin_source_assets(Path(source_dir) if source_dir else None, mode=mode,
+                                               mode_b_variant=mode_b_variant)
         if not assets.get("exists"):
             return False, f"未检测到 DLSS 5 插件源目录！\n请确认插件已就绪或在界面中指定有效路径。"
 

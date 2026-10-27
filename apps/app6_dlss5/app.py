@@ -471,12 +471,29 @@ class DLSS5MainWindow(DMBaseWindow):
             "MODE_A"
         )
         self.combo_dlss5_mode.addItem(
-            "⚡ 模式 B (可选项目) — Lecram-v12.addon64 [Lecram v12 旗舰扩展底座 · 深度参数定制 · 快捷键 F12]",
+            "⚡ 模式 B (可选项目) — Lecram v12 / v12.5 [Lecram 旗舰扩展底座 · 深度参数定制 · 快捷键 F12]",
             "MODE_B"
         )
         self.combo_dlss5_mode.setCurrentIndex(0)
         self.combo_dlss5_mode.currentIndexChanged.connect(self._on_mode_selection_changed)
         card_plugin_layout.addWidget(self.combo_dlss5_mode)
+
+        # 模式 B 底座版本（仅模式 B 时显示）
+        self.combo_mode_b_variant = QComboBox()
+        self.combo_mode_b_variant.setFixedHeight(32)
+        self.combo_mode_b_variant.setFont(QFont("Microsoft YaHei UI", 9))
+        self.combo_mode_b_variant.addItem(
+            "🔧 模式 B · Lecram v12（默认）— 9.0 MB · 稳定版", "v12"
+        )
+        self.combo_mode_b_variant.addItem(
+            "🧪 模式 B · Lecram v12.5（新版）— 10.0 MB · 可选升级", "v12.5"
+        )
+        self.combo_mode_b_variant.setToolTip(
+            "Lecram v12.5 是较新的扩展底座版本，面板与参数项更多；\n"
+            "若 v12.5 出现兼容问题，可随时切回 v12。"
+        )
+        self.combo_mode_b_variant.setVisible(False)
+        card_plugin_layout.addWidget(self.combo_mode_b_variant)
 
         self.lbl_mode_hint = QLabel()
         self.lbl_mode_hint.setFont(QFont("Microsoft YaHei UI", 8))
@@ -898,6 +915,8 @@ class DLSS5MainWindow(DMBaseWindow):
     def _on_mode_selection_changed(self, idx: int):
         """Triggered when user manually switches mode combo box."""
         mode = self.combo_dlss5_mode.itemData(idx) or "MODE_A"
+        if hasattr(self, "combo_mode_b_variant"):
+            self.combo_mode_b_variant.setVisible(mode == "MODE_B")
         self._update_mode_hint(mode)
         self._refresh_plugin_assets()
 
@@ -1097,12 +1116,17 @@ class DLSS5MainWindow(DMBaseWindow):
         else:
             details.append("• 模式 A 底座: <span style='color: #ef4444;'>❌ 缺失 renodx-dlss.addon64</span>")
 
-        # Mode B addon status
+        # Mode B addon status (v12 / v12.5)
         if assets.get("mode_b_path"):
             act_tag = " [当前激活]" if cur_mode == "MODE_B" else ""
-            details.append(f"• 模式 B 底座: Lecram-v12.addon64 ({assets['mode_b_size_mb']} MB · Lecram v12 扩展版 [可选项目]{act_tag})")
+            v_name = Path(assets["mode_b_path"]).name
+            v_label = "Lecram v12.5 扩展版" if assets.get("mode_b_variant") == "v12.5" else "Lecram v12 扩展版"
+            details.append(f"• 模式 B 底座: {v_name} ({assets['mode_b_size_mb']} MB · {v_label} [可选项目]{act_tag})")
         else:
-            details.append("• 模式 B 底座: <span style='color: #ef4444;'>❌ 缺失 Lecram-v12.addon64</span>")
+            details.append("• 模式 B 底座: <span style='color: #ef4444;'>❌ 缺失 Lecram 底座</span>")
+        if assets.get("mode_b_v125_exists"):
+            v125_tag = " [当前激活]" if cur_mode == "MODE_B" and assets.get("mode_b_variant") == "v12.5" else ""
+            details.append(f"• 模式 B v12.5 可选包: {assets['mode_b_v125_size_mb']} MB · 已就绪{v125_tag}")
 
         if assets["nr_50_path"]:
             details.append(f"• RTX 50 模型: nvngx_dlssnr.dll ({assets['nr_50_size_mb']} MB)")
@@ -1190,6 +1214,14 @@ class DLSS5MainWindow(DMBaseWindow):
         if detected_mode == "MODE_B":
             self.lbl_main_status_badge.setStyleSheet("color: #0284c7; font-weight: bold;")
             self._sync_mode_selector("MODE_B")
+            if hasattr(self, "combo_mode_b_variant"):
+                want_variant = "v12.5" if stat.get("mode_b_variant") == "v12.5" else "v12"
+                v_idx = self.combo_mode_b_variant.findData(want_variant)
+                if v_idx >= 0:
+                    self.combo_mode_b_variant.blockSignals(True)
+                    self.combo_mode_b_variant.setCurrentIndex(v_idx)
+                    self.combo_mode_b_variant.blockSignals(False)
+                self.combo_mode_b_variant.setVisible(True)
         elif detected_mode == "MODE_A":
             if stat.get("is_legacy"):
                 self.lbl_main_status_badge.setStyleSheet("color: #f59e0b; font-weight: bold;")
@@ -1327,6 +1359,10 @@ class DLSS5MainWindow(DMBaseWindow):
             proxy_choice=chosen_proxy,
             nr_vram_guard=nr_guard,
             nr_vram_margin=nr_margin,
+            mode_b_variant=(
+                self.combo_mode_b_variant.currentData() or "v12"
+                if hasattr(self, "combo_mode_b_variant") else "v12"
+            ),
         )
 
         self._update_status_card()
