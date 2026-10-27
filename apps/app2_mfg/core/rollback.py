@@ -287,7 +287,8 @@ class RollbackEngine:
         # (J) Clean DLSS 5 files and dxgi.dll
         dxgi_p = os.path.join(target_dir, "dxgi.dll")
         if clean_all:
-            for addon_file in list(td_path.glob("*.addon64")) + list(td_path.glob("*.addon")):
+            for addon_file in (list(td_path.glob("*.addon64")) + list(td_path.glob("*.addon"))
+                               + list(td_path.glob("*.addon64.bak")) + list(td_path.glob("*.addon.bak"))):
                 safe_force_remove(str(addon_file))
             for proxy_f in ["version.dll", "winmm.dll", "dinput8.dll", "wininet.dll", "fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log"]:
                 safe_force_remove(os.path.join(target_dir, proxy_f))
@@ -308,6 +309,14 @@ class RollbackEngine:
             safe_force_remove(os.path.join(target_dir, "ReShade.ini"))
             safe_force_remove(os.path.join(target_dir, "ReShade.ini.v11-backup"))
             safe_force_remove(os.path.join(target_dir, "ReShade.log"))
+            safe_force_remove(os.path.join(target_dir, "ReShade2.ini"))
+            safe_force_remove(os.path.join(target_dir, "ReShadePreset.ini"))
+            safe_force_remove(os.path.join(target_dir, "ReShadePreset.ini.v11-backup"))
+            safe_force_remove(os.path.join(target_dir, ".mfg_coex_backup.json"))
+            for _leftover_dir in ("reshade-shaders", ".dlss5_backup", "RTXMFG-XeSS", "dlssg_sm86"):
+                _lp = os.path.join(target_dir, _leftover_dir)
+                if os.path.isdir(_lp):
+                    shutil.rmtree(_lp, ignore_errors=True)
 
             dlss5_bak = os.path.join(target_dir, "dxgi.dll.dlss5_bak")
             if os.path.exists(dlss5_bak):
@@ -317,7 +326,11 @@ class RollbackEngine:
                 except Exception:
                     pass
             elif "dxgi.dll" not in restored_originals:
-                if is_reshade_dll_file(dxgi_p) or is_optiscaler_dll_file(dxgi_p):
+                # 三种注入形态都可能占用 dxgi.dll：ReShade 底座、OptiScaler，
+                # 以及模式 A 的 dashdogy MFGUnlocker（用户把代理槽位选成 dxgi 时）。
+                # 旧逻辑漏了 dashdogy，导致「彻底清除全部」后 dxgi.dll 仍在。
+                if (is_reshade_dll_file(dxgi_p) or is_optiscaler_dll_file(dxgi_p)
+                        or is_dashdogy_dll_file(dxgi_p)):
                     safe_force_remove(dxgi_p)
         else:
             # clean_all is False: if other addons exist (like DLSS 5 or user HDR mod), ensure dxgi.dll has ReShade host

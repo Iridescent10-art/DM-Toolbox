@@ -1402,6 +1402,13 @@ class IniConfigManager:
             # 参数下发的（游戏内实时切换才会被 DLSS 5 拒绝）。共存时只关掉面板
             # （enableImGui / overlayMenu），避免用户在游戏内做无效的实时切换。
             sr_override = not is_default
+            if xemfg_standalone:
+                # XeSS 插帧内核：dashdogy 改走 XeMFG 通道。此时继续下发 NVIDIA 的
+                # SR / DLSS-G 预设，会把参数打到不匹配的特性创建路径上，实机表现
+                # 就是「游戏内切到 XeSS 立刻闪退」。
+                sr_override = False
+                dlssg_preset_val = 0
+                clean_dlssg_name = "Auto"
             universal_data = {
                 "version": 41,
                 "followGame": True,
@@ -1577,6 +1584,11 @@ class IniConfigManager:
                         config["dlssg_preset"] = g_map.get(int(u_data["dlssgPreset"]), "C")
                     if "unlocked" in u_data and "unlocked" not in config:
                         config["unlocked"] = bool(u_data["unlocked"])
+                    if "xemfgStandalone" in u_data:
+                        try:
+                            config["xemfg_standalone"] = bool(int(u_data["xemfgStandalone"]))
+                        except Exception:
+                            config["xemfg_standalone"] = bool(u_data["xemfgStandalone"])
             except Exception:
                 pass
 

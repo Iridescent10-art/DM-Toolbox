@@ -1375,6 +1375,31 @@ class OptiScalerPresetDialog(QDialog):
         h_gpreset.addWidget(self.combo_a_dlssg_preset, 1)
         mc_layout.addLayout(h_gpreset)
 
+        # Row 2.6: 帧生成内核（DLSS-G 原生 / XeSS 独立插帧）
+        h_engine = QHBoxLayout()
+        h_engine.setContentsMargins(0, 0, 0, 0)
+        lbl_engine = QLabel("帧生成内核 (插帧来源):")
+        lbl_engine.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {text_color};")
+        lbl_engine.setFixedWidth(150)
+        h_engine.addWidget(lbl_engine)
+
+        self.combo_a_fg_engine = QComboBox()
+        self.combo_a_fg_engine.setMinimumHeight(36)
+        self.combo_a_fg_engine.setMinimumWidth(280)
+        self.combo_a_fg_engine.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_a_fg_engine.addItem("DLSS-G (NVIDIA 原生多帧生成 · 默认)", "dlssg")
+        self.combo_a_fg_engine.addItem("XeSS / XeMFG (Intel 独立插帧 · 游戏内切 XeSS 时必选)", "xemfg")
+        self.combo_a_fg_engine.setToolTip(
+            "游戏内把帧生成切到 XeSS（XeMFG）之前，这里必须选 XeSS / XeMFG。\n"
+            "选 DLSS-G 时 dashdogy 只接管 NVIDIA 原生插帧；\n"
+            "选 XeSS 后会改走 RTXMFG-XeSS 运行时，并停止向 DLSS 特性下发 SR 预设，\n"
+            "避免切到 XeSS 时因预设不匹配闪退。"
+        )
+        self.combo_a_fg_engine.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
+        self.combo_a_fg_engine.view().setTextElideMode(Qt.TextElideMode.ElideNone)
+        h_engine.addWidget(self.combo_a_fg_engine, 1)
+        mc_layout.addLayout(h_engine)
+
         # Row 3: Hotkey
         h_key = QHBoxLayout()
         h_key.setContentsMargins(0, 0, 0, 0)
@@ -2185,6 +2210,11 @@ class OptiScalerPresetDialog(QDialog):
             idx_c = self.combo_a_dlssg_preset.findData("C")
             self.combo_a_dlssg_preset.setCurrentIndex(idx_c if idx_c >= 0 else 0)
 
+        a_engine = "xemfg" if self.preset_a.get("xemfg_standalone") else "dlssg"
+        idx_ae = self.combo_a_fg_engine.findData(a_engine)
+        if idx_ae >= 0:
+            self.combo_a_fg_engine.setCurrentIndex(idx_ae)
+
         a_key = str(self.preset_a.get("menu_key", "Backspace"))
         idx_ak = self.combo_a_key.findData(a_key)
         if idx_ak >= 0:
@@ -2383,6 +2413,10 @@ class OptiScalerPresetDialog(QDialog):
             self.preset_a["dlss_preset"] = self.combo_a_preset.currentData()
             self.preset_a["user_customized_dlss_preset"] = True
             self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
+            if hasattr(self, "combo_a_fg_engine"):
+                self.preset_a["xemfg_standalone"] = (
+                    self.combo_a_fg_engine.currentData() == "xemfg"
+                )
             self.preset_a["menu_key"] = self.combo_a_key.currentData()
             self.preset_a["proxy_dll"] = self.combo_a_proxy.currentData()
             save_mode_a_preset(self.preset_a)
