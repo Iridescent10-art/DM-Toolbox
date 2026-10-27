@@ -1,3 +1,42 @@
+# 🔧 DM-Toolbox (DM工具箱) v3.0.2 · 模式 A 支持 XeSS + 卸载残留修复
+
+**v3.0.2 修掉了模式 A 在 XeSS 场景下的闪退与一键卸载残留，并新增模式 B 的 Lecram v12.5 底座。**
+
+---
+
+### ⚡ 1. 模式 A 新增「帧生成内核」：DLSS-G / XeSS (XeMFG)
+
+- 面板新增一行 **帧生成内核（插帧来源）**：`DLSS-G（默认）` / `XeSS / XeMFG`；
+- 选 XeSS 后写入 `xemfgStandalone=1`，并**停止向 DLSS 特性下发 SR / DLSS-G 预设**
+  （`overrideDlssPreset=false`、`dlssSrPreset=0`、`dlssgPreset=0`、`DLSSGPreset=Auto`）；
+- 这就是之前「模式 A 注入后游戏内切 XeSS 直接闪退」的根因：dashdogy 把 NVIDIA 预设打到了
+  XeSS 的特性创建路径上；
+- ⚠️ **XeSS（XeMFG）与 DLSS 5 神经重构是两条互斥渲染链**，同时注入后切 XeSS 仍会闪退。
+  想同时要「DLSS 5 + XeSS 插帧」请用**模式 B（OptiScaler + XeFG）**；只用 XeSS 则先卸载 DLSS 5。
+  保存设置时若检测到 DLSS 5，面板会弹窗明确提示。
+
+### 🧹 2. 一键卸载残留修复
+
+- **dashdogy 占用 `dxgi.dll` 时也会被清除**（旧逻辑只认 ReShade / OptiScaler，导致「彻底清除全部」
+  后 `dxgi.dll` 还在）；
+- 补齐 ReShade 残留：`ReShadePreset.ini`、`ReShade2.ini`、`reshade-shaders\`、`.dlss5_backup\`、
+  `.mfg_coex_backup.json`；
+- 补齐运行时目录：`RTXMFG-XeSS\`、`dlssg_sm86\`；
+- 补删 `*.addon64.bak` / `*.addon.bak` 备份残片。
+
+### 🧩 3. 模式 B 新增 Lecram v12.5 可选底座
+
+- 选中模式 B 后出现「Lecram v12（默认）/ v12.5（新版）」下拉；
+- 已注入 v12.5 的游戏会自动预选，避免误降级；
+- v12.5 缺失时自动回退 v12。
+
+### 🛡️ 4. NR 显存守卫默认余量调整为 5%
+
+- 出厂 `NRVramBudgetGuard=1` + `NRVramBudgetMargin=5`（原 10%）；
+- 面板仍可选 0% / 5% / 10% / 15% / 20%。
+
+---
+
 # 🛠 DM-Toolbox (DM工具箱) v3.0.1 · NR 显存预算守卫（防 4K 多帧 TDR 闪退）
 
 **v3.0.1 是 v3.0.0 的稳定性补丁。** 针对「燕云十六声 4K + DLSS 5 神经重构 + 多帧生成」时出现的
