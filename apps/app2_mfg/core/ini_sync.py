@@ -1015,7 +1015,7 @@ class IniConfigManager:
             "VramBuffering": "1",
             "DirectNeuralRenderingVramBuffering": "1",
             "NRVramBudgetGuard": "1",
-            "NRVramBudgetMargin": "10",
+            "NRVramBudgetMargin": "5",
             "VramBudgetGuard": "1",
             "BudgetGuard": "1",
         }

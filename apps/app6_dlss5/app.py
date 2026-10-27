@@ -547,7 +547,7 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_margin = QLabel("预留余量:")
         vram_row.addWidget(lbl_margin)
         self.combo_nr_vram_margin = QComboBox()
-        for _label, _val in [("0% (不预留)", 0), ("5%", 5), ("10% (推荐)", 10), ("15%", 15), ("20% (保守)", 20)]:
+        for _label, _val in [("0% (不预留)", 0), ("5% (推荐)", 5), ("10%", 10), ("15%", 15), ("20% (保守)", 20)]:
             self.combo_nr_vram_margin.addItem(_label, _val)
         self.combo_nr_vram_margin.setMinimumWidth(130)
         vram_row.addWidget(self.combo_nr_vram_margin)

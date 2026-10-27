@@ -2406,6 +2406,39 @@ class OptiScalerPresetDialog(QDialog):
         self.preset_sm86 = self.preset_c
         self._sync_values_to_ui()
 
+    def _warn_xess_dlss5_conflict(self):
+        """
+        模式 A + XeSS（XeMFG）与 DLSS 5 神经重构是两条互斥的渲染链。
+
+        同时注入时，游戏内把帧生成切到 XeSS 会让 dashdogy 的 XeMFG 链与
+        ReShade / RenoDX 的 NGX 钩子互相踩踏，实机表现就是直接闪退。
+        """
+        if not self.preset_a.get("xemfg_standalone"):
+            return
+        game = getattr(self, "game", None)
+        if game is None:
+            return
+        target = getattr(game, "target_dir", None)
+        if not target:
+            return
+        try:
+            from core.state_cleaner import is_dlss5_present
+            if not is_dlss5_present(Path(target)):
+                return
+        except Exception:
+            return
+        ModernDialog.warning(
+            self,
+            "XeSS 与 DLSS 5 不能同时注入",
+            "当前游戏目录里仍然有 DLSS 5 神经重构（ReShade + RenoDX addon）。\n\n"
+            "· XeSS / XeMFG 走的是 Intel 插帧链，DLSS 5 走的是 NVIDIA NGX 链，两者互斥；\n"
+            "· 同时存在时，游戏内切到 XeSS 会因为两套钩子互相踩踏而闪退；\n"
+            "· 想用 XeSS：先到 DLSS 5 面板「一键卸载 / 彻底还原」，再只用模式 A 注入；\n"
+            "· 想用 DLSS 5：帧生成内核请选回 DLSS-G。\n\n"
+            "本次设置已经保存，请按上面的方式清理后再进游戏。",
+            self.is_dark_mode,
+        )
+
     def _save_and_accept(self):
         # 0. Update Mode A dictionary & save to persistent storage
         if hasattr(self, "combo_a_mult"):
@@ -2420,6 +2453,7 @@ class OptiScalerPresetDialog(QDialog):
             self.preset_a["menu_key"] = self.combo_a_key.currentData()
             self.preset_a["proxy_dll"] = self.combo_a_proxy.currentData()
             save_mode_a_preset(self.preset_a)
+            self._warn_xess_dlss5_conflict()
 
         # 1. Update Mode B (OptiScaler) dictionary & save to persistent storage
         if hasattr(self, "combo_fg_out"):
