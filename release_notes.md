@@ -1,3 +1,34 @@
+# 🧪 DM-Toolbox (DM工具箱) v3.0.4 · DLSS 5 新增模式 C（GITC Uplift）
+
+**v3.0.4 为 DLSS 5 一键注入加入第三种底座：GITC Uplift 1.7.0。**
+
+---
+
+### 🆕 1. 模式 C · GITC Uplift 神经重构底座
+
+- DLSS 5 面板底座模式新增第三项：`模式 C · GITC Uplift 神经重构底座 (全 API 通用)`；
+- 一键注入自动部署：
+  - `gitc-uplift.addon64`
+  - `gitc-uplift.addon32`（32 位游戏）
+  - `gitc-uplift-helper64.exe`（DX9 / 32 位游戏的 NR 辅助进程）
+  - `GITC-Uplift\nvngx_dlssnr.dll`（按显卡自动选模型）
+  - `Uplift.fx` / `UpliftMask.fx` 着色器
+- 模式 C 下 **不会** 把 `nvngx_dlssnr.dll` 放到游戏根目录（50 系驱动会抢先加载，导致 Uplift 用不了）；
+- 支持 DX9 / 10 / 11 / 12、Vulkan、OpenGL，32 位与 64 位游戏；
+- 自带显存预算检查（Video memory check）与简体中文界面（进游戏按 Home → GITC Uplift 标签 → Enable）。
+
+### 🔁 2. 与其他底座互斥
+
+- 模式 C 与模式 A（RenoDX ShortFuse）、模式 B（Lecram）互斥，注入前自动清理旧底座；
+- 卸载时一并清理 GITC 专属文件、`GITC-Uplift\` 目录、`*.addon32` 与已废弃的 `*.addon*.bak`。
+
+### 🧭 3. 状态识别
+
+- 状态卡可识别 `模式 C · GITC Uplift`（🟣 紫色标识）；
+- 卸载后仍按 v3.0.3 的规则复位为 **模式 A + Lecram v12.5**。
+
+---
+
 # 🧭 DM-Toolbox (DM工具箱) v3.0.3 · 卸载后模式复位 + 模式 B 默认 v12.5
 
 **v3.0.3 修掉了「卸载后仍按模式 B 注入」的状态残留，并把模式 B 的默认底座升级到 Lecram v12.5。**

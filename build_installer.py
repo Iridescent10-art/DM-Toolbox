@@ -47,8 +47,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("DM-Toolbox")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("3.0.3.0")]
-[assembly: AssemblyFileVersion("3.0.3.0")]
+[assembly: AssemblyVersion("3.0.4.0")]
+[assembly: AssemblyFileVersion("3.0.4.0")]
 
 namespace DMBOX
 {
@@ -87,7 +87,7 @@ namespace DMBOX
     }
 }
 """
-    cs_source = cs_source.replace("3.0.3.0", f"{APP_VERSION}.0")
+    cs_source = cs_source.replace("3.0.4.0", f"{APP_VERSION}.0")
     cs_file.write_text(cs_source, encoding="utf-8")
 
     manifest_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
