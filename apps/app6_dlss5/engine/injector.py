@@ -350,7 +350,7 @@ def clean_conflicting_addons(target_dir: Union[str, Path], keep_addon: Optional[
 
 
 def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_A",
-                              mode_b_variant: str = "v12") -> Dict[str, Any]:
+                              mode_b_variant: str = "v12.5") -> Dict[str, Any]:
     """
     Scans the given source directory (or auto-detected paths) for:
     - dxgi.dll (ReShade base)
@@ -2087,7 +2087,7 @@ class DLSS5Injector:
         proxy_choice: str = "auto",
         nr_vram_guard: Optional[bool] = None,
         nr_vram_margin: Optional[int] = None,
-        mode_b_variant: str = "v12",
+        mode_b_variant: str = "v12.5",
     ) -> Tuple[bool, str]:
         """
         Executes one-click standalone injection of DLSS 5 into target_dir.
@@ -2359,6 +2359,23 @@ class DLSS5Injector:
             addon_dest = td / Path(addon_src).name
             shutil.copy2(addon_src, addon_dest)
             manifest_data["injected_files"].append(addon_dest.name)
+
+            # 底座切换校验：另一套 addon 必须已经被清掉。游戏/启动器在运行时旧文件
+            # 删不掉，会出现「面板选了模式 A、进游戏还是模式 B」的假成功。
+            leftovers = []
+            if mode == "MODE_B":
+                if (td / "renodx-dlss.addon64").exists():
+                    leftovers.append("renodx-dlss.addon64")
+            else:
+                for _pat in ("Lecram*.addon64", "renodx-dlss5-Lecram*.addon64"):
+                    leftovers.extend(x.name for x in td.glob(_pat))
+            if leftovers:
+                return False, (
+                    "底座切换未完成：目标目录里仍残留旧底座 "
+                    + ", ".join(sorted(set(leftovers)))
+                    + "。\n\n游戏或启动器正在占用这些文件，请完全退出游戏"
+                    "（含 Rockstar / Steam / 反作弊进程）后重新点击一键注入。"
+                )
 
             # 6.3 Copy nvngx_dlssnr.dll
             shutil.copy2(nr_src, nr_dest)

@@ -136,7 +136,10 @@ def step2_assemble_staging_tree():
 
     # 2. 拷贝 apps (排除 __pycache__)
     def ignore_pycache(path, names):
-        return [n for n in names if n in ["__pycache__", ".git"]]
+        # 排除缓存与用户输出目录：JXR 转换器的「输出」里是用户的截图，
+        # 打包时不应带进安装包（会把安装包撑大几十 MB）。
+        skip = {"__pycache__", ".git", "输出", "output", "outputs"}
+        return [n for n in names if n in skip]
 
     print(" -> 拷贝应用模块 apps/ ...")
     shutil.copytree(ROOT_DIR / "apps", DIST_DIR / "apps", ignore=ignore_pycache)

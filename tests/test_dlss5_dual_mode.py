@@ -55,6 +55,7 @@ def test_phase1_constants_and_assets():
     # Check physical assets in package
     assert (LOCAL_ASSETS_DIR / "renodx-dlss.addon64").is_file(), "Mode A asset renodx-dlss.addon64 must exist"
     assert (LOCAL_ASSETS_DIR / "Lecram-v12.addon64").is_file(), "Mode B asset Lecram-v12.addon64 must exist"
+    assert (LOCAL_ASSETS_DIR / "renodx-dlss5-Lecram-v12.5.addon64").is_file(), "Mode B v12.5 asset must exist"
     assert (LOCAL_ASSETS_DIR / "dxgi.dll").is_file(), "dxgi.dll must exist"
     assert (LOCAL_ASSETS_DIR / "runtimes" / "nvngx_dlssnr_rtx50.dll").is_file()
     assert (LOCAL_ASSETS_DIR / "runtimes" / "nvngx_dlssnr_rtx20_30_40.dll").is_file()
@@ -71,7 +72,7 @@ def test_phase2_asset_scanning_and_dual_mode_selection():
     assert assets_a["addon_name"] == "renodx-dlss.addon64"
 
     assets_b = scan_plugin_source_assets(LOCAL_ASSETS_DIR, mode="MODE_B")
-    assert assets_b["addon_name"] == "Lecram-v12.addon64"
+    assert assets_b["addon_name"] == "renodx-dlss5-Lecram-v12.5.addon64"
 
 
 def test_phase3_mutex_cleanup():
@@ -119,16 +120,17 @@ def test_phase3_mode_a_and_mode_b_injection_lifecycle():
         # Step 2: Switch & Inject Mode B (verify mutex cleanup removes Mode A)
         ok_b, msg_b = DLSS5Injector.inject(str(game_dir), arch_choice="auto", mode="MODE_B")
         assert ok_b is True, f"Mode B injection failed: {msg_b}"
-        assert (game_dir / "Lecram-v12.addon64").exists(), "Mode B addon must be deployed"
+        assert list(game_dir.glob("*Lecram*.addon64")), "Mode B addon must be deployed"
         assert not (game_dir / "renodx-dlss.addon64").exists(), "Mode A addon must be cleaned during Mode B injection"
 
         stat_b = check_game_dlss5_status(str(game_dir))
         assert stat_b["is_injected"] is True
         assert stat_b["detected_mode"] == "MODE_B"
-        assert "模式 B · Lecram v12 扩展底座" in stat_b["mode_status_display"]
+        assert "模式 B · Lecram v12.5 扩展底座" in stat_b["mode_status_display"]
 
         # Step 3: Test legacy detection
-        (game_dir / "Lecram-v12.addon64").unlink()
+        for _f in game_dir.glob("*Lecram*.addon64"):
+            _f.unlink()
         (game_dir / "renodx-dlss5-v11.9.addon64").write_bytes(b"legacy")
         stat_legacy = check_game_dlss5_status(str(game_dir))
         assert "检测到旧版插件 (v11.9)" in stat_legacy["mode_status_display"]

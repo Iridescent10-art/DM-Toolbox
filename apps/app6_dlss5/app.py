@@ -492,6 +492,7 @@ class DLSS5MainWindow(DMBaseWindow):
             "Lecram v12.5 是较新的扩展底座版本，面板与参数项更多；\n"
             "若 v12.5 出现兼容问题，可随时切回 v12。"
         )
+        self.combo_mode_b_variant.setCurrentIndex(1)  # 默认 Lecram v12.5
         self.combo_mode_b_variant.setVisible(False)
         card_plugin_layout.addWidget(self.combo_mode_b_variant)
 
@@ -932,6 +933,16 @@ class DLSS5MainWindow(DMBaseWindow):
                 self.combo_dlss5_mode.setCurrentIndex(target_idx)
                 self.combo_dlss5_mode.blockSignals(False)
             self._update_mode_hint(mode if mode in ("MODE_A", "MODE_B") else "MODE_A")
+        if hasattr(self, "combo_mode_b_variant"):
+            self.combo_mode_b_variant.setVisible(target_idx == 1)
+            if target_idx == 0:
+                # 回到模式 A 时把 B 的版本选择复位到默认 v12.5，
+                # 避免上一次模式 B 的残留选择影响下一次注入。
+                default_idx = self.combo_mode_b_variant.findData("v12.5")
+                if default_idx >= 0 and self.combo_mode_b_variant.currentIndex() != default_idx:
+                    self.combo_mode_b_variant.blockSignals(True)
+                    self.combo_mode_b_variant.setCurrentIndex(default_idx)
+                    self.combo_mode_b_variant.blockSignals(False)
 
     def _update_proxy_hint(self, proxy_key: str):
         """Updates dynamic proxy slot hint label based on selected slot and detected game."""
@@ -1360,8 +1371,8 @@ class DLSS5MainWindow(DMBaseWindow):
             nr_vram_guard=nr_guard,
             nr_vram_margin=nr_margin,
             mode_b_variant=(
-                self.combo_mode_b_variant.currentData() or "v12"
-                if hasattr(self, "combo_mode_b_variant") else "v12"
+                self.combo_mode_b_variant.currentData() or "v12.5"
+                if hasattr(self, "combo_mode_b_variant") else "v12.5"
             ),
         )
 
@@ -1449,15 +1460,17 @@ class DLSS5MainWindow(DMBaseWindow):
         ok, msg = DLSS5Injector.restore(self.selected_game.target_dir)
         # Phase 3.4 & Phase 4: Reset mode selector to default MODE_A
         self._sync_mode_selector("MODE_A")
+        if hasattr(self, "combo_mode_b_variant"):
+            _v125 = self.combo_mode_b_variant.findData("v12.5")
+            if _v125 >= 0:
+                self.combo_mode_b_variant.blockSignals(True)
+                self.combo_mode_b_variant.setCurrentIndex(_v125)
+                self.combo_mode_b_variant.blockSignals(False)
+            self.combo_mode_b_variant.setVisible(False)
         self._sync_proxy_selector("auto")
         self._update_status_card()
         self._refresh_plugin_assets()
         self.set_status("还原完成" if ok else "还原遇到问题")
-
-        if ok:
-            ModernDialog.info(self, "卸载与还原完成", msg)
-        else:
-            ModernDialog.warning(self, "还原遇到问题", msg)
 
         if ok:
             ModernDialog.info(self, "卸载与还原完成", msg)
