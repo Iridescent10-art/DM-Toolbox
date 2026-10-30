@@ -38,7 +38,7 @@ from core.ini_sync import IniConfigManager
 
 def test_v200_version_bump():
     """Verify application version is bumped to 2.0.0+."""
-    assert APP_VERSION in ("2.0.0", "2.1.0", "2.2.0", "2.3.0", "3.0.0", "3.0.1", "3.0.2")
+    assert APP_VERSION in ("2.0.0", "2.1.0", "2.2.0", "2.3.0", "3.0.0", "3.0.1", "3.0.2", "3.0.3")
 
 
 def test_mode_c_default_preset():
