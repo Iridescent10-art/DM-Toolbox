@@ -182,7 +182,7 @@ def test_phase4_ui_elements_and_default_behavior():
     # Switch to Mode C (GITC Uplift)
     win.combo_dlss5_mode.setCurrentIndex(2)
     assert win.combo_dlss5_mode.currentData() == "MODE_C"
-    assert "模式 C (全 API 通用)" in win.lbl_mode_hint.text()
+    assert "模式 C：GITC Uplift 1.7.0" in win.lbl_mode_hint.text()
     assert "GITC Uplift" in win.combo_dlss5_mode.currentText()
 
     # Switch back to Mode A

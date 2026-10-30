@@ -1,3 +1,22 @@
+# 🎨 DM-Toolbox (DM工具箱) v3.0.5 · 模式 C 界面细节修正
+
+**v3.0.5 是 v3.0.4 的界面补丁，只修 DLSS 5 面板模式 C 的显示细节。**
+
+---
+
+### 🟣 1. 模式 C 提示条可读性
+
+- 模式 C 的模式提示改成紫色高对比底条（浅紫底 + 深紫字），不再被壁纸透到看不清；
+- 提示文案精简为一行：`模式 C：GITC Uplift 1.7.0 · 全 API 通用 · 自动部署 addon / helper / NR 运行库 / 着色器 · 进游戏按 Home → GITC Uplift → 勾选 Enable`；
+- 修正上一版文案里 `GITC-Uplift\nvngx_dlssnr.dll` 的反斜杠被转义吃掉的问题；
+- 提示标签尺寸策略改为随内容收缩，避免多行文本压到上方资产清单。
+
+### ✅ 2. 回归
+
+- 本机 Qt 恢复正常后复跑全量测试：**165 passed / 1 skipped**（含模式 A/B/C 下拉、模式 C 文案、GITC 部署与卸载用例）。
+
+---
+
 # 🧪 DM-Toolbox (DM工具箱) v3.0.4 · DLSS 5 新增模式 C（GITC Uplift）
 
 **v3.0.4 为 DLSS 5 一键注入加入第三种底座：GITC Uplift 1.7.0。**

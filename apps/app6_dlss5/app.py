@@ -503,6 +503,7 @@ class DLSS5MainWindow(DMBaseWindow):
         self.lbl_mode_hint = QLabel()
         self.lbl_mode_hint.setFont(QFont("Microsoft YaHei UI", 8))
         self.lbl_mode_hint.setWordWrap(True)
+        self.lbl_mode_hint.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self._update_mode_hint("MODE_A")
         card_plugin_layout.addWidget(self.lbl_mode_hint)
 
@@ -896,14 +897,14 @@ class DLSS5MainWindow(DMBaseWindow):
         """Updates the dynamic mode hint text and style for Mode A and Mode B."""
         if mode == "MODE_C":
             self.lbl_mode_hint.setText(
-                "当前已选模式 C (全 API 通用)：使用 GITC Uplift 1.7.0，自动部署 addon + helper + "
-                "GITC-Uplift\\nvngx_dlssnr.dll 与 Uplift.fx。进游戏按 Home 打开 ReShade，在 GITC Uplift 标签勾选 Enable。"
+                "模式 C：GITC Uplift 1.7.0 · 全 API 通用 · 自动部署 addon / helper / NR 运行库 / 着色器 · "
+                "进游戏按 Home → GITC Uplift → 勾选 Enable"
             )
             self.lbl_mode_hint.setStyleSheet("""
                 QLabel {
-                    color: #7c3aed;
-                    background: rgba(124, 58, 237, 0.08);
-                    border: 1px solid rgba(124, 58, 237, 0.25);
+                    color: #5b21b6;
+                    background: rgba(196, 181, 253, 0.55);
+                    border: 1px solid rgba(124, 58, 237, 0.55);
                     border-radius: 6px;
                     padding: 6px 10px;
                 }
