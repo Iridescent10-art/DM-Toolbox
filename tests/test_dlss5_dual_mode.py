@@ -160,13 +160,14 @@ def test_phase4_ui_elements_and_default_behavior():
     # 2.1 Banner subtitle check
     sub_title_label = win.findChild(object, "dlss5_sub_title")
     assert sub_title_label is not None
-    assert "搭载 ShortFuse 原生底座 (模式 A 默认) / Lecram v12 扩展底座 (模式 B 可选)" in sub_title_label.text()
+    assert "搭载 ShortFuse 原生底座 (模式 A 默认)" in sub_title_label.text()
+    assert "GITC Uplift 全 API 底座 (模式 C)" in sub_title_label.text()
     assert "共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存" in sub_title_label.text()
 
     # 2.2 Mode selection widget check
     assert hasattr(win, "combo_dlss5_mode")
     assert hasattr(win, "lbl_mode_hint")
-    assert win.combo_dlss5_mode.count() == 2
+    assert win.combo_dlss5_mode.count() == 3
     assert win.combo_dlss5_mode.currentIndex() == 0, "Default must be Mode A (index 0)"
     assert win.combo_dlss5_mode.currentData() == "MODE_A"
     assert "当前已选模式 A (默认)" in win.lbl_mode_hint.text()
@@ -177,6 +178,12 @@ def test_phase4_ui_elements_and_default_behavior():
     assert "当前已选模式 B (可选)" in win.lbl_mode_hint.text()
     assert "F12" in win.lbl_mode_hint.text()
     assert "F12" in win.combo_dlss5_mode.currentText()
+
+    # Switch to Mode C (GITC Uplift)
+    win.combo_dlss5_mode.setCurrentIndex(2)
+    assert win.combo_dlss5_mode.currentData() == "MODE_C"
+    assert "模式 C (全 API 通用)" in win.lbl_mode_hint.text()
+    assert "GITC Uplift" in win.combo_dlss5_mode.currentText()
 
     # Switch back to Mode A
     win.combo_dlss5_mode.setCurrentIndex(0)

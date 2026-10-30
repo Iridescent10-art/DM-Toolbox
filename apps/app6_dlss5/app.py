@@ -229,7 +229,7 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_head.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.Bold))
         lbl_head.setWordWrap(True)
 
-        lbl_sub = QLabel("搭载 ShortFuse 原生底座 (模式 A 默认) / Lecram v12 扩展底座 (模式 B 可选) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
+        lbl_sub = QLabel("搭载 ShortFuse 原生底座 (模式 A 默认) / Lecram v12 扩展底座 (模式 B 可选) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
         lbl_sub.setObjectName("dlss5_sub_title")
         lbl_sub.setFont(QFont("Microsoft YaHei UI", 9))
         lbl_sub.setWordWrap(True)
@@ -473,6 +473,10 @@ class DLSS5MainWindow(DMBaseWindow):
         self.combo_dlss5_mode.addItem(
             "⚡ 模式 B (可选项目) — Lecram v12 / v12.5 [Lecram 旗舰扩展底座 · 深度参数定制 · 快捷键 F12]",
             "MODE_B"
+        )
+        self.combo_dlss5_mode.addItem(
+            "🧪 模式 C (全 API 通用) — gitc-uplift.addon64 [GITC Uplift 1.7.0 · DX9/10/11/12/Vulkan/OpenGL · 自带显存检查与中文界面]",
+            "MODE_C"
         )
         self.combo_dlss5_mode.setCurrentIndex(0)
         self.combo_dlss5_mode.currentIndexChanged.connect(self._on_mode_selection_changed)
@@ -890,7 +894,21 @@ class DLSS5MainWindow(DMBaseWindow):
 
     def _update_mode_hint(self, mode: str):
         """Updates the dynamic mode hint text and style for Mode A and Mode B."""
-        if mode == "MODE_B":
+        if mode == "MODE_C":
+            self.lbl_mode_hint.setText(
+                "当前已选模式 C (全 API 通用)：使用 GITC Uplift 1.7.0，自动部署 addon + helper + "
+                "GITC-Uplift\\nvngx_dlssnr.dll 与 Uplift.fx。进游戏按 Home 打开 ReShade，在 GITC Uplift 标签勾选 Enable。"
+            )
+            self.lbl_mode_hint.setStyleSheet("""
+                QLabel {
+                    color: #7c3aed;
+                    background: rgba(124, 58, 237, 0.08);
+                    border: 1px solid rgba(124, 58, 237, 0.25);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+        elif mode == "MODE_B":
             self.lbl_mode_hint.setText("当前已选模式 B (可选)：使用 Lecram-v12.addon64，游戏内按 F12 可调 UI 遮罩、滤镜与 Model A/B/C。")
             self.lbl_mode_hint.setStyleSheet("""
                 QLabel {
@@ -926,7 +944,7 @@ class DLSS5MainWindow(DMBaseWindow):
         Synchronizes mode combo box without triggering re-entrant writes.
         Defaults to MODE_A if mode is unrecognized.
         """
-        target_idx = 1 if mode == "MODE_B" else 0
+        target_idx = {"MODE_A": 0, "MODE_B": 1, "MODE_C": 2}.get(mode, 0)
         if hasattr(self, "combo_dlss5_mode"):
             if self.combo_dlss5_mode.currentIndex() != target_idx:
                 self.combo_dlss5_mode.blockSignals(True)
@@ -935,7 +953,7 @@ class DLSS5MainWindow(DMBaseWindow):
             self._update_mode_hint(mode if mode in ("MODE_A", "MODE_B") else "MODE_A")
         if hasattr(self, "combo_mode_b_variant"):
             self.combo_mode_b_variant.setVisible(target_idx == 1)
-            if target_idx == 0:
+            if target_idx != 1:
                 # 回到模式 A 时把 B 的版本选择复位到默认 v12.5，
                 # 避免上一次模式 B 的残留选择影响下一次注入。
                 default_idx = self.combo_mode_b_variant.findData("v12.5")
@@ -1127,6 +1145,16 @@ class DLSS5MainWindow(DMBaseWindow):
         else:
             details.append("• 模式 A 底座: <span style='color: #ef4444;'>❌ 缺失 renodx-dlss.addon64</span>")
 
+        # Mode C addon status (GITC Uplift)
+        if assets.get("mode_c_exists"):
+            act_tag = " [当前激活]" if cur_mode == "MODE_C" else ""
+            details.append(
+                f"• 模式 C 底座: gitc-uplift.addon64 ({assets['mode_c_size_mb']} MB · "
+                f"GITC Uplift 1.7.0 [全 API 通用]{act_tag})"
+            )
+        else:
+            details.append("• 模式 C 底座: <span style='color: #ef4444;'>❌ 缺失 gitc-uplift.addon64</span>")
+
         # Mode B addon status (v12 / v12.5)
         if assets.get("mode_b_path"):
             act_tag = " [当前激活]" if cur_mode == "MODE_B" else ""
@@ -1222,7 +1250,10 @@ class DLSS5MainWindow(DMBaseWindow):
         self.lbl_main_status_badge.setText(badge_text)
 
         detected_mode = stat.get("detected_mode")
-        if detected_mode == "MODE_B":
+        if detected_mode == "MODE_C":
+            self.lbl_main_status_badge.setStyleSheet("color: #7c3aed; font-weight: bold;")
+            self._sync_mode_selector("MODE_C")
+        elif detected_mode == "MODE_B":
             self.lbl_main_status_badge.setStyleSheet("color: #0284c7; font-weight: bold;")
             self._sync_mode_selector("MODE_B")
             if hasattr(self, "combo_mode_b_variant"):
@@ -1257,7 +1288,10 @@ class DLSS5MainWindow(DMBaseWindow):
 
         if stat["has_addon"]:
             names = ", ".join(stat["addon_names"])
-            if detected_mode == "MODE_B":
+            if detected_mode == "MODE_C":
+                self.lbl_stat_addon.setText(f"• DLSS 5 扩展插件: 🟣 已就绪 ({names} · 模式 C · GITC Uplift)")
+                self.lbl_stat_addon.setStyleSheet("color: #7c3aed;")
+            elif detected_mode == "MODE_B":
                 self.lbl_stat_addon.setText(f"• DLSS 5 扩展插件: 🔵 已就绪 ({names} · 模式 B)")
                 self.lbl_stat_addon.setStyleSheet("color: #0284c7;")
             else:
@@ -1382,7 +1416,11 @@ class DLSS5MainWindow(DMBaseWindow):
             ModernDialog.error(self, "注入遇到问题", msg)
             return
 
-        mode_tag = "模式 A: renodx-dlss.addon64" if chosen_mode == "MODE_A" else "模式 B: Lecram-v12.addon64"
+        mode_tag = {
+            "MODE_A": "模式 A: renodx-dlss.addon64",
+            "MODE_B": "模式 B: Lecram v12 / v12.5",
+            "MODE_C": "模式 C: GITC Uplift",
+        }.get(chosen_mode, chosen_mode)
 
         # Check if we should activate delayed injection monitor
         stat = check_game_dlss5_status(self.selected_game.target_dir)

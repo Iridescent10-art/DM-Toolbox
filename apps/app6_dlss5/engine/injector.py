@@ -43,6 +43,16 @@ DLSS5_ENGINE_MODES = {
         "desc": "搭载 Lecram v12 深度定制面板 · 支持 UI 遮罩/缩放滤镜/色调强度/曝光等高级参数调节",
         "ini_section": "RenoDX DLSS5",
         "features": ["Hook Method", "UI Correction", "Character Mask", "Model A/B/C", "Scaling Domain & Filter"]
+    },
+    "MODE_C": {
+        "key": "MODE_C",
+        "title": "模式 C · GITC Uplift 神经重构底座 (全 API 通用)",
+        "short_name": "模式 C (GITC Uplift 底座)",
+        "addon_file": "gitc-uplift.addon64",
+        "badge": "全 API 通用",
+        "desc": "GITC Uplift 1.7.0 · 支持 DX9/10/11/12、Vulkan、OpenGL 与 32/64 位 · 自带显存预算检查与中文界面",
+        "ini_section": "Uplift",
+        "features": ["NR stage (Present / After DLSS / Before upscaling)", "Video memory check", "Keep faces", "简体中文界面"]
     }
 }
 
@@ -54,6 +64,8 @@ CONFLICT_DLSS_ADDONS = [
     "Lecram-v12.addon64",
     "renodx-dlss5.addon64",
     "renodx-dlss5-v11.9.addon64",
+    "gitc-uplift.addon64",
+    "gitc-uplift.addon32",
 ]
 
 DLSS5_PROXY_SLOTS = {
@@ -375,6 +387,10 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         "mode_b_v125_size_mb": 0.0,
         "mode_b_v125_exists": False,
         "mode_b_variant": "v12",
+        "mode_c_path": None,
+        "mode_c_size_mb": 0.0,
+        "mode_c_exists": False,
+        "mode_c_dir": None,
         "addon_path": None,
         "addon_name": "",
         "addon_size_mb": 0.0,
@@ -466,8 +482,42 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         result["mode_b_v125_size_mb"] = round(v125_file.stat().st_size / (1024 * 1024), 2)
         result["mode_b_v125_exists"] = True
 
+    # 3c. Search for Mode C: GITC Uplift addon (addons/gitc_uplift or assets root)
+    gitc_candidates = [
+        s_dir / "gitc_uplift" / "gitc-uplift.addon64",
+        s_dir / "gitc-uplift.addon64",
+        LOCAL_ASSETS_DIR / "gitc_uplift" / "gitc-uplift.addon64",
+    ]
+    for _cand in gitc_candidates:
+        if _cand.exists() and _cand.is_file():
+            result["mode_c_path"] = str(_cand)
+            result["mode_c_size_mb"] = round(_cand.stat().st_size / (1024 * 1024), 2)
+            result["mode_c_exists"] = True
+            result["mode_c_dir"] = str(_cand.parent)
+            break
+    if not result["mode_c_exists"]:
+        for _glob in (s_dir.glob("gitc-uplift*.addon64"), s_dir.glob("*/*gitc-uplift*.addon64")):
+            for _cand in _glob:
+                if _cand.is_file():
+                    result["mode_c_path"] = str(_cand)
+                    result["mode_c_size_mb"] = round(_cand.stat().st_size / (1024 * 1024), 2)
+                    result["mode_c_exists"] = True
+                    result["mode_c_dir"] = str(_cand.parent)
+                    break
+            if result["mode_c_exists"]:
+                break
+
     # Configure active addon based on mode
-    if mode == "MODE_B":
+    if mode == "MODE_C":
+        if result["mode_c_path"]:
+            result["addon_path"] = result["mode_c_path"]
+            result["addon_name"] = Path(result["mode_c_path"]).name
+            result["addon_size_mb"] = result["mode_c_size_mb"]
+        elif result["mode_a_path"]:
+            result["addon_path"] = result["mode_a_path"]
+            result["addon_name"] = Path(result["mode_a_path"]).name
+            result["addon_size_mb"] = result["mode_a_size_mb"]
+    elif mode == "MODE_B":
         wants_v125 = str(mode_b_variant).lower().replace("v", "") in ("12.5", "125")
         if wants_v125 and result["mode_b_v125_path"]:
             result["mode_b_path"] = result["mode_b_v125_path"]
@@ -500,6 +550,8 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         all_addons.append(result["mode_b_path"])
     if result["mode_b_v125_path"] and result["mode_b_v125_path"] not in all_addons:
         all_addons.append(result["mode_b_v125_path"])
+    if result["mode_c_path"] and result["mode_c_path"] not in all_addons:
+        all_addons.append(result["mode_c_path"])
     result["all_addons"] = all_addons
 
     # 4. Search for RTX 50 NR model
@@ -619,17 +671,21 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
 
     # Addons check (supports ShortFuse, Lecram, RenoDX, and other DLSS addons; excludes MFG unlocker)
     addons = [p.name for p in td.glob("*.addon64")]
-    dlss_addons = [a for a in addons if any(k in a.lower() for k in ["renodx", "dlss", "shortfuse", "lecram"]) and "mfgunlock" not in a.lower()]
+    dlss_addons = [a for a in addons if any(k in a.lower() for k in ["renodx", "dlss", "shortfuse", "lecram", "gitc-uplift"]) and "mfgunlock" not in a.lower()]
     has_addon = len(dlss_addons) > 0
 
     has_mode_a = (td / "renodx-dlss.addon64").exists()
+    has_mode_c = any("gitc-uplift" in a.lower() for a in dlss_addons)
     has_mode_b_v125 = any("v12.5" in a.lower() and "lecram" in a.lower() for a in dlss_addons)
     has_mode_b = (td / "Lecram-v12.addon64").exists() or (td / "lecram-v12.addon64").exists() or has_mode_b_v125
     has_legacy = any("v11.9" in a.lower() or "dlss5." in a.lower() or "beta" in a.lower() for a in dlss_addons)
 
     detected_mode = None
     detected_mode_b_variant = "v12.5" if has_mode_b_v125 else "v12"
-    if has_mode_a and not has_mode_b:
+    if has_mode_c and not has_mode_a and not has_mode_b:
+        detected_mode = "MODE_C"
+        mode_status_display = "🟣 已注入 DLSS 5 [模式 C · GITC Uplift 神经重构底座]"
+    elif has_mode_a and not has_mode_b:
         detected_mode = "MODE_A"
         mode_status_display = "🟢 已注入 DLSS 5 [模式 A · ShortFuse 原生底座]"
     elif has_mode_b and not has_mode_a:
@@ -2366,8 +2422,13 @@ class DLSS5Injector:
             if mode == "MODE_B":
                 if (td / "renodx-dlss.addon64").exists():
                     leftovers.append("renodx-dlss.addon64")
+            elif mode == "MODE_C":
+                for _pat in ("renodx-dlss.addon64", "Lecram*.addon64",
+                             "renodx-dlss5-Lecram*.addon64"):
+                    leftovers.extend(x.name for x in td.glob(_pat))
             else:
-                for _pat in ("Lecram*.addon64", "renodx-dlss5-Lecram*.addon64"):
+                for _pat in ("Lecram*.addon64", "renodx-dlss5-Lecram*.addon64",
+                             "gitc-uplift*.addon64"):
                     leftovers.extend(x.name for x in td.glob(_pat))
             if leftovers:
                 return False, (
@@ -2377,9 +2438,42 @@ class DLSS5Injector:
                     "（含 Rockstar / Steam / 反作弊进程）后重新点击一键注入。"
                 )
 
-            # 6.3 Copy nvngx_dlssnr.dll
-            shutil.copy2(nr_src, nr_dest)
-            manifest_data["injected_files"].append("nvngx_dlssnr.dll")
+            # 6.2b MODE_C（GITC Uplift）专属部署：helper + GITC-Uplift\nvngx_dlssnr.dll + 着色器
+            if mode == "MODE_C":
+                gitc_asset_dir = Path(assets.get("mode_c_dir") or Path(addon_src).parent)
+                helper_src = gitc_asset_dir / "gitc-uplift-helper64.exe"
+                if helper_src.exists():
+                    shutil.copy2(str(helper_src), str(td / helper_src.name))
+                    manifest_data["injected_files"].append(helper_src.name)
+                addon32_src = gitc_asset_dir / "gitc-uplift.addon32"
+                if addon32_src.exists():
+                    shutil.copy2(str(addon32_src), str(td / addon32_src.name))
+                    manifest_data["injected_files"].append(addon32_src.name)
+
+                gitc_data_dir = td / "GITC-Uplift"
+                gitc_data_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(nr_src, gitc_data_dir / "nvngx_dlssnr.dll")
+                manifest_data["injected_files"].append("GITC-Uplift/nvngx_dlssnr.dll")
+                for _note in ("README.txt",):
+                    _ref = gitc_asset_dir / "GITC-Uplift" / _note
+                    if _ref.exists():
+                        shutil.copy2(str(_ref), str(gitc_data_dir / _note))
+
+                for fx_name in ("Uplift.fx", "UpliftMask.fx"):
+                    fx_src = gitc_asset_dir / "Shaders" / fx_name
+                    if fx_src.exists():
+                        shutil.copy2(str(fx_src), str(td / fx_name))
+                        manifest_data["injected_files"].append(fx_name)
+
+            # 6.3 Copy nvngx_dlssnr.dll（模式 C 时只放 GITC-Uplift 子目录，避免 50 系驱动抢先加载）
+            if mode == "MODE_C":
+                try:
+                    (td / "nvngx_dlssnr.dll").unlink(missing_ok=True)
+                except Exception:
+                    pass
+            else:
+                shutil.copy2(nr_src, nr_dest)
+                manifest_data["injected_files"].append("nvngx_dlssnr.dll")
 
             # 6.4 Delete legacy migration marker to prevent RenoDX resetting to factory stock
             (td / "ReShade.ini.v11-backup").unlink(missing_ok=True)
@@ -2692,11 +2786,13 @@ class DLSS5Injector:
             for rc in removed_conflicts:
                 if rc not in removed_items:
                     removed_items.append(rc)
-            for addon_file in list(td.glob("*.addon64")) + list(td.glob("*.addon")):
+            for addon_file in (list(td.glob("*.addon64")) + list(td.glob("*.addon"))
+                               + list(td.glob("*.addon32"))):
                 name_lower = addon_file.name.lower()
                 if "mfgunlock" in name_lower:
                     continue
-                if "renodx-dlss" in name_lower or "lecram" in name_lower:
+                if ("renodx-dlss" in name_lower or "lecram" in name_lower
+                        or "gitc-uplift" in name_lower):
                     try:
                         safe_force_remove(str(addon_file))
                         if addon_file.name not in removed_items:
@@ -2774,7 +2870,8 @@ class DLSS5Injector:
         for rc in removed_conflicts:
             if rc not in removed_items:
                 removed_items.append(rc)
-        for addon_file in list(td.glob("*.addon64")) + list(td.glob("*.addon")):
+        for addon_file in (list(td.glob("*.addon64")) + list(td.glob("*.addon"))
+                           + list(td.glob("*.addon32"))):
             name_lower = addon_file.name.lower()
             if "mfgunlock" in name_lower:
                 continue
@@ -2784,6 +2881,16 @@ class DLSS5Injector:
                     removed_items.append(addon_file.name)
             except Exception:
                 pass
+
+        # (A2) GITC Uplift 专属文件：helper、着色器、GITC-Uplift 数据目录
+        for _gitc_file in ("gitc-uplift-helper64.exe", "Uplift.fx", "UpliftMask.fx"):
+            if (td / _gitc_file).exists():
+                safe_force_remove(str(td / _gitc_file))
+                if _gitc_file not in removed_items:
+                    removed_items.append(_gitc_file)
+        if (td / "GITC-Uplift").is_dir():
+            shutil.rmtree(td / "GITC-Uplift", ignore_errors=True)
+            removed_items.append("GITC-Uplift/")
 
         # (B) All proxy DLLs if they are ReShade / OptiScaler proxies and not native game files
         for proxy_name in ALL_DLSS5_PROXY_NAMES:
