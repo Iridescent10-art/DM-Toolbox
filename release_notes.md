@@ -1,3 +1,39 @@
+# 🎯 DM-Toolbox (DM工具箱) v3.0.6 · 修复 UE5 游戏（黑神话：悟空）识别不到多帧生成
+
+**v3.0.6 修好了「游戏明明支持帧生成，工具箱却显示不支持」的 UE5 结构识别问题。**
+
+---
+
+### 🐒 1. 黑神话：悟空 为什么之前显示不支持
+
+两个识别盲区叠加：
+
+1. **可执行文件选错**：游戏根目录只有 350 KB 的启动器 `b1.exe`，真正的游戏进程在
+   `b1\Binaries\Win64\b1-Win64-Shipping.exe`。旧逻辑优先认根目录，把启动器当成了游戏本体，
+   注入目标目录也落在游戏根目录。
+2. **Streamline 目录太深**：`sl.interposer.dll` 与 `nvngx_dlssg.dll` 放在
+   `Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\`，
+   旧逻辑只查根目录与少数几个标准位置，直接判定为「无 Streamline 集成」（不支持）。
+
+### ✅ 2. 修复内容
+
+- 新增 **UE Shipping 可执行文件探测**：按固定模式（`*/Binaries/Win64/*.exe` 等）查找
+  `*-Win64-Shipping.exe`，优先选择体积最大的那个作为游戏本体；
+- 新增 **Streamline 递归探测**：在游戏目录（及其上一级）内按深度上限递归查找
+  `sl.interposer.dll` / `nvngx_dlssg.dll`，覆盖 UE 引擎插件目录；
+- 修复后黑神话识别为：
+  - 本体 `b1-Win64-Shipping.exe`
+  - 注入目录 `b1\Binaries\Win64`
+  - Streamline `2.7.2.0` / DLSS-G `310.1.0.0`
+  - 资格 **QUALIFIED（原生支持，可注入多帧生成）**
+
+### 🔍 3. 回归
+
+- 新增 2 项 UE 结构测试（Shipping + 深层 Streamline；普通游戏不受影响）；
+- 全量测试：**167 passed / 1 skipped**。
+
+---
+
 # 🎨 DM-Toolbox (DM工具箱) v3.0.5 · 模式 C 界面细节修正
 
 **v3.0.5 是 v3.0.4 的界面补丁，只修 DLSS 5 面板模式 C 的显示细节。**

@@ -611,6 +611,36 @@ class GameScanner:
             games.append(g)
         return games
 
+    def _find_streamline_deep(self, start_dir: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        在非标准目录（如 UE 的 Engine/Plugins/Runtime/Nvidia/Streamline/...）里
+        递归查找 sl.interposer.dll 与 nvngx_dlssg.dll。
+        """
+        prune = {
+            "content", "paks", "movies", "audio", "localization", "saved", "cache",
+            "logs", "deriveddatacache", "intermediate", "shadercache", "crashreportclient",
+        }
+        for base in (start_dir, os.path.dirname(os.path.abspath(start_dir))):
+            if not base or not os.path.isdir(base):
+                continue
+            base_sep = base.rstrip("\\/").count(os.sep)
+            interposer = dlssg = None
+            for root, dirs, files in os.walk(base):
+                if root.count(os.sep) - base_sep > 10:
+                    dirs[:] = []
+                    continue
+                dirs[:] = [d for d in dirs if d.lower() not in prune]
+                files_lower = {f.lower(): f for f in files}
+                if interposer is None and "sl.interposer.dll" in files_lower:
+                    interposer = os.path.join(root, files_lower["sl.interposer.dll"])
+                if dlssg is None and "nvngx_dlssg.dll" in files_lower:
+                    dlssg = os.path.join(root, files_lower["nvngx_dlssg.dll"])
+                if interposer and dlssg:
+                    return interposer, dlssg
+            if interposer or dlssg:
+                return interposer, dlssg
+        return None, None
+
     def analyze_game_directory(self, game_name: str, source: str, install_dir: str) -> Optional[GameInfo]:
         """
         Deep binary discovery inside game directory:
@@ -656,6 +686,11 @@ class GameScanner:
                     dlssg_path = os.path.join(d, files_lower["nvngx_dlssg.dll"])
             except Exception:
                 pass
+
+        if not interposer_path or not dlssg_path:
+            deep_interposer, deep_dlssg = self._find_streamline_deep(install_dir)
+            interposer_path = interposer_path or deep_interposer
+            dlssg_path = dlssg_path or deep_dlssg
 
         exe_name = os.path.basename(exe_path)
         stem = Path(exe_path).stem.lower()
@@ -735,8 +770,46 @@ class GameScanner:
             is_running=running
         )
 
+    def _find_deep_shipping_exe(self, install_dir: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        UE5 游戏常见结构：根目录只有几百 KB 的启动器（如黑神话的 b1.exe），
+        真正的游戏进程在 ``<项目>/Binaries/Win64/*-Win64-Shipping.exe``。
+        这里按固定深度模式找体积最大的 Shipping 可执行文件。
+        """
+        root = Path(install_dir)
+        patterns = (
+            "*/Binaries/Win64/*.exe",
+            "*/Binaries/Win64r/*.exe",
+            "*/Binaries/Win32/*.exe",
+            "*/Bin64/*.exe",
+            "*/bin/x64/*.exe",
+        )
+        best = None
+        for pat in patterns:
+            try:
+                for cand in root.glob(pat):
+                    name = cand.name.lower()
+                    if not name.endswith(".exe") or name in IGNORE_EXE_PATTERNS:
+                        continue
+                    if "shipping" not in name:
+                        continue
+                    try:
+                        size = cand.stat().st_size
+                    except OSError:
+                        continue
+                    if best is None or size > best[1]:
+                        best = (str(cand), size)
+            except Exception:
+                pass
+        if best:
+            return best[0], os.path.dirname(best[0])
+        return None, None
+
     def _find_primary_executable_and_dir(self, install_dir: str) -> Tuple[Optional[str], Optional[str]]:
         """Find executable in root or standard subdirectories, returning (exe_path, resolved_dir)."""
+        deep_exe, deep_dir = self._find_deep_shipping_exe(install_dir)
+        if deep_exe:
+            return deep_exe, deep_dir
         def pick_best(candidates: List[str]) -> Optional[str]:
             if not candidates:
                 return None
@@ -885,6 +958,11 @@ class GameScanner:
                     dlssg_path = os.path.join(d, files_lower["nvngx_dlssg.dll"])
             except Exception:
                 pass
+
+        if not interposer_path or not dlssg_path:
+            deep_interposer, deep_dlssg = self._find_streamline_deep(install_dir)
+            interposer_path = interposer_path or deep_interposer
+            dlssg_path = dlssg_path or deep_dlssg
 
         streamline_ver = get_pe_file_version(interposer_path) if interposer_path else None
         dlssg_ver = get_pe_file_version(dlssg_path) if dlssg_path else None

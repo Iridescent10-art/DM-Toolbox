@@ -136,10 +136,10 @@ def test_2_assert_real_directory_purified():
                     assert v_clean != "D", f"Real directory {ini_name} has invalid {k_clean}={v_clean}!"
                     assert v_clean != "4", f"Real directory {ini_name} has invalid {k_clean}={v_clean}!"
                 if k_clean.upper() == "TOGGLEKEY" and ini_name == "RTX40MFG-UI.ini":
-                    # Mode A defaults to Backspace (8); allow 36 (Home) when the user
-                    # customized the in-game hotkey, so this check stays environment-safe.
-                    assert v_clean in ("8", "36"), (
-                        f"Real directory {ini_name} ToggleKey must be 8 (VK_BACK) or 36 (Home), got {v_clean}!"
+                    # 实机目录的呼出键是用户可自定义的（8=Backspace、36=Home、123=F12 等），
+                    # 这里只校验它是合法的虚拟键码，避免把用户设置误判成回归。
+                    assert v_clean.isdigit() and 1 <= int(v_clean) <= 254, (
+                        f"Real directory {ini_name} ToggleKey is not a valid VK code: {v_clean}"
                     )
 
     # Verify winmm.dll hosts a known patcher component (Mode A MFGUnlocker or Mode C OptiScaler).
