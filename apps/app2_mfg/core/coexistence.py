@@ -498,7 +498,7 @@ def ensure_ngx_core(
 
 
 def _find_dashdogy_source() -> Optional[str]:
-    """Locate a cached MFGUnlocker.dll (v1.7.0 or v1.6.1) to deploy Mode A proxy."""
+    """Locate the bundled MFGUnlocker.dll (v1.7.1) to deploy Mode A proxy."""
     try:
         from core.updater import ComponentUpdater
         from core.models import BackendType
@@ -509,8 +509,7 @@ def _find_dashdogy_source() -> Optional[str]:
         pass
     root = Path(__file__).resolve().parent.parent.parent.parent
     for cand in [
-        root / "apps" / "app2_mfg" / "embedded_components" / "dashdogy" / "v1.7.0" / "MFGUnlocker.dll",
-        root / "apps" / "app2_mfg" / "embedded_components" / "dashdogy" / "v1.6.1" / "MFGUnlocker.dll",
+        root / "apps" / "app2_mfg" / "embedded_components" / "dashdogy" / "v1.7.1" / "MFGUnlocker.dll",
     ]:
         if cand.is_file():
             return str(cand)

@@ -405,6 +405,13 @@ def get_app_cache_dir() -> Path:
         return cache_path
 
 
+def is_amd_gpu(gpu_name: str | None = None) -> bool:
+    """True when the active GPU is AMD / Radeon (used to default to XeSS MFG)."""
+    name = gpu_name if gpu_name else get_system_gpu_name()
+    upper = (name or "").upper()
+    return ("AMD" in upper) or ("RADEON" in upper) or ("ATI " in upper)
+
+
 def get_system_gpu_name() -> str:
     """
     Detects active TRUE physical GPU name, prioritizing discrete gaming GPU on laptops.

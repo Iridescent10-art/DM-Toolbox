@@ -29,6 +29,26 @@ class PatchEngine:
         self.updater = updater
         self.rollback_engine = RollbackEngine()
 
+    @staticmethod
+    def resolve_smart_auto_backend(gpu_name: str) -> "BackendType":
+        """
+        智能优选：MFG Unlocker 1.7.1 起模式 A 覆盖全部显卡
+        （NVIDIA 走 DLSS MFG，AMD / Intel 走 XeSS MFG），因此统一返回模式 A。
+        """
+        return BackendType.STANDALONE
+
+    @staticmethod
+    def _ensure_amd_xemfg_default() -> None:
+        """AMD 显卡默认使用 XeSS 多帧生成：把模式 A 预设的 XeMFG 内核打开。"""
+        try:
+            from core.optiscaler_config import load_mode_a_preset, save_mode_a_preset
+            preset = load_mode_a_preset()
+            if not preset.get("xemfg_standalone"):
+                preset["xemfg_standalone"] = True
+                save_mode_a_preset(preset)
+        except Exception:
+            pass
+
     def patch_game(
         self,
         game: GameInfo,
@@ -78,16 +98,12 @@ class PatchEngine:
         active_backend = requested_backend
         if active_backend in (None, BackendType.SMART_AUTO):
             gpu_name = get_system_gpu_name()
-            from core.utils import is_rtx_20_or_30_series, is_rtx_40_or_newer
-            if is_rtx_20_or_30_series(gpu_name):
-                # RTX 20/30 (Turing/Ampere) -> Mode C: dlssg_for_sm86 is the #1 FIRST CHOICE!
-                active_backend = BackendType.DLSSG_SM86
-            elif is_rtx_40_or_newer(gpu_name):
-                # RTX 40/50 series -> Mode A (dashdogy Universal)
-                active_backend = BackendType.STANDALONE
-            else:
-                # AMD / Intel / GTX series -> Mode B (OptiScaler 跨架构转译)
-                active_backend = BackendType.OPTISCALER_FSR
+            active_backend = self.resolve_smart_auto_backend(gpu_name)
+            from core.utils import is_amd_gpu
+            if is_amd_gpu(gpu_name):
+                # MFG Unlocker 1.7.1 起，AMD 显卡通过 XeSS 多帧生成（XeMFG standalone）
+                # 使用模式 A；这里把模式 A 的出厂预设切成 XeMFG 内核。
+                self._ensure_amd_xemfg_default()
 
         backend_str = active_backend.value if hasattr(active_backend, "value") else str(active_backend)
 
@@ -1171,9 +1187,11 @@ class PatchEngine:
         """
         source_dir = self.updater.get_latest_cached_dir(BackendType.DLSSG_SM86)
         if not source_dir or not os.path.exists(source_dir):
-            emb = ROOT_DIR / "apps" / "app2_mfg" / "embedded_components" / "dlssg_sm86" / "v0.4.0"
-            if emb.exists():
-                source_dir = str(emb)
+            for _v in ("v0.4.2", "v0.4.0"):
+                emb = ROOT_DIR / "apps" / "app2_mfg" / "embedded_components" / "dlssg_sm86" / _v
+                if emb.exists():
+                    source_dir = str(emb)
+                    break
             else:
                 return False, "本地缓存中未找到 dlssg_for_sm86 组件！\n请先在主界面点击【检查并同步最新版本】进行下载。"
 
@@ -1285,8 +1303,16 @@ class PatchEngine:
         if "dlssg_sm86" not in manifest.created_files:
             manifest.created_files.append("dlssg_sm86")
 
+        # 0.4.2 的 sr\ 目录是可选超分内核（~172 MB）。只有用户明确选了非 Off 的
+        # SuperResolution 模式才部署，避免默认注入时白白占掉游戏目录空间。
+        _sr_mode = str(preset_c.get("super_resolution_mode", "Off")).strip()
+        deploy_sr = _sr_mode not in ("", "Off")
+
         for root, dirs, files in os.walk(src_dlssg_sub):
             rel = os.path.relpath(root, src_dlssg_sub)
+            if rel.split(os.sep)[0] == "sr" and not deploy_sr:
+                dirs[:] = []
+                continue
             if rel == ".":
                 dest_root = dst_dlssg_sub
             else:

@@ -36,13 +36,13 @@ DLSS5_ENGINE_MODES = {
     },
     "MODE_B": {
         "key": "MODE_B",
-        "title": "模式 B · Lecram v12 扩展定制底座 (可选项目)",
-        "short_name": "模式 B (Lecram v12 扩展底座)",
-        "addon_file": "Lecram-v12.addon64",
+        "title": "模式 B · DLSS5 NR v13.4 (Lecram) 扩展底座",
+        "short_name": "模式 B (DLSS5 NR v13.4 扩展底座)",
+        "addon_file": "dlss5-nr.addon64",
         "badge": "可选扩展",
-        "desc": "搭载 Lecram v12 深度定制面板 · 支持 UI 遮罩/缩放滤镜/色调强度/曝光等高级参数调节",
+        "desc": "DLSS5 NR v13.4.0 · 64 位宿主架构（dlss5-nr-host）· 预设库 / 对比 / 多 pass 与帧生成宿主接管",
         "ini_section": "RenoDX DLSS5",
-        "features": ["Hook Method", "UI Correction", "Character Mask", "Model A/B/C", "Scaling Domain & Filter"]
+        "features": ["NR host (64-bit)", "Preset library", "Compare / Studio", "Pass & hook settings"]
     },
     "MODE_C": {
         "key": "MODE_C",
@@ -66,6 +66,8 @@ CONFLICT_DLSS_ADDONS = [
     "renodx-dlss5-v11.9.addon64",
     "gitc-uplift.addon64",
     "gitc-uplift.addon32",
+    "dlss5-nr.addon64",
+    "dlss5-nr.addon32",
 ]
 
 DLSS5_PROXY_SLOTS = {
@@ -386,7 +388,8 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         "mode_b_v125_path": None,
         "mode_b_v125_size_mb": 0.0,
         "mode_b_v125_exists": False,
-        "mode_b_variant": "v12",
+        "mode_b_variant": "v13.4",
+        "mode_b_dir": None,
         "mode_c_path": None,
         "mode_c_size_mb": 0.0,
         "mode_c_exists": False,
@@ -443,23 +446,29 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
             result["mode_a_size_mb"] = round(cands_a[0].stat().st_size / (1024 * 1024), 2)
             result["mode_a_exists"] = True
 
-    # 3. Search for Mode B base: Lecram-v12.addon64
-    mode_b_file = s_dir / "Lecram-v12.addon64"
-    if mode_b_file.exists() and mode_b_file.is_file():
-        result["mode_b_path"] = str(mode_b_file)
-        result["mode_b_size_mb"] = round(mode_b_file.stat().st_size / (1024 * 1024), 2)
-        result["mode_b_exists"] = True
-    elif (LOCAL_ASSETS_DIR / "Lecram-v12.addon64").exists():
-        cand = LOCAL_ASSETS_DIR / "Lecram-v12.addon64"
-        result["mode_b_path"] = str(cand)
-        result["mode_b_size_mb"] = round(cand.stat().st_size / (1024 * 1024), 2)
-        result["mode_b_exists"] = True
-    else:
-        cands_b = list(s_dir.glob("Lecram*.addon64")) + list(s_dir.glob("lecram*.addon64"))
+    # 3. Search for Mode B base: DLSS5 NR v13.4 (dlss5-nr.addon64)
+    mode_b_candidates = [
+        s_dir / "lecram_v134" / "dlss5-nr.addon64",
+        s_dir / "dlss5-nr.addon64",
+        LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr.addon64",
+        LOCAL_ASSETS_DIR / "dlss5-nr.addon64",
+    ]
+    for _cand in mode_b_candidates:
+        if _cand.exists() and _cand.is_file():
+            result["mode_b_path"] = str(_cand)
+            result["mode_b_size_mb"] = round(_cand.stat().st_size / (1024 * 1024), 2)
+            result["mode_b_exists"] = True
+            result["mode_b_dir"] = str(_cand.parent)
+            break
+    if not result["mode_b_exists"]:
+        # 兼容早期安装：旧 Lecram v12 / v12.5 文件名
+        cands_b = (list(s_dir.glob("Lecram*.addon64")) + list(s_dir.glob("lecram*.addon64"))
+                   + list(s_dir.glob("*Lecram*.addon64")))
         if cands_b:
             result["mode_b_path"] = str(cands_b[0])
             result["mode_b_size_mb"] = round(cands_b[0].stat().st_size / (1024 * 1024), 2)
             result["mode_b_exists"] = True
+            result["mode_b_dir"] = str(cands_b[0].parent)
 
     # 3b. Search for Mode B v12.5 base (optional newer Lecram build)
     v125_names = ("renodx-dlss5-Lecram-v12.5.addon64", "Lecram-v12.5.addon64", "lecram-v12.5.addon64")
@@ -518,12 +527,7 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
             result["addon_name"] = Path(result["mode_a_path"]).name
             result["addon_size_mb"] = result["mode_a_size_mb"]
     elif mode == "MODE_B":
-        wants_v125 = str(mode_b_variant).lower().replace("v", "") in ("12.5", "125")
-        if wants_v125 and result["mode_b_v125_path"]:
-            result["mode_b_path"] = result["mode_b_v125_path"]
-            result["mode_b_size_mb"] = result["mode_b_v125_size_mb"]
-            result["mode_b_exists"] = True
-            result["mode_b_variant"] = "v12.5"
+        result["mode_b_variant"] = "v13.4"
         if result["mode_b_path"]:
             result["addon_path"] = result["mode_b_path"]
             result["addon_name"] = Path(result["mode_b_path"]).name
@@ -676,8 +680,8 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
 
     has_mode_a = (td / "renodx-dlss.addon64").exists()
     has_mode_c = any("gitc-uplift" in a.lower() for a in dlss_addons)
-    has_mode_b_v125 = any("v12.5" in a.lower() and "lecram" in a.lower() for a in dlss_addons)
-    has_mode_b = (td / "Lecram-v12.addon64").exists() or (td / "lecram-v12.addon64").exists() or has_mode_b_v125
+    has_mode_b = any("dlss5-nr" in a.lower() or "lecram" in a.lower() for a in dlss_addons)
+    has_mode_b_v125 = False
     has_legacy = any("v11.9" in a.lower() or "dlss5." in a.lower() or "beta" in a.lower() for a in dlss_addons)
 
     detected_mode = None
@@ -693,7 +697,7 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
         if has_mode_b_v125:
             mode_status_display = "🔵 已注入 DLSS 5 [模式 B · Lecram v12.5 扩展底座]"
         else:
-            mode_status_display = "🔵 已注入 DLSS 5 [模式 B · Lecram v12 扩展底座]"
+            mode_status_display = "🔵 已注入 DLSS 5 [模式 B · DLSS5 NR v13.4 扩展底座]"
     elif has_mode_a and has_mode_b:
         detected_mode = "MODE_A"
         mode_status_display = "⚠️ 检测到双底座冲突 (模式 A + 模式 B)，建议重新一键注入整理"
@@ -2059,24 +2063,18 @@ def ensure_reshade_chinese_ini(ini_path: Path, is_mode_c: bool = False, addon_na
         sections["ADDON"]["LoadFromDllMain"] = "" 
 
     # Key binding configuration:
-    # Mode B (Lecram v12): Hotkey set to F12 (VK_F12 = 123)
-    # Mode A (ShortFuse): Default Home key (VK_HOME = 36)
+    # Mode A (ShortFuse) / Mode B (DLSS5 NR v13.4) 都用 Home 呼出 NR 面板；
+    # v13.4 的 ReShade 自带菜单是 Shift + Home。
+    sections["OVERLAY"]["KeyOverlay"] = "36,0,0,0"
+    if "INPUT" not in sections:
+        sections["INPUT"] = {}
+    sections["INPUT"]["KeyOverlay"] = "36,0,0,0"
     if mode == "MODE_B":
-        sections["OVERLAY"]["KeyOverlay"] = "123,0,0,0"
-        if "INPUT" not in sections:
-            sections["INPUT"] = {}
-        sections["INPUT"]["KeyOverlay"] = "123,0,0,0"
-        sections["RenoDX.DLSS5"]["NRPanelKey"] = "123,0,0,0"
-        sections["RenoDX.DLSS5"]["ReShadeMenuKey"] = "123,0,0,0"
-        if "hotkeys" not in sections:
-            sections["hotkeys"] = {}
-        sections["hotkeys"]["NRPanelKey"] = "123,0,0,0"
-        sections["hotkeys"]["NRToggleKey"] = "0,0,0,0"
-    else:
-        sections["OVERLAY"]["KeyOverlay"] = "36,0,0,0"
-        if "INPUT" not in sections:
-            sections["INPUT"] = {}
-        sections["INPUT"]["KeyOverlay"] = "36,0,0,0"
+        sections.setdefault("RenoDX.DLSS5", {})
+        sections["RenoDX.DLSS5"]["NRPanelKey"] = "36,0,0,0"
+        sections["RenoDX.DLSS5"]["ReShadeMenuKey"] = "36,0,0,0"
+        sections.setdefault("hotkeys", {})
+        sections["hotkeys"]["NRPanelKey"] = "36,0,0,0"
 
     # Synchronize DLSS preset with Mode A / Mode B / Mode C (40/50系=13, 20/30系=11)
     try:
@@ -2464,6 +2462,25 @@ class DLSS5Injector:
                     if fx_src.exists():
                         shutil.copy2(str(fx_src), str(td / fx_name))
                         manifest_data["injected_files"].append(fx_name)
+
+            # 6.2c 模式 B（DLSS5 NR v13.4）：随包宿主目录 dlss5-nr-host 与 32 位插件
+            if mode == "MODE_B":
+                _b_dir = Path(assets.get("mode_b_dir") or Path(addon_src).parent)
+                _host_src = _b_dir / "dlss5-nr-host"
+                if _host_src.is_dir():
+                    _host_dst = td / "dlss5-nr-host"
+                    if _host_dst.is_dir():
+                        shutil.rmtree(_host_dst, ignore_errors=True)
+                    # host 目录只放宿主（上游 zip 里夹带的 addon 副本不复制，根目录已经有一份）
+                    shutil.copytree(
+                        _host_src, _host_dst,
+                        ignore=shutil.ignore_patterns("dlss5-nr.addon64", "dlss5-nr.addon32"),
+                    )
+                    manifest_data["injected_files"].append("dlss5-nr-host")
+                _addon32 = _b_dir / "dlss5-nr.addon32"
+                if _addon32.exists():
+                    shutil.copy2(str(_addon32), str(td / _addon32.name))
+                    manifest_data["injected_files"].append(_addon32.name)
 
             # 6.3 Copy nvngx_dlssnr.dll（模式 C 时只放 GITC-Uplift 子目录，避免 50 系驱动抢先加载）
             if mode == "MODE_C":
@@ -2881,6 +2898,11 @@ class DLSS5Injector:
                     removed_items.append(addon_file.name)
             except Exception:
                 pass
+
+        # (A1b) 模式 B 的 DLSS5 NR 宿主目录
+        if (td / "dlss5-nr-host").is_dir():
+            shutil.rmtree(td / "dlss5-nr-host", ignore_errors=True)
+            removed_items.append("dlss5-nr-host/")
 
         # (A2) GITC Uplift 专属文件：helper、着色器、GITC-Uplift 数据目录
         for _gitc_file in ("gitc-uplift-helper64.exe", "Uplift.fx", "UpliftMask.fx"):
@@ -3314,7 +3336,7 @@ class DLSS5DelayedInjector:
 
                 time.sleep(0.3)
                 if cls.is_module_loaded(pid, dll_name):
-                    return True, f"🎉 成功向游戏主进程 (PID: {pid}) 注入底座模块: {dll_name}！\n\n游戏内按【Home】键（模式 B 为【F12】键）即可呼出 DLSS 5 / RenoDX 简体中文控制面板！"
+                    return True, f"🎉 成功向游戏主进程 (PID: {pid}) 注入底座模块: {dll_name}！\n\n游戏内按【Home】键即可呼出 NR 面板（v13.4 的 ReShade 菜单为 Shift+Home） / RenoDX 简体中文控制面板！"
                 return True, f"远程加载指令已执行 (返回地址: 0x{exit_code.value:X})。"
             finally:
                 cls._k32.VirtualFreeEx(h_process, remote_mem, 0, cls.MEM_RELEASE)

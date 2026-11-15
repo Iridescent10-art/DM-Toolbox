@@ -1,0 +1,40 @@
+DLSS5 NR v13.4.0: the add-on for a hand install (DLSS5 NR Setup does all of this for you)
+
+Needs ReShade 6.8 or newer with add-on support in the game (ReShade's setup: "with full add-on support").
+
+1. Close the game.
+2. Copy everything in this zip into the folder that holds the game's ReShade (its dxgi.dll, d3d9.dll, d3d11.dll,
+   opengl32.dll, ReShade64.dll or ReShade32.dll), the dlss5-nr-host folder as it is. ReShade loads the add-on that
+   matches the game (dlss5-nr.addon64 in a 64-bit game, dlss5-nr.addon32 in a 32-bit one) and leaves the other.
+   Delete any other copy of the add-on there (a browser names a second download "dlss5-nr (2).addon32").
+3. dlss5-nr-host is NR's 64-bit host. Direct3D 9, Direct3D 10, OpenGL and every 32-bit game run NR through it, and
+   so do 64-bit Direct3D 11 games with in-game MSAA: without it NR does not run there and its panel never opens.
+4. NR's runtime, nvngx_dlssnr.dll (NVIDIA's, not in this zip): beside the game's exe, or once for every game in
+   %LOCALAPPDATA%\DLSS5-NR\runtime, where DLSS5 NR Setup keeps it. Its kernels must fit your card: NVIDIA's own file
+   carries RTX 50 kernels only, so on an earlier card use a build that carries yours (a community build for earlier
+   cards). With more than one copy in reach, NR loads the one whose kernels fit your card before one that does not.
+5. NVIDIA's files, only for the features you use (DLSS5 NR Setup's Storage rows, or "DLSS5 NR Setup.exe --cli
+   -Action nvidia", fetch and check all of them; by hand they are NVIDIA's own files, from NVIDIA's own pages):
+   - DLSS Super Resolution: nvngx_dlss.dll 310.9.1 or newer. If the NVIDIA driver's own store
+     (C:\ProgramData\NVIDIA\NGX\models) holds one, there is nothing to copy. Otherwise put the file in
+     %LOCALAPPDATA%\DLSS5-NR\runtime\dlss\310.9.16\ (the folder is named for the file's version).
+   - Frame generation (RTX 40 or newer; off by default): the five Streamline 2.12.0 plugins sl.interposer.dll,
+     sl.common.dll, sl.dlss_g.dll, sl.reflex.dll and sl.pcl.dll (bin\x64 of NVIDIA's Streamline 2.12.0 SDK zip) and
+     nvngx_dlssg.dll 310.7.0 or newer (NVIDIA's DLSS repository), all in
+     %LOCALAPPDATA%\DLSS5-NR\runtime\streamline\2.12.0\. A game that ships its own Streamline needs none of this.
+   - NRNvidiaPath=<folder> in the game's ReShade.ini names another folder with the same layout (dlss\<version>,
+     streamline\<version>) for that game.
+6. Start the game. Home opens NR's panel; Shift + Home opens ReShade's own menu.
+
+Games with an anti-cheat (Easy Anti-Cheat, BattlEye, Riot Vanguard, XIGNCODE3, nProtect GameGuard, PunkBuster, Ricochet,
+Javelin): NR is meant to stay out of them, and DLSS5 NR Setup asks twice before it adds NR there. A graphics add-on beside
+an anti-cheat game can keep the game from starting, and online play may treat it as tampering. A hand install asks
+nothing, so look in the game's folder first.
+
+No Feeder, Lumenite or depth add-on is needed: NR finds the game's depth and motion itself. Remove them, and a
+DLSS5_Feed technique from a ReShade preset.
+
+Other ReShade add-ons (RenoDX, Luma) stay where they are, beside the game's ReShade: they keep running in the game.
+The dlss5-nr-host folder holds only NR's host; nothing else goes in there.
+
+Updating: copy this zip's files over the old ones, dlss5-nr-host included. Your settings stay in ReShade.ini.

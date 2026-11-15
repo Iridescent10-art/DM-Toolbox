@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QScrollArea, QComboBox, QLineEdit,
     QFileDialog, QRadioButton, QButtonGroup, QSizePolicy,
-    QCheckBox, QSpacerItem
+    QCheckBox, QSpacerItem, QDialog
 )
 
 # Root directory resolution
@@ -229,7 +229,7 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_head.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.Bold))
         lbl_head.setWordWrap(True)
 
-        lbl_sub = QLabel("搭载 ShortFuse 原生底座 (模式 A 默认) / Lecram v12 扩展底座 (模式 B 可选) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
+        lbl_sub = QLabel("搭载 ShortFuse 原生底座 (模式 A 默认) / DLSS5 NR v13.4 扩展底座 (模式 B 可选) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
         lbl_sub.setObjectName("dlss5_sub_title")
         lbl_sub.setFont(QFont("Microsoft YaHei UI", 9))
         lbl_sub.setWordWrap(True)
@@ -287,6 +287,13 @@ class DLSS5MainWindow(DMBaseWindow):
         self.btn_add_custom.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_add_custom.clicked.connect(self._add_custom_game_action)
         card_game_header.addWidget(self.btn_add_custom)
+
+        self.btn_add_from_process = QPushButton("🖥️ 从进程添加")
+        self.btn_add_from_process.setFixedHeight(28)
+        self.btn_add_from_process.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_add_from_process.setToolTip("从当前运行中的程序里选游戏，自动识别安装目录")
+        self.btn_add_from_process.clicked.connect(self._add_from_process_action)
+        card_game_header.addWidget(self.btn_add_from_process)
 
         card_game_layout.addLayout(card_game_header)
 
@@ -471,7 +478,7 @@ class DLSS5MainWindow(DMBaseWindow):
             "MODE_A"
         )
         self.combo_dlss5_mode.addItem(
-            "⚡ 模式 B (可选项目) — Lecram v12 / v12.5 [Lecram 旗舰扩展底座 · 深度参数定制 · 快捷键 F12]",
+            "⚡ 模式 B (可选项目) — DLSS5 NR v13.4 [Lecram 新版 · 64 位宿主 · 预设库/对比/多 pass]",
             "MODE_B"
         )
         self.combo_dlss5_mode.addItem(
@@ -487,16 +494,13 @@ class DLSS5MainWindow(DMBaseWindow):
         self.combo_mode_b_variant.setFixedHeight(32)
         self.combo_mode_b_variant.setFont(QFont("Microsoft YaHei UI", 9))
         self.combo_mode_b_variant.addItem(
-            "🔧 模式 B · Lecram v12（默认）— 9.0 MB · 稳定版", "v12"
-        )
-        self.combo_mode_b_variant.addItem(
-            "🧪 模式 B · Lecram v12.5（新版）— 10.0 MB · 可选升级", "v12.5"
+            "🆕 模式 B · DLSS5 NR v13.4.0（唯一版本）— 13.5 MB · 64 位宿主", "v13.4"
         )
         self.combo_mode_b_variant.setToolTip(
             "Lecram v12.5 是较新的扩展底座版本，面板与参数项更多；\n"
             "若 v12.5 出现兼容问题，可随时切回 v12。"
         )
-        self.combo_mode_b_variant.setCurrentIndex(1)  # 默认 Lecram v12.5
+        self.combo_mode_b_variant.setCurrentIndex(0)
         self.combo_mode_b_variant.setVisible(False)
         card_plugin_layout.addWidget(self.combo_mode_b_variant)
 
@@ -827,6 +831,20 @@ class DLSS5MainWindow(DMBaseWindow):
         finally:
             self.set_status("就绪")
 
+    def _add_from_process_action(self):
+        """从运行中的进程选择游戏（任务管理器式）。"""
+        try:
+            from common.process_picker_dialog import RunningProcessPickerDialog
+            from common.config_manager import get_global_theme
+        except Exception as exc:
+            ModernDialog.warning(self, "不可用", f"进程选择器加载失败: {exc}")
+            return
+        dlg = RunningProcessPickerDialog(self, is_dark=(get_global_theme() == "dark"))
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            path = dlg.selected_path()
+            if path and os.path.exists(path):
+                self._add_game_by_path(path)
+
     def _add_custom_game_action(self):
         """Manually picks a game exe file."""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -837,7 +855,10 @@ class DLSS5MainWindow(DMBaseWindow):
         )
         if not file_path:
             return
+        self._add_game_by_path(file_path)
 
+    def _add_game_by_path(self, file_path: str):
+        """把指定 exe 识别为游戏并加入游戏库（手动选择与进程选择共用）。"""
         try:
             info = self.scanner.get_game_info_from_exe(file_path)
             if info:
@@ -910,7 +931,7 @@ class DLSS5MainWindow(DMBaseWindow):
                 }
             """)
         elif mode == "MODE_B":
-            self.lbl_mode_hint.setText("当前已选模式 B (可选)：使用 Lecram-v12.addon64，游戏内按 F12 可调 UI 遮罩、滤镜与 Model A/B/C。")
+            self.lbl_mode_hint.setText("模式 B：DLSS5 NR v13.4（Lecram 新版）· 自动部署 dlss5-nr.addon64 + dlss5-nr-host 宿主 · 进游戏按 Home 打开 NR 面板")
             self.lbl_mode_hint.setStyleSheet("""
                 QLabel {
                     color: #0284c7;
@@ -936,7 +957,7 @@ class DLSS5MainWindow(DMBaseWindow):
         """Triggered when user manually switches mode combo box."""
         mode = self.combo_dlss5_mode.itemData(idx) or "MODE_A"
         if hasattr(self, "combo_mode_b_variant"):
-            self.combo_mode_b_variant.setVisible(mode == "MODE_B")
+            self.combo_mode_b_variant.setVisible(False)
         self._update_mode_hint(mode)
         self._refresh_plugin_assets()
 
@@ -953,7 +974,7 @@ class DLSS5MainWindow(DMBaseWindow):
                 self.combo_dlss5_mode.blockSignals(False)
             self._update_mode_hint(mode if mode in ("MODE_A", "MODE_B") else "MODE_A")
         if hasattr(self, "combo_mode_b_variant"):
-            self.combo_mode_b_variant.setVisible(target_idx == 1)
+            self.combo_mode_b_variant.setVisible(False)
             if target_idx != 1:
                 # 回到模式 A 时把 B 的版本选择复位到默认 v12.5，
                 # 避免上一次模式 B 的残留选择影响下一次注入。
@@ -1160,7 +1181,7 @@ class DLSS5MainWindow(DMBaseWindow):
         if assets.get("mode_b_path"):
             act_tag = " [当前激活]" if cur_mode == "MODE_B" else ""
             v_name = Path(assets["mode_b_path"]).name
-            v_label = "Lecram v12.5 扩展版" if assets.get("mode_b_variant") == "v12.5" else "Lecram v12 扩展版"
+            v_label = "DLSS5 NR v13.4 扩展版"
             details.append(f"• 模式 B 底座: {v_name} ({assets['mode_b_size_mb']} MB · {v_label} [可选项目]{act_tag})")
         else:
             details.append("• 模式 B 底座: <span style='color: #ef4444;'>❌ 缺失 Lecram 底座</span>")
@@ -1419,7 +1440,7 @@ class DLSS5MainWindow(DMBaseWindow):
 
         mode_tag = {
             "MODE_A": "模式 A: renodx-dlss.addon64",
-            "MODE_B": "模式 B: Lecram v12 / v12.5",
+            "MODE_B": "模式 B: DLSS5 NR v13.4",
             "MODE_C": "模式 C: GITC Uplift",
         }.get(chosen_mode, chosen_mode)
 

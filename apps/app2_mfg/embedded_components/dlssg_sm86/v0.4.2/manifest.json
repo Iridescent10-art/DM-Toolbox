@@ -1,0 +1,57 @@
+{
+  "project":"dlssg",
+  "configuration":"Release",
+  "runtime_model":"310.9.16",
+  "created_at":"2026-11-14T02:18:06Z",
+  "bundle":{
+  "version":"0.4.2",
+  "runtime_model":"310.9.16",
+  "runtime_sha256":"cadee1aa6db3907babdc3285da2aebc4553d92b89c38ba3eae8abd8bba1bea72",
+  "runtime_version":"310.9.16.0",
+  "runtime_packaged":true,
+  "release_assets_required":true,
+  "runtime_path":"dlssg_sm86/runtime/nvngx_dlssg.dll",
+  "backend_path":"dlssg_sm86/backend/sm86_backend.dll",
+  "kernel_pack_path":"dlssg_sm86/kernels/fg_kernels.dll",
+  "sr_runtime_sha256":"858ccff96360c3098db9264cd6f13d04a027e09b6ce7ad5bbc297570e824b4f2",
+  "sr_runtime_version":"310.9.16.0"
+}
+,
+  "build_checks":{
+    "passed":  true,
+    "scope":  "CTest (ctest -N lists the cases)",
+    "tests":  55
+},
+  "gpu_validation":{"performed":false,"reason":"Build only; run build.cmd -Validate for GPU comparisons"},
+  "files":[
+    {"path":"version.dll","size":815240,"sha256":"8363e97250f1f4345cbf3e75344a5508262c9bbafea5ad7a7f0e2ed97742369a"},
+    {"path":"alternatives/winmm.dll","size":825992,"sha256":"77f2867307d7917ad29f09d2ef8ebbc64f250ac66723c527422855151a52e0c4"},
+    {"path":"alternatives/dbghelp.dll","size":832648,"sha256":"6e6fdb5e97f9b09fbe897e219026fcc7c7755d3cb995b1cdfaf6bf2b5cf19e09"},
+    {"path":"alternatives/dinput8.dll","size":814216,"sha256":"83424ebe94e8b8fcd3f6a8ba4922a089ad93b89db9eeeb356beebf6af6d5525a"},
+    {"path":"alternatives/dxgi.dll","size":815752,"sha256":"d66d24c98cdc45789d0ec537e113a39859a1178b22faecbcd22414ce5099f77b"},
+    {"path":"alternatives/d3d12.dll","size":815752,"sha256":"29a6c6fa80f0efac4271d786e1f84da62bc85ae0acab7ff437ca2349cc621977"},
+    {"path":"alternatives/README.md","size":3462,"sha256":"1a5575e4c01a69a7438c971d45a6685b1ba4891bbb5cb02e5aa57b02fa8fd05f"},
+    {"path":"dlssg_sm86.ini","size":10480,"sha256":"f87c375e80f8992d5988f4fd3434b39e7bd09f1650fffc3e64be90c43812c191"},
+    {"path":"README.md","size":47987,"sha256":"891851a1bf7f0493bb251756c0be1743b0cd3e023db30544fa49c5c64b8d4403"},
+    {"path":"README.en.md","size":52415,"sha256":"1cbcab85eb7406e7d91de5b74a316fd9b3a280425f68396c5ee948a0235bebb5"},
+    {"path":"MANUAL.html","size":36426,"sha256":"0a5e9a12bf6aba813cf1cd37ad6b6073ee07a189897a0e953b4a228ef65fa9c1"},
+    {"path":"MANUAL.en.html","size":38315,"sha256":"8d00dfd4e1c2cf47734224b12fe910b8197ead10a8e3389d7bab968e57942710"},
+    {"path":"dlssg_sm86ini_Configurator.html","size":63782,"sha256":"94828dff337e19959f63083bd9b996e0052c70f495cd480bcd2ebda4bb99cd43"},
+    {"path":"LICENSE.md","size":1065,"sha256":"7537220f50c6430d953eda8bff01f0817014e604cb3607f3b62c786d070d8570"},
+    {"path":"THIRD_PARTY_NOTICES.txt","size":10517,"sha256":"6729e527a07ae224904e824bfdcdda52b6e1e80a0c5d23246d69b3804f241184"},
+    {"path":"dlssg_sm86/backend/sm86_backend.dll","size":2328200,"sha256":"93a1b4ac1ae0dd0853c45b59b16c3698035cc8e3a749e34c232eb579e602b8e2"},
+    {"path":"dlssg_sm86/kernels/fg_kernels.dll","size":11875464,"sha256":"9882a01f30dd65f36ea1fc6223827e6f86679b99eb09e108eacc51556eea4e18"},
+    {"path":"docs/PROJECT.md","size":8073,"sha256":"6047b1854499a61e9ac3c41b0b81a7ce65948d39a9b2cae823dcf2f849f63bb4"},
+    {"path":"docs/INSTALL.md","size":150250,"sha256":"544722f85f126b066c23a54e81ba424812bf418fa51d217c946de3e6d0b1863c"},
+    {"path":"docs/INSTALL.en.md","size":163332,"sha256":"51eca8a8be9e76e379fdff4e72a987c233186df86edd8791f78044d0104bc6cc"},
+    {"path":"docs/ARCHITECTURE.md","size":100029,"sha256":"9f0dd5c41d3a6f0c8252f573b7979fdc20a8f629c75049c6376b90a5f91446fa"},
+    {"path":"docs/CAPTURE.md","size":41783,"sha256":"c8b14cc5788b5efef33609d1ea98402c03b254246b6e0b89140e83dcabb2f2b4"},
+    {"path":"docs/CAPTURE_SR.md","size":38717,"sha256":"51047cd31bf7a3f6c132e5b7305f5184e60c46ac1517129b748238e572c6561c"},
+    {"path":"docs/SIGNING.md","size":5389,"sha256":"55db390023ebbc558ad74d03b3f3565cfad12d8f2333af38f58a2897c1095a52"},
+    {"path":"validation.json","size":88,"sha256":"03b74015568e6bf069e02614934d2a6fd6d377433ef50522062b92618fe9679e"},
+    {"path":"dlssg_sm86/runtime/nvngx_dlssg.dll","size":7506544,"sha256":"cadee1aa6db3907babdc3285da2aebc4553d92b89c38ba3eae8abd8bba1bea72"},
+    {"path":"dlssg_sm86/xefg/xefg_kernels.dll","size":17287816,"sha256":"1d9719d347e423b59400f5912fea87e6c801932810b79e74921b1a30ba7b5318"},
+    {"path":"dlssg_sm86/sr/nvngx_dlss.dll","size":74187376,"sha256":"858ccff96360c3098db9264cd6f13d04a027e09b6ce7ad5bbc297570e824b4f2"},
+    {"path":"dlssg_sm86/sr/sr_kernels.dll","size":106570376,"sha256":"ea06f9e605b06f9e2644139100d38f86b976c8884c7ad05c76652f16021bb6ee"}
+  ]
+}

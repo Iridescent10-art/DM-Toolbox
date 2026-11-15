@@ -1,3 +1,142 @@
+# 🖥️ DM-Toolbox (DM工具箱) v3.1.0 · 手动添加游戏支持「从运行中的进程选择」
+
+**游戏库新增任务管理器式的添加方式：直接从正在运行的程序里挑游戏，自动定位安装目录。**
+
+---
+
+### 🆕 1. 「从进程添加」按钮
+
+- 位置：
+  - 多帧生成 → 游戏库管理 → 顶部「🖥️ 从进程添加」；
+  - DLSS 5 面板 → 目标游戏选择 → 「🖥️ 从进程添加」（在「手动添加游戏 (.exe)」右侧）；
+- 两个面板共用同一套进程枚举与选择对话框（`common/process_scanner.py`、`common/process_picker_dialog.py`）；
+- 打开后列出当前**正在运行、带可见窗口**的程序，显示进程名 / PID / 完整路径；
+- 支持搜索框过滤（进程名或路径）、刷新、双击直接添加；
+- 选中后自动识别游戏目录与可执行文件（复用现有的 Shipping / Streamline 深度识别），
+  识别为 QUALIFIED 后直接写入游戏库并切回首页。
+
+### 🧠 2. 进程候选过滤
+
+- 只保留用户目录 / 游戏目录下的 `.exe`；
+- 排除 `C:\Windows\*`、`Program Files\WindowsApps\*`；
+- 排除系统与常用工具进程（steam / epic / wegame / explorer / python / 浏览器 / 聊天工具等）；
+- 排除安装器、卸载器、更新器、崩溃报告（`unins*` / `setup*` / `*updater*` / `*crash*`）；
+- 有可见窗口的进程排在前面，同名多开只保留一个。
+
+### 🔍 3. 回归
+
+- 新增 2 项测试（候选过滤规则、进程枚举返回结构）；
+- 全量测试：**170 passed**。
+
+---
+
+# 🧬 DM-Toolbox (DM工具箱) v3.0.9 · 模式 A / 模式 B 底座更新
+
+**模式 A 换成 ShortFuse 中文新版，模式 B 换成 DLSS5 NR v13.4（Lecram），旧版本全部移除。**
+
+---
+
+### 🅰️ 1. 模式 A：ShortFuse 中文新版（26092809）
+
+- 资源文件名保持 `renodx-dlss.addon64`（注入到游戏里也是这个名字）；
+- 二进制替换为 `renodx-dlss-SF-CN-26092809.addon64`（2.77 MB，
+  SHA-256 `9dda03ab…fac449`）；
+- 旧版（3.49 MB）不再随包，也不再备份。
+
+### 🅱️ 2. 模式 B：DLSS5 NR v13.4.0（Lecram）
+
+- 旧版 `Lecram-v12.addon64` 与 `renodx-dlss5-Lecram-v12.5.addon64` 全部移除；
+- 新版为 `dlss5-nr.addon64`（13.51 MB）+ `dlss5-nr.addon32`（1.48 MB）
+  + **64 位宿主目录 `dlss5-nr-host\`**（`nr-host64.exe` + `ReShade64.dll`）；
+- 注入时按上游 INSTALL 要求整套复制：`dlss5-nr.addon64`、`dlss5-nr.addon32`、`dlss5-nr-host\`；
+- 面板去掉 v12 / v12.5 版本下拉，模式 B 固定为 v13.4；
+- 热键改为 **Home** 呼出 NR 面板（v13.4 的 ReShade 菜单是 Shift+Home），不再使用 F12；
+- 卸载时一并清理 `dlss5-nr-host\`。
+
+### 🧹 3. 兼容与清理
+
+- 停止识别旧 Lecram 文件名作为主路径，但仍会在切换模式时清理 `Lecram*.addon64` 残留；
+- 冲突清单加入 `dlss5-nr.addon64/addon32`，避免与 RenoDX 模式 A、GITC 模式 C 同时加载。
+
+### 🔍 4. 回归
+
+- 更新双模式测试：模式 B 断言改为 `dlss5-nr.addon64` + `dlss5-nr-host\nr-host64.exe`；
+- 全量测试：**168 passed**。
+
+---
+
+# 🔥 DM-Toolbox (DM工具箱) v3.0.8 · 模式 C 升级 dlssg_for_sm86 0.4.2 + 只保留 MFG Unlocker 1.7.1
+
+**模式 C（dlssg_for_sm86）升级到 0.4.2；内置组件只保留 MFG Unlocker 1.7.1。**
+
+---
+
+### ⬆️ 1. 模式 C 升级到 dlssg_for_sm86 0.4.2
+
+- 内置版本 `0.4.0 → 0.4.2`（上游 2026-11-14 发布）；
+- 0.4.2 带来的变化：
+  - **XeSS-FG 在 RTX 50（Blackwell）上的性能修复**（独立编 `.bw` 内核镜像）；
+  - **XeSS-FG 支持抖动运动矢量**（`DLSSG.MvecJittered=1`），3X / 4X 不再报 `unsupported_input`；
+  - 4K 下 MV splat 换成本项目 CUDA 内核，每真实帧再快 3–5.6%；
+  - 新增 `dlssg_sm86ini_Configurator.html`（单文件 INI 配置器）；
+  - `[XeSSFG] UseHudless=Auto` 行为对齐 `0`（整幅画面插值，不再产生 `xefg_hudless_unused`）。
+- 配置结构同步 0.4.2：
+  - `[DLSSG] Preset` 只接受 **A / B / C**（`Auto` / `Default` 已删除，写旧值会导致 `configuration_invalid` 并关闭帧生成）；
+  - `[DLSSG] Optimized` 出厂值改为 **1**（与官方逐位一致），仍可在 0/1/2/3 间选择；
+  - `[SuperResolution] Mode` 改为 `Off / M-INT8 / L-INT8 / M-FP16 / L-FP16`；
+  - 面板下拉同步为新取值，旧预设会自动迁移（Auto/Default→C，SR On→Off）。
+- **可选 sr 超分内核按需部署**：0.4.2 的 `dlssg_sm86\sr\`（约 172 MB）只有在用户把「超分辨率托管模式」设为非 Off 时才复制进游戏目录，默认注入不占用这份空间。
+
+### 🧹 2. 内置组件精简
+
+- 删除 `embedded_components/dashdogy/v1.6.1` 与 `v1.7.0`，只保留 **v1.7.1**（7.05 MB）；
+- 组件注册表同步只保留 `v1.7.1` 条目，安装包体积随之下降；
+- 模式 C 旧版 `v0.4.0` 目录升级为 `v0.4.2`，代码里的兜底路径全部指向新版本。
+
+### 🔍 3. 回归
+
+- 全量测试：**172 passed**；
+- 覆盖：模式 C 预设迁移、INI 前向/反向同步、DLSS 5 共存链路、组件注册表版本比较。
+
+---
+
+# 🚀 DM-Toolbox (DM工具箱) v3.0.7 · MFG Unlocker 升级 1.7.1（全显卡 + AMD 默认 XeSS）
+
+**多帧生成模式 A 升级到 dashdogy MFG Unlocker 1.7.1：全显卡可用，默认注入方式改为模式 A，
+AMD 显卡默认走 XeSS 多帧生成（XeMFG）。**
+
+---
+
+### ⬆️ 1. 模式 A 升级到 MFG Unlocker 1.7.1
+
+- 内置 `MFGUnlocker.dll` 版本 `v1.7.0 → v1.7.1`（7.05 MB，SHA-256 已校验）；
+- 1.7.1 起 **DLSS MFG 覆盖 RTX 50/40/30/20 全系**，并新增：
+  - XeSS 多帧生成（XeMFG）在 NVIDIA / AMD / Intel 上独立运行；
+  - XeMFG pacing（AMD 帧节奏与延迟优化）；
+  - RTX 40/30 的 RTX Hair；
+  - DX11 游戏的菜单与 DLSS 5 支持；
+  - OptiScaler 内新增 MFG Unlocker 标签页、快捷键标签页。
+- 组件注册表升级逻辑修正：embedded 版本比本地缓存新时，会自动更新 `latest_tag`
+  （旧逻辑只在本地没有版本时才写入，导致新内置版本用不上）。
+
+### 🎯 2. 默认注入方式改为模式 A
+
+- 智能优选不再按显卡分流（原先 RTX 20/30→模式 C、RTX 40/50→模式 A、其他→模式 B）；
+- 现在 **所有显卡默认模式 A**，模式 B / C 仍可手动选择；
+- 界面文案同步：模式 A 标注为「全显卡」，推荐说明改为「全显卡默认模式 A，AMD 默认 XeSS」。
+
+### 🔴 3. AMD 显卡默认使用 XeSS 多帧生成
+
+- 检测到 AMD / Radeon 显卡时，自动把模式 A 预设的 `xemfg_standalone` 打开（XeMFG 插帧内核）；
+- 对应配置：`RTXMFG-Universal.json → "xemfgStandalone": 1`、`mfg_unlocker.ini → [XeMFG] Standalone=1`。
+
+### 🔍 4. 回归
+
+- 新增 4 项测试（AMD 判定、全显卡默认模式 A、AMD 自动开 XeMFG、版本号比较）；
+- 全量测试：**172 passed**。
+
+---
+
 # 🎯 DM-Toolbox (DM工具箱) v3.0.6 · 修复 UE5 游戏（黑神话：悟空）识别不到多帧生成
 
 **v3.0.6 修好了「游戏明明支持帧生成，工具箱却显示不支持」的 UE5 结构识别问题。**

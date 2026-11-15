@@ -34,7 +34,8 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QComboBox, QFrame, QFileDialog, QDialog,
     QGridLayout, QStackedWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QLineEdit, QScrollArea, QSizePolicy,
-    QTextBrowser, QTabWidget, QCheckBox, QSlider, QButtonGroup
+    QTextBrowser, QTabWidget, QCheckBox, QSlider, QButtonGroup,
+    QListWidget, QListWidgetItem, QAbstractItemView
 )
 from ctypes import wintypes
 
@@ -48,6 +49,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from common.config_manager import get_global_theme, set_global_theme
+from common.process_picker_dialog import RunningProcessPickerDialog
 from common.ui_theme import CaptionButton, CaptionButtonType, ModernProgressDialog, ProgressSignalBridge, theme_toggle_icon
 from common.dm_ui_core import DMSizeGrip, apply_dm_window_frame, ModernDialog, SCROLLBAR_LIGHT_QSS, SCROLLBAR_DARK_QSS
 from common.wallpaper_manager import (
@@ -378,7 +380,7 @@ class ModernTranslationGuideDialog(QDialog):
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
             <h3 style="color: #3E9E69; margin-top: 0;">📦 模式 A · dashdogy 独立代理（Backspace）</h3>
-            <p><b>适用显卡</b>：NVIDIA GeForce RTX 40 / 50 系列。</p>
+            <p><b>适用显卡</b>：NVIDIA RTX 20/30/40/50、AMD Radeon、Intel Arc（1.7.1 起全显卡支持；AMD / Intel 默认走 XeSS 多帧生成 XeMFG）。</p>
             <p><b>核心优势</b>：零外部依赖，使用微软系统级代理 DLL (<code>version.dll</code> 或 <code>winmm.dll</code>) 劫持注入，完全原生兼容，性能损耗为 0。</p>
             <p><b>游戏内快捷键</b>：进入游戏按下键盘 {badge_bs} 可呼出内置设置菜单。</p>
             <p><b>开启方式</b>：进入游戏系统的【画质设置】/【图像设置】，将【DLSS 帧生成】开关直接打开即可享受流畅多帧生成！</p>
@@ -1053,7 +1055,7 @@ class OptiScalerPresetDialog(QDialog):
         self.tab_button_group = self.btn_group
         self.btn_group.setExclusive(True)
 
-        text_a = "🚀 模式 A: dashdogy (RTX 40/50 系)"
+        text_a = "🚀 模式 A: dashdogy (全显卡)"
         text_b = "⚡ 模式 B: OptiScaler (全显卡/跨架构)"
         text_c = "🔥 模式 C: dlssg_for_sm86 (RTX 20/30 系首选)"
 
@@ -1062,7 +1064,7 @@ class OptiScalerPresetDialog(QDialog):
         self.tab_btn_c = QPushButton(text_c)
 
         tooltips = [
-            "模式 A: dashdogy 原生多帧解锁器 (Universal MFG-Unlocker · RTX 40/50 系推荐 · Backspace 菜单)",
+            "模式 A: dashdogy 原生多帧解锁器 (Universal MFG-Unlocker 1.7.1 · 全显卡 · Backspace 菜单)",
             "模式 B: OptiScaler 跨架构转译 (Intel XeSS 2.0 / FSR 3.1 / 全显卡多倍插帧 · Insert 菜单)",
             "模式 C: dlssg_for_sm86 原生插帧 (专为 RTX 20/30 系定制 · 原生 DLSS-G 神经网络与专属加速内核 · 完美共存 DLSS 5)"
         ]
@@ -2037,11 +2039,10 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_sm86_preset.setMinimumHeight(36)
         self.combo_sm86_preset.setMinimumWidth(280)
         self.combo_sm86_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_sm86_preset.addItem("Model C (FG Lite 极速多帧 · 推荐跟随 nvapp) [默认推荐]", "C")
-        self.combo_sm86_preset.addItem("Auto (跟随游戏或驱动默认设置)", "Auto")
-        self.combo_sm86_preset.addItem("Default (官方原生标准帧生成模型)", "Default")
-        self.combo_sm86_preset.addItem("Model B (完整 UI 重构 · 原生标准默认)", "B")
-        self.combo_sm86_preset.addItem("Model A (早期模型 · 关闭 UI 重构)", "A")
+        # 0.4.2 起上游只认 A / B / C；Auto / Default 已删除，写进去会 configuration_invalid
+        self.combo_sm86_preset.addItem("Model C (FG Lite 轻量插帧 · 默认推荐)", "C")
+        self.combo_sm86_preset.addItem("Model B (UI 重组 · 需游戏提供 HUD-less 与 UI 平面)", "B")
+        self.combo_sm86_preset.addItem("Model A (原生标准 · 不做额外处理)", "A")
         self.combo_sm86_preset.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_sm86_preset.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_preset.addWidget(self.combo_sm86_preset, 1)
@@ -2101,7 +2102,10 @@ class OptiScalerPresetDialog(QDialog):
         self.combo_sm86_sr.setMinimumWidth(280)
         self.combo_sm86_sr.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.combo_sm86_sr.addItem("Off (关闭超分接管 · 让位 DLSS 5 神经重构或游戏原生) [完美共存推荐]", "Off")
-        self.combo_sm86_sr.addItem("On (开启自带超分内核 · 独立运行时可选)", "On")
+        self.combo_sm86_sr.addItem("M-INT8 (预设 M · 上游 INT8 超分内核 · 需完整包)", "M-INT8")
+        self.combo_sm86_sr.addItem("L-INT8 (预设 L · 上游 INT8 超分内核 · 需完整包)", "L-INT8")
+        self.combo_sm86_sr.addItem("M-FP16 (预设 M · NVIDIA 原生内核)", "M-FP16")
+        self.combo_sm86_sr.addItem("L-FP16 (预设 L · NVIDIA 原生内核)", "L-FP16")
         self.combo_sm86_sr.setStyleSheet(self._combo_qss(combo_bg, combo_border, text_color))
         self.combo_sm86_sr.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         h_sr.addWidget(self.combo_sm86_sr, 1)
@@ -3998,25 +4002,37 @@ class ModernMFGGUI(QMainWindow):
 
         c1.addWidget(self.card_game_info)
 
-        # 4. Secondary Action Pick Buttons
-        pick_row = QHBoxLayout()
-        pick_row.setSpacing(8)
+        # 4. Secondary Action Pick Buttons（上下排列，宽度铺满，风格统一）
+        pick_col = QVBoxLayout()
+        pick_col.setSpacing(8)
+        pick_col.setContentsMargins(0, 0, 0, 0)
 
         self.btn_pick_exe = QPushButton("📁 手动选择主程序 (.exe)")
         self.btn_pick_exe.setObjectName("BtnPickExe")
         self.btn_pick_exe.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_pick_exe.setMinimumHeight(34)
+        self.btn_pick_exe.setMinimumHeight(36)
+        self.btn_pick_exe.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.btn_pick_exe.clicked.connect(self.on_pick_exe_manually)
-        pick_row.addWidget(self.btn_pick_exe, 1)
+        pick_col.addWidget(self.btn_pick_exe)
 
         self.btn_pick_dir = QPushButton("📂 手动选择游戏文件夹")
         self.btn_pick_dir.setObjectName("BtnPickDir")
         self.btn_pick_dir.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_pick_dir.setMinimumHeight(34)
+        self.btn_pick_dir.setMinimumHeight(36)
+        self.btn_pick_dir.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.btn_pick_dir.clicked.connect(self.on_pick_dir_manually)
-        pick_row.addWidget(self.btn_pick_dir, 1)
+        pick_col.addWidget(self.btn_pick_dir)
 
-        c1.addLayout(pick_row)
+        self.btn_pick_process = QPushButton("🖥️ 从运行中的进程添加")
+        self.btn_pick_process.setObjectName("BtnPickProcess")
+        self.btn_pick_process.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pick_process.setMinimumHeight(36)
+        self.btn_pick_process.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.btn_pick_process.setToolTip("从当前运行中的程序里选游戏（任务管理器式），自动识别安装目录")
+        self.btn_pick_process.clicked.connect(self.on_add_from_process)
+        pick_col.addWidget(self.btn_pick_process)
+
+        c1.addLayout(pick_col)
         c1.addStretch()
 
         grid.addWidget(card1, 0, 0)
@@ -4029,7 +4045,7 @@ class ModernMFGGUI(QMainWindow):
         self.combo_backend.setMinimumContentsLength(8)
         self.combo_backend.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.combo_backend.addItem("🤖 智能优选 (架构与环境自适应)", BackendType.SMART_AUTO)
-        self.combo_backend.addItem("🚀 模式 A: dashdogy 原生多帧解锁器 (Universal · RTX 40/50 系首选)", BackendType.STANDALONE)
+        self.combo_backend.addItem("🚀 模式 A: dashdogy 原生多帧解锁器 (Universal 1.7.1 · 全显卡默认)", BackendType.STANDALONE)
         self.combo_backend.addItem("⚡ 模式 B: OptiScaler 跨卡帧生成 (XeSS 2.0 / FSR 3.1 · 全显卡跨架构)", BackendType.OPTISCALER_FSR)
         self.combo_backend.addItem("🔥 模式 C: dlssg_for_sm86 原生插帧 (RTX 20/30 系首选 · 完美共存 DLSS 5)", BackendType.DLSSG_SM86)
         
@@ -4043,7 +4059,7 @@ class ModernMFGGUI(QMainWindow):
         self.combo_backend.currentIndexChanged.connect(self._on_backend_dropdown_changed)
         c2.addWidget(self.combo_backend)
 
-        self.lbl_backend_desc = QLabel("推荐机制: RTX 20/30 默认首选模式 C (dlssg_for_sm86 原生插帧)；RTX 40/50 选用模式 A (原生通用解锁)；非 NVIDIA 显卡或跨架构选用模式 B")
+        self.lbl_backend_desc = QLabel("推荐机制: 全显卡默认模式 A (Universal 多帧解锁器 1.7.1)；AMD 默认使用 XeSS 多帧生成 (XeMFG)；模式 B/C 仍可手动选择")
         self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #64748b; line-height: 1.3;")
         self.lbl_backend_desc.setWordWrap(True)
         c2.addWidget(self.lbl_backend_desc)
@@ -4381,6 +4397,13 @@ class ModernMFGGUI(QMainWindow):
         btn_add_lib.clicked.connect(self.on_pick_exe_manually)
         h_row.addWidget(btn_add_lib)
 
+        btn_from_proc = QPushButton("🖥️ 从进程添加")
+        btn_from_proc.setMinimumHeight(36)
+        btn_from_proc.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_from_proc.setToolTip("从当前运行中的程序里选游戏（任务管理器式），自动定位游戏目录")
+        btn_from_proc.clicked.connect(self.on_add_from_process)
+        h_row.addWidget(btn_from_proc)
+
         layout.addLayout(h_row)
 
         # Table in Card frame
@@ -4424,12 +4447,12 @@ class ModernMFGGUI(QMainWindow):
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
-        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 原生多帧解锁器", "Universal 全架构通用版，原生支持 RTX 40/50 全系列显卡")
+        card_standalone = self._create_card("A", "#E8E8E8", "#26784C", "模式 A: dashdogy/MFG-Unlocker 原生多帧解锁器", "Universal 1.7.1 全架构通用版，RTX 20/30/40/50 与 AMD / Intel 全显卡可用")
         cs_layout = card_standalone.layout()
-        cs_layout.addWidget(QLabel("• 适用硬件: 全面支持 RTX 40、50 系列显卡，无架构黑名单锁死"))
+        cs_layout.addWidget(QLabel("• 适用硬件: RTX 20/30/40/50 全系 + AMD Radeon / Intel Arc（AMD 默认走 XeSS 多帧生成）"))
         cs_layout.addWidget(QLabel("• 注入方式: Proxy DLL 劫持 (智能选取: winmm.dll > version.dll > dinput8.dll)"))
         cs_layout.addWidget(QLabel("• 交互菜单: 游戏内按 【Backspace】（退格键）呼出 ImGui 菜单，支持免重启切换 DLSS 预设"))
-        cs_layout.addWidget(QLabel("• 多倍率支持: 支持 2X / 3X / 4X / 6X 以及 Dynamic MFG 动态插帧"))
+        cs_layout.addWidget(QLabel("• 多倍率支持: DLSS MFG 2X / 3X / 4X / 6X；AMD / Intel 走 XeMFG 多帧生成"))
         cs_layout.addWidget(QLabel("• 注入规范: 严格遵循官方 Proxy DLL 标准 (dxgi/version/winmm/dinput8)，不篡改游戏原版文件"))
 
         btn_page2_a_preset = QPushButton("⚙️ 打开模式 A / dashdogy 中文预设与倍率参数面板 →")
@@ -4763,7 +4786,7 @@ class ModernMFGGUI(QMainWindow):
         backend_str = data.value if hasattr(data, 'value') else str(data)
 
         if backend_str in [BackendType.STANDALONE.value, "dashdogy"]:
-            self.lbl_backend_desc.setText("模式 A (dashdogy): Universal 多帧解锁器，专为 RTX 40/50 系优化，进游戏按 Backspace 呼出菜单")
+            self.lbl_backend_desc.setText("模式 A (dashdogy): Universal 多帧解锁器 1.7.1，全显卡可用；AMD 默认 XeSS 多帧生成，进游戏按 Backspace 呼出菜单")
             self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
             if hasattr(self, "lbl_rhi_desc_hint"):
                 self.lbl_rhi_desc_hint.setText("当前为模式 A (原生通用解锁) · 可在此处用 RHI 安装滤镜模组")
@@ -4780,15 +4803,19 @@ class ModernMFGGUI(QMainWindow):
         else:
             gpu_name = get_system_gpu_name()
             gpu_upper = gpu_name.upper()
-            if is_rtx_20_or_30_series(gpu_name):
-                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 20/30 系列(含笔记本/移动端)，自动优选【模式 C: dlssg_for_sm86 原生 2X 插帧】(若需3X~6X多帧可切换模式A)")
-                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600;")
-            elif is_rtx_40_or_newer(gpu_name):
-                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为 NVIDIA RTX 40/50 系列(含笔记本/移动端)，自动优选【模式 A (Universal 多帧解锁器)】")
-                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
+            _gpu_upper = (gpu_name or "").upper()
+            _is_amd = any(k in _gpu_upper for k in ("AMD", "RADEON", "ATI "))
+            if _is_amd:
+                self.lbl_backend_desc.setText(
+                    f"智能优选 (显卡: {gpu_name}): AMD 显卡 → 默认【模式 A + XeSS 多帧生成 (XeMFG)】"
+                )
+                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #b91c1c; font-weight: 600;")
             else:
-                self.lbl_backend_desc.setText(f"智能优选 (显卡: {gpu_name}): 检测为非 RTX 或 AMD/Intel 显卡，自动首选模式 B (OptiScaler 跨卡转译)")
-                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #ea580c; font-weight: 600;")
+                self.lbl_backend_desc.setText(
+                    f"智能优选 (显卡: {gpu_name}): 默认【模式 A (Universal 多帧解锁器)】"
+                    " — 1.7.1 起 RTX 20/30/40/50 全系可用"
+                )
+                self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #2F8F5B; font-weight: 600;")
             if hasattr(self, "lbl_rhi_desc_hint"):
                 self.lbl_rhi_desc_hint.setText("各模式均已就绪 · 也可随时用 RHI 补充生态")
     def on_show_guide_click(self):
@@ -4855,7 +4882,7 @@ class ModernMFGGUI(QMainWindow):
                 }}
             """
             btn_pick_qss = """
-                QPushButton#BtnPickExe, QPushButton#BtnPickDir {
+                QPushButton#BtnPickExe, QPushButton#BtnPickDir, QPushButton#BtnPickProcess {
                     background-color: #2A2B2C;
                     color: #A7F3D0;
                     border: 1px solid #3A3A3A;
@@ -4864,7 +4891,7 @@ class ModernMFGGUI(QMainWindow):
                     font-weight: 600;
                     padding: 6px 10px;
                 }
-                QPushButton#BtnPickExe:hover, QPushButton#BtnPickDir:hover {
+                QPushButton#BtnPickExe:hover, QPushButton#BtnPickDir:hover, QPushButton#BtnPickProcess:hover {
                     background-color: #2F8F5B;
                     color: #ffffff;
                     border: 1px solid #3E9E69;
@@ -4947,7 +4974,7 @@ class ModernMFGGUI(QMainWindow):
                 }
             """
             btn_pick_qss = """
-                QPushButton#BtnPickExe, QPushButton#BtnPickDir {
+                QPushButton#BtnPickExe, QPushButton#BtnPickDir, QPushButton#BtnPickProcess {
                     background-color: #EFEFEF;
                     color: #26784C;
                     border: 1px solid #D4D4D4;
@@ -4956,7 +4983,7 @@ class ModernMFGGUI(QMainWindow):
                     font-weight: 600;
                     padding: 6px 10px;
                 }
-                QPushButton#BtnPickExe:hover, QPushButton#BtnPickDir:hover {
+                QPushButton#BtnPickExe:hover, QPushButton#BtnPickDir:hover, QPushButton#BtnPickProcess:hover {
                     background-color: #E8E8E8;
                     color: #1e40af;
                     border: 1px solid #A7F3D0;
@@ -5897,6 +5924,14 @@ class ModernMFGGUI(QMainWindow):
             self.btn_execute_restore.setText(f"✅ 当前游戏已是官方纯净原版 (无需还原)")
             self.btn_execute_restore.setEnabled(False)
 
+    def on_add_from_process(self):
+        """从运行中的进程里选择游戏并加入游戏库。"""
+        dlg = RunningProcessPickerDialog(self, is_dark=self.is_dark_mode)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            path = dlg.selected_path()
+            if path and os.path.exists(path):
+                self._process_manual_selection(path, is_file=True)
+
     def on_pick_exe_manually(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "选择游戏主可执行程序", "C:\\", "可执行文件 (*.exe)"
@@ -6047,9 +6082,6 @@ class ModernMFGGUI(QMainWindow):
 
             gpu_name = get_system_gpu_name()
             is_rtx20_30 = is_rtx_20_or_30_series(gpu_name)
-            if is_rtx20_30 and (backend == BackendType.SMART_AUTO or backend_str == "smart_auto"):
-                backend = BackendType.DLSSG_SM86
-                backend_str = BackendType.DLSSG_SM86.value
             ok, msg = self.patcher.patch_game(self.selected_game, backend)
 
             if ok:

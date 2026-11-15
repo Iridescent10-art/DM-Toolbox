@@ -46,7 +46,7 @@ from core.state_cleaner import is_dlssg_sm86_present, CleanGameDirectoryState
 
 def test_1_embedded_assets_and_updater():
     print("[TEST 1] Verifying embedded assets for dlssg_sm86...")
-    embedded_dir = APP2_DIR / "embedded_components" / "dlssg_sm86" / "v0.4.0"
+    embedded_dir = APP2_DIR / "embedded_components" / "dlssg_sm86" / "v0.4.2"
     assert embedded_dir.exists(), f"Embedded dir missing: {embedded_dir}"
     
     assert (embedded_dir / "version.dll").exists(), "version.dll missing in embedded components"

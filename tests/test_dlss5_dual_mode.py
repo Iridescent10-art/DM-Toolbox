@@ -45,17 +45,17 @@ def test_phase1_constants_and_assets():
     mode_b = DLSS5_ENGINE_MODES["MODE_B"]
 
     assert mode_a["addon_file"] == "renodx-dlss.addon64"
-    assert mode_b["addon_file"] == "Lecram-v12.addon64"
+    assert mode_b["addon_file"] == "dlss5-nr.addon64"
     assert mode_a["ini_section"] == "RenoDX DLSS"
     assert mode_b["ini_section"] == "RenoDX DLSS5"
 
-    for required_conflict in ["renodx-dlss.addon64", "Lecram-v12.addon64", "renodx-dlss5-v11.9.addon64"]:
+    for required_conflict in ["renodx-dlss.addon64", "dlss5-nr.addon64", "renodx-dlss5-v11.9.addon64"]:
         assert required_conflict in CONFLICT_DLSS_ADDONS
 
     # Check physical assets in package
     assert (LOCAL_ASSETS_DIR / "renodx-dlss.addon64").is_file(), "Mode A asset renodx-dlss.addon64 must exist"
-    assert (LOCAL_ASSETS_DIR / "Lecram-v12.addon64").is_file(), "Mode B asset Lecram-v12.addon64 must exist"
-    assert (LOCAL_ASSETS_DIR / "renodx-dlss5-Lecram-v12.5.addon64").is_file(), "Mode B v12.5 asset must exist"
+    assert (LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr.addon64").is_file(), "Mode B asset dlss5-nr.addon64 must exist"
+    assert (LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr-host" / "nr-host64.exe").is_file(), "Mode B host must exist"
     assert (LOCAL_ASSETS_DIR / "dxgi.dll").is_file(), "dxgi.dll must exist"
     assert (LOCAL_ASSETS_DIR / "runtimes" / "nvngx_dlssnr_rtx50.dll").is_file()
     assert (LOCAL_ASSETS_DIR / "runtimes" / "nvngx_dlssnr_rtx20_30_40.dll").is_file()
@@ -72,7 +72,7 @@ def test_phase2_asset_scanning_and_dual_mode_selection():
     assert assets_a["addon_name"] == "renodx-dlss.addon64"
 
     assets_b = scan_plugin_source_assets(LOCAL_ASSETS_DIR, mode="MODE_B")
-    assert assets_b["addon_name"] == "renodx-dlss5-Lecram-v12.5.addon64"
+    assert assets_b["addon_name"] == "dlss5-nr.addon64"
 
 
 def test_phase3_mutex_cleanup():
@@ -80,14 +80,14 @@ def test_phase3_mutex_cleanup():
     with tempfile.TemporaryDirectory() as tmpdir:
         td = Path(tmpdir)
         (td / "renodx-dlss.addon64").write_bytes(b"mode_a")
-        (td / "Lecram-v12.addon64").write_bytes(b"mode_b")
+        (td / "dlss5-nr.addon64").write_bytes(b"mode_b")
         (td / "renodx-dlss5-v11.9.addon64").write_bytes(b"legacy")
         (td / "renodx-mfgunlock.addon64").write_bytes(b"mfg_protect")
 
         ok, msg, removed = clean_conflicting_addons(td, keep_addon="renodx-dlss.addon64")
         assert ok is True
         assert (td / "renodx-dlss.addon64").exists(), "Keep addon must not be removed"
-        assert not (td / "Lecram-v12.addon64").exists(), "Conflicting Mode B addon must be removed"
+        assert not (td / "dlss5-nr.addon64").exists(), "Conflicting Mode B addon must be removed"
         assert not (td / "renodx-dlss5-v11.9.addon64").exists(), "Conflicting legacy addon must be removed"
         assert (td / "renodx-mfgunlock.addon64").exists(), "Mode B MFG unlocker must NEVER be deleted"
 
@@ -110,7 +110,7 @@ def test_phase3_mode_a_and_mode_b_injection_lifecycle():
         assert (game_dir / "renodx-dlss.addon64").exists()
         assert (game_dir / "dxgi.dll").exists()
         assert (game_dir / "nvngx_dlssnr.dll").exists()
-        assert not (game_dir / "Lecram-v12.addon64").exists()
+        assert not (game_dir / "dlss5-nr.addon64").exists()
 
         stat_a = check_game_dlss5_status(str(game_dir))
         assert stat_a["is_injected"] is True
@@ -120,17 +120,17 @@ def test_phase3_mode_a_and_mode_b_injection_lifecycle():
         # Step 2: Switch & Inject Mode B (verify mutex cleanup removes Mode A)
         ok_b, msg_b = DLSS5Injector.inject(str(game_dir), arch_choice="auto", mode="MODE_B")
         assert ok_b is True, f"Mode B injection failed: {msg_b}"
-        assert list(game_dir.glob("*Lecram*.addon64")), "Mode B addon must be deployed"
+        assert (game_dir / "dlss5-nr.addon64").exists(), "Mode B addon must be deployed"
+        assert (game_dir / "dlss5-nr-host" / "nr-host64.exe").exists(), "Mode B 64-bit host must be deployed"
         assert not (game_dir / "renodx-dlss.addon64").exists(), "Mode A addon must be cleaned during Mode B injection"
 
         stat_b = check_game_dlss5_status(str(game_dir))
         assert stat_b["is_injected"] is True
         assert stat_b["detected_mode"] == "MODE_B"
-        assert "模式 B · Lecram v12.5 扩展底座" in stat_b["mode_status_display"]
+        assert "模式 B · DLSS5 NR v13.4 扩展底座" in stat_b["mode_status_display"]
 
         # Step 3: Test legacy detection
-        for _f in game_dir.glob("*Lecram*.addon64"):
-            _f.unlink()
+        (game_dir / "dlss5-nr.addon64").unlink()
         (game_dir / "renodx-dlss5-v11.9.addon64").write_bytes(b"legacy")
         stat_legacy = check_game_dlss5_status(str(game_dir))
         assert "检测到旧版插件 (v11.9)" in stat_legacy["mode_status_display"]
@@ -141,7 +141,7 @@ def test_phase3_mode_a_and_mode_b_injection_lifecycle():
         stat_end = check_game_dlss5_status(str(game_dir))
         assert stat_end["is_injected"] is False
         assert not (game_dir / "renodx-dlss.addon64").exists()
-        assert not (game_dir / "Lecram-v12.addon64").exists()
+        assert not (game_dir / "dlss5-nr.addon64").exists()
         assert not (game_dir / "renodx-dlss5-v11.9.addon64").exists()
         assert not (game_dir / "dxgi.dll").exists()
         assert not (game_dir / "nvngx_dlssnr.dll").exists()
@@ -175,9 +175,9 @@ def test_phase4_ui_elements_and_default_behavior():
     # Switch to Mode B in UI
     win.combo_dlss5_mode.setCurrentIndex(1)
     assert win.combo_dlss5_mode.currentData() == "MODE_B"
-    assert "当前已选模式 B (可选)" in win.lbl_mode_hint.text()
-    assert "F12" in win.lbl_mode_hint.text()
-    assert "F12" in win.combo_dlss5_mode.currentText()
+    assert "模式 B：DLSS5 NR v13.4" in win.lbl_mode_hint.text()
+    assert "DLSS5 NR v13.4" in win.lbl_mode_hint.text()
+    assert "DLSS5 NR v13.4" in win.combo_dlss5_mode.currentText()
 
     # Switch to Mode C (GITC Uplift)
     win.combo_dlss5_mode.setCurrentIndex(2)
@@ -193,7 +193,7 @@ def test_phase4_ui_elements_and_default_behavior():
     # Sync mode selector test
     win._sync_mode_selector("MODE_B")
     assert win.combo_dlss5_mode.currentIndex() == 1
-    assert "当前已选模式 B (可选)" in win.lbl_mode_hint.text()
+    assert "模式 B：DLSS5 NR v13.4" in win.lbl_mode_hint.text()
 
     win._sync_mode_selector("MODE_A")
     assert win.combo_dlss5_mode.currentIndex() == 0
@@ -290,10 +290,10 @@ def test_mode_a_figure1_parameters_and_mode_b_f12_hotkey():
         cp_b = configparser.ConfigParser(interpolation=None, strict=False)
         cp_b.read(reshade_ini, encoding="utf-8")
 
-        # Check Mode B shortcut key: F12 (123,0,0,0)
-        assert cp_b.get("OVERLAY", "KeyOverlay", fallback="") == "123,0,0,0"
-        assert cp_b.get("INPUT", "KeyOverlay", fallback="") == "123,0,0,0"
-        assert cp_b.get("RenoDX.DLSS5", "NRPanelKey", fallback="") == "123,0,0,0"
+        # 模式 B 换成 DLSS5 NR v13.4：核心是 addon + 64 位宿主目录
+        assert (game_dir / "dlss5-nr.addon64").exists()
+        assert (game_dir / "dlss5-nr-host" / "nr-host64.exe").exists()
+        assert (game_dir / "dlss5-nr-host" / "ReShade64.dll").exists()
 
 
 def test_hook_point_dual_mode_synchronization():

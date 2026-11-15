@@ -94,6 +94,28 @@ DEFAULT_MIRRORS = {
 
 
 
+def _tag_sort_key(tag: str):
+    """把 v1.7.1 / 1.7.1 / nightly-20261023 之类标签转成可比较的元组。"""
+    import re as _re
+    if not tag:
+        return (0,)
+    text = str(tag).strip().lower().lstrip("v")
+    nums = [int(x) for x in _re.findall(r"\d+", text)]
+    return tuple(nums) if nums else (0,)
+
+
+def _is_newer_tag(candidate: str, current: str | None) -> bool:
+    """判断 embedded 里的版本是否比本地注册表里的更新。"""
+    if not candidate:
+        return False
+    if not current:
+        return True
+    try:
+        return _tag_sort_key(candidate) > _tag_sort_key(current)
+    except Exception:
+        return False
+
+
 class ComponentUpdater:
 
     def __init__(self, cache_dir: Optional[str] = None, legacy_root_dir: Optional[str] = None):
@@ -264,9 +286,11 @@ class ComponentUpdater:
 
                                     dirty = True
 
-                            if not reg[b_name].get("latest_tag") and b_info.get("latest_tag"):
+                            _emb_latest = b_info.get("latest_tag")
 
-                                reg[b_name]["latest_tag"] = b_info.get("latest_tag")
+                            if _emb_latest and _is_newer_tag(_emb_latest, reg[b_name].get("latest_tag")):
+
+                                reg[b_name]["latest_tag"] = _emb_latest
 
                                 dirty = True
 
@@ -1324,9 +1348,10 @@ class ComponentUpdater:
 
             emb = self._find_embedded_dir()
             if emb:
-                cand = emb / "dlssg_sm86" / "v0.4.0"
-                if cand.exists():
-                    return str(cand)
+                for _v in ("v0.4.2", "v0.4.0"):
+                    cand = emb / "dlssg_sm86" / _v
+                    if cand.exists():
+                        return str(cand)
 
             if emb.exists():
 

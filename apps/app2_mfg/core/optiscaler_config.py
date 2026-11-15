@@ -189,6 +189,24 @@ def load_optiscaler_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:
         except Exception:
             pass
 
+    # 0.4.2 迁移：上游删除了 DLSSG.Preset 的 Auto/Default，SR Mode 的 On 也改为显式预设。
+    # 这些旧值在 0.4.2 里属于 configuration_invalid（会直接关掉帧生成），必须改写成合法值。
+    if int(preset.get("preset_schema_version", 0) or 0) < 5:
+        _p = str(preset.get("dlssg_preset", "C")).strip()
+        if _p.upper() in ("", "AUTO", "DEFAULT"):
+            preset["dlssg_preset"] = "C"
+        if str(preset.get("super_resolution_mode", "Off")).strip() not in (
+            "Off", "M-INT8", "L-INT8", "M-FP16", "L-FP16"
+        ):
+            preset["super_resolution_mode"] = "Off"
+        preset["preset_schema_version"] = 5
+        try:
+            cfg_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(preset, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
     # 40-50 系默认为 M 模型，20-30 系默认为 K 模型
     if not preset.get("user_customized_dlss_preset", False):
         preset["dlss_preset"] = get_adaptive_default_dlss_preset(gpu_name)
@@ -241,7 +259,7 @@ def save_optiscaler_preset(preset: Dict[str, Any]) -> bool:
         merged.update(preset)
         # Mark the profile as migrated so load_optiscaler_preset() never overrides
         # the user's explicit choices (e.g. unlocking turned off) again.
-        merged["preset_schema_version"] = 2
+        merged["preset_schema_version"] = 5
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(merged, f, indent=2, ensure_ascii=False)
         return True
@@ -377,12 +395,12 @@ DEFAULT_DLSSG_SM86_PRESET: Dict[str, Any] = {
     "enabled": 1,                      # 1=开启插帧, 0=关闭
     "engine": "DLSS",                  # "DLSS" (默认 NVIDIA 原生模型) / "XeSS" (Intel XeSS-FG 引擎)
     "max_generated_frames": 3,         # 1=最高2X, 2=最高3X, 3=最高4X(上游出厂), 5=最高6X
-    "optimized": 2,                    # 0=原厂内核, 1=逐位一致加速, 2=轻量加速(默认), 3=极速加速
-    "dlssg_preset": "C",               # "C"(FG Lite 轻量插帧 · 默认), "Auto", "A", "B", "Default"
-    "super_resolution_mode": "Off",    # "Off"(默认，与 DLSS 5 完美共存), "On"(RTX 20/30 INT8 超分加速)
+    "optimized": 1,                    # 0=原厂内核, 1=逐位一致加速(0.4.2 出厂), 2=轻量加速, 3=极速加速
+    "dlssg_preset": "C",               # 0.4.2 只认 "A" / "B" / "C"（Auto/Default 已删除）
+    "super_resolution_mode": "Off",    # 0.4.2: Off / M-INT8 / L-INT8 / M-FP16 / L-FP16（本包未内置 sr 运行时，保持 Off）
     "proxy_dll": "version.dll",        # "version.dll"(默认), "winmm.dll", "dbghelp.dll", "dinput8.dll"
     "logging_level": 1,                # 0=关闭, 1=错误, 2=配置, 3=跟踪
-    "preset_schema_version": 4
+    "preset_schema_version": 5
 }
 
 def load_dlssg_sm86_preset(gpu_name: Optional[str] = None) -> Dict[str, Any]:

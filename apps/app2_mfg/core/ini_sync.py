@@ -1623,6 +1623,7 @@ class IniConfigManager:
 
         if not ini_path.exists():
             tpl_candidates = [
+                Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "v0.4.2" / "dlssg_sm86.ini",
                 Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "v0.4.0" / "dlssg_sm86.ini",
                 Path(__file__).resolve().parent.parent / "embedded_components" / "dlssg_sm86" / "0.4.0" / "dlssg_sm86.ini",
                 Path(__file__).resolve().parent.parent.parent.parent / "defaults" / "app2_mfg" / "dlssg_sm86_preset.json"

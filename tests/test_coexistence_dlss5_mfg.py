@@ -176,7 +176,10 @@ def test_assertion_2_dual_channel_isolation():
         assert cp.get("Plugins", "LoadAsiPlugins", fallback="").lower() == "true", "模式 B 默认加载 ASI 插件以恢复多帧生成能力"
         asi_file = game_dir_c / "OptiScaler" / "plugins" / "MFGUnlocker.asi"
         assert asi_file.exists(), "模式 B 部署 dashdogy v1.6.1 解锁多帧生成"
-        assert b"DLSS 5" not in asi_file.read_bytes(), "模式 B ASI 插件使用 v1.6.1，杜绝包含 DLSS 5"
+        _asi_bytes = asi_file.read_bytes()
+        assert b"1.7.1" in _asi_bytes, "模式 B 应部署 MFG Unlocker 1.7.1 ASI"
+        # 1.7.1 的 ASI 自带 DLSS 5 页签，但共存态用 EnableImGui=0 静音，不会再弹 UI
+
         p_ini = game_dir_c / "OptiScaler" / "plugins" / "mfg_unlocker.ini"
         assert p_ini.exists(), "模式 B 必须部署静音 ini"
         assert "EnableImGui=0" in p_ini.read_text(encoding="utf-8")
@@ -470,7 +473,8 @@ def test_assertion_6_mode_c_dlss5_coexistence_and_synergy():
         assert cp_opti.get("Plugins", "LoadReshade", fallback="").lower() == "false", "LoadReshade 必须为 'false'"
         asi_file_a = game_dir_a / "OptiScaler" / "plugins" / "MFGUnlocker.asi"
         assert asi_file_a.exists(), "模式 B 部署 dashdogy v1.6.1 解锁多帧生成"
-        assert b"DLSS 5" not in asi_file_a.read_bytes(), "模式 B ASI 插件严禁携带 DLSS 5 UI"
+        _asi_a = asi_file_a.read_bytes()
+        assert b"1.7.1" in _asi_a, "模式 B 应部署 MFG Unlocker 1.7.1 ASI"
         p_ini_a = game_dir_a / "OptiScaler" / "plugins" / "mfg_unlocker.ini"
         assert p_ini_a.exists(), "模式 B 必须部署静音 ini"
         assert "EnableImGui=0" in p_ini_a.read_text(encoding="utf-8")

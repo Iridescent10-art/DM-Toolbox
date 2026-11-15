@@ -38,7 +38,7 @@ from core.ini_sync import IniConfigManager
 
 def test_v200_version_bump():
     """Verify application version is bumped to 2.0.0+."""
-    assert APP_VERSION in ("2.0.0", "2.1.0", "2.2.0", "2.3.0", "3.0.0", "3.0.1", "3.0.2", "3.0.3", "3.0.4", "3.0.5", "3.0.6")
+    assert APP_VERSION in ("2.0.0", "2.1.0", "2.2.0", "2.3.0", "3.0.0", "3.0.1", "3.0.2", "3.0.3", "3.0.4", "3.0.5", "3.0.6", "3.0.7", "3.0.8", "3.0.9", "3.1.0")
 
 
 def test_mode_c_default_preset():
@@ -46,7 +46,7 @@ def test_mode_c_default_preset():
     preset = load_dlssg_sm86_preset()
     assert preset["engine"] == "DLSS", f"Expected engine DLSS, got {preset['engine']}"
     assert preset["max_generated_frames"] == 3, f"Expected max_generated_frames 3 (4X, upstream factory), got {preset['max_generated_frames']}"
-    assert preset["optimized"] == 2, f"Expected optimized 2, got {preset['optimized']}"
+    assert preset["optimized"] == 1, f"Expected optimized 1, got {preset['optimized']}"
     assert preset["dlssg_preset"] == "C", f"Expected dlssg_preset C, got {preset['dlssg_preset']}"
     assert preset["super_resolution_mode"] == "Off", f"Expected SR mode Off, got {preset['super_resolution_mode']}"
     assert preset["proxy_dll"] == "version.dll", f"Expected proxy version.dll, got {preset['proxy_dll']}"
@@ -55,7 +55,7 @@ def test_mode_c_default_preset():
     summary = get_dlssg_sm86_preset_summary(preset)
     assert "DLSS 原生" in summary
     assert "4X" in summary
-    assert "轻量加速" in summary
+    assert "逐位一致" in summary
     assert "预设 C" in summary
 
 
@@ -103,7 +103,7 @@ def test_mode_c_ini_forward_sync_and_coexistence():
         content = ini_file.read_text(encoding="utf-8")
         assert "Engine=DLSS" in content
         assert "MaxGeneratedFrames=3" in content
-        assert "Optimized=2" in content
+        assert "Optimized=1" in content
         assert "Preset=C" in content
         assert "Mode=Off" in content
 
@@ -112,7 +112,7 @@ def test_mode_c_ini_forward_sync_and_coexistence():
         assert rev is not None
         assert rev["engine"] == "DLSS"
         assert rev["max_generated_frames"] == 3
-        assert rev["optimized"] == 2
+        assert rev["optimized"] == 1
         assert rev["dlssg_preset"] == "C"
 
 
