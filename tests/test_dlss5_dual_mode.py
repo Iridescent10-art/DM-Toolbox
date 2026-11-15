@@ -37,7 +37,7 @@ from apps.app6_dlss5.engine.injector import (
 
 def test_phase1_constants_and_assets():
     """Validates Phase 1 constants and presence of physical dual-base assets."""
-    assert DEFAULT_DLSS5_MODE == "MODE_A"
+    assert DEFAULT_DLSS5_MODE == "MODE_B"
     assert "MODE_A" in DLSS5_ENGINE_MODES
     assert "MODE_B" in DLSS5_ENGINE_MODES
 
@@ -160,7 +160,7 @@ def test_phase4_ui_elements_and_default_behavior():
     # 2.1 Banner subtitle check
     sub_title_label = win.findChild(object, "dlss5_sub_title")
     assert sub_title_label is not None
-    assert "搭载 ShortFuse 原生底座 (模式 A 默认)" in sub_title_label.text()
+    assert "DLSS5 NR v13.4 扩展底座 (模式 B 默认)" in sub_title_label.text()
     assert "GITC Uplift 全 API 底座 (模式 C)" in sub_title_label.text()
     assert "共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存" in sub_title_label.text()
 
@@ -168,9 +168,9 @@ def test_phase4_ui_elements_and_default_behavior():
     assert hasattr(win, "combo_dlss5_mode")
     assert hasattr(win, "lbl_mode_hint")
     assert win.combo_dlss5_mode.count() == 3
-    assert win.combo_dlss5_mode.currentIndex() == 0, "Default must be Mode A (index 0)"
-    assert win.combo_dlss5_mode.currentData() == "MODE_A"
-    assert "当前已选模式 A (默认)" in win.lbl_mode_hint.text()
+    assert win.combo_dlss5_mode.currentIndex() == 1, "Default must be Mode B (index 1)"
+    assert win.combo_dlss5_mode.currentData() == "MODE_B"
+    assert "模式 B：DLSS5 NR v13.4" in win.lbl_mode_hint.text()
 
     # Switch to Mode B in UI
     win.combo_dlss5_mode.setCurrentIndex(1)

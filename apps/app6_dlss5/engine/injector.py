@@ -56,7 +56,7 @@ DLSS5_ENGINE_MODES = {
     }
 }
 
-DEFAULT_DLSS5_MODE = "MODE_A"
+DEFAULT_DLSS5_MODE = "MODE_B"
 
 # 所有可能产生 NGX/DLSS Hook 冲突的同源插件黑名单（用于注入前互斥清理与卸载）
 CONFLICT_DLSS_ADDONS = [
@@ -439,7 +439,7 @@ def restore_streamline_nr_runtime(td: Path) -> list[str]:
     return restored
 
 
-def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_A",
+def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_B",
                               mode_b_variant: str = "v12.5") -> Dict[str, Any]:
     """
     Scans the given source directory (or auto-detected paths) for:

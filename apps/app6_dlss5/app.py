@@ -229,7 +229,7 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_head.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.Bold))
         lbl_head.setWordWrap(True)
 
-        lbl_sub = QLabel("搭载 ShortFuse 原生底座 (模式 A 默认) / DLSS5 NR v13.4 扩展底座 (模式 B 可选) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
+        lbl_sub = QLabel("搭载 DLSS5 NR v13.4 扩展底座 (模式 B 默认) / ShortFuse 原生底座 (模式 A 可选) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
         lbl_sub.setObjectName("dlss5_sub_title")
         lbl_sub.setFont(QFont("Microsoft YaHei UI", 9))
         lbl_sub.setWordWrap(True)
@@ -474,18 +474,18 @@ class DLSS5MainWindow(DMBaseWindow):
         self.combo_dlss5_mode.setFixedHeight(36)
         self.combo_dlss5_mode.setFont(QFont("Microsoft YaHei UI", 9))
         self.combo_dlss5_mode.addItem(
-            "🚀 模式 A (默认推荐) — renodx-dlss.addon64 [ShortFuse 官方原生底座 · 极速稳定]",
+            "🚀 模式 A (可选) — renodx-dlss.addon64 [ShortFuse 官方原生底座 · 极速稳定]",
             "MODE_A"
         )
         self.combo_dlss5_mode.addItem(
-            "⚡ 模式 B (可选项目) — DLSS5 NR v13.4 [Lecram 新版 · 64 位宿主 · 预设库/对比/多 pass]",
+            "⚡ 模式 B (默认推荐) — DLSS5 NR v13.4 [Lecram 新版 · 64 位宿主 · 预设库/对比/多 pass]",
             "MODE_B"
         )
         self.combo_dlss5_mode.addItem(
             "🧪 模式 C (全 API 通用) — gitc-uplift.addon64 [GITC Uplift 1.7.0 · DX9/10/11/12/Vulkan/OpenGL · 自带显存检查与中文界面]",
             "MODE_C"
         )
-        self.combo_dlss5_mode.setCurrentIndex(0)
+        self.combo_dlss5_mode.setCurrentIndex(1)  # 默认模式 B（DLSS5 NR v13.4）
         self.combo_dlss5_mode.currentIndexChanged.connect(self._on_mode_selection_changed)
         card_plugin_layout.addWidget(self.combo_dlss5_mode)
 
@@ -508,7 +508,7 @@ class DLSS5MainWindow(DMBaseWindow):
         self.lbl_mode_hint.setFont(QFont("Microsoft YaHei UI", 8))
         self.lbl_mode_hint.setWordWrap(True)
         self.lbl_mode_hint.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        self._update_mode_hint("MODE_A")
+        self._update_mode_hint("MODE_B")
         card_plugin_layout.addWidget(self.lbl_mode_hint)
 
         # Architecture model selection radios
@@ -955,7 +955,7 @@ class DLSS5MainWindow(DMBaseWindow):
 
     def _on_mode_selection_changed(self, idx: int):
         """Triggered when user manually switches mode combo box."""
-        mode = self.combo_dlss5_mode.itemData(idx) or "MODE_A"
+        mode = self.combo_dlss5_mode.itemData(idx) or "MODE_B"
         if hasattr(self, "combo_mode_b_variant"):
             self.combo_mode_b_variant.setVisible(False)
         self._update_mode_hint(mode)
@@ -966,13 +966,13 @@ class DLSS5MainWindow(DMBaseWindow):
         Synchronizes mode combo box without triggering re-entrant writes.
         Defaults to MODE_A if mode is unrecognized.
         """
-        target_idx = {"MODE_A": 0, "MODE_B": 1, "MODE_C": 2}.get(mode, 0)
+        target_idx = {"MODE_A": 0, "MODE_B": 1, "MODE_C": 2}.get(mode, 1)
         if hasattr(self, "combo_dlss5_mode"):
             if self.combo_dlss5_mode.currentIndex() != target_idx:
                 self.combo_dlss5_mode.blockSignals(True)
                 self.combo_dlss5_mode.setCurrentIndex(target_idx)
                 self.combo_dlss5_mode.blockSignals(False)
-            self._update_mode_hint(mode if mode in ("MODE_A", "MODE_B") else "MODE_A")
+            self._update_mode_hint(mode if mode in ("MODE_A", "MODE_B", "MODE_C") else "MODE_B")
         if hasattr(self, "combo_mode_b_variant"):
             self.combo_mode_b_variant.setVisible(False)
             if target_idx != 1:
@@ -1148,7 +1148,7 @@ class DLSS5MainWindow(DMBaseWindow):
         2.3 插件源目录资产清单动态刷新 (update_assets_info)
         Scans plugin source directory and updates UI with dual-mode asset status.
         """
-        cur_mode = self.combo_dlss5_mode.currentData() if hasattr(self, "combo_dlss5_mode") else "MODE_A"
+        cur_mode = self.combo_dlss5_mode.currentData() if hasattr(self, "combo_dlss5_mode") else "MODE_B"
         assets = scan_plugin_source_assets(self.active_source_dir, mode=cur_mode)
         is_local = "app6_dlss5" in str(assets["source_dir"]) or "整合包" in str(assets["source_dir"])
         tag = "  [📦 整合包内置便携资产 · 全机免配置]" if is_local else ""
@@ -1262,7 +1262,7 @@ class DLSS5MainWindow(DMBaseWindow):
             self.lbl_stat_hook.setText("• 运行挂钩阶段: ⚪ 未就绪")
             if hasattr(self, "btn_apply_hook"):
                 self.btn_apply_hook.setEnabled(False)
-            self._sync_mode_selector("MODE_A")
+            self._sync_mode_selector("MODE_B")
             return
 
         stat = check_game_dlss5_status(self.selected_game.target_dir)
@@ -1294,7 +1294,7 @@ class DLSS5MainWindow(DMBaseWindow):
             self._sync_mode_selector("MODE_A")
         else:
             self.lbl_main_status_badge.setStyleSheet("color: #64748b;")
-            self._sync_mode_selector("MODE_A")
+            self._sync_mode_selector("MODE_B")
 
         if stat["has_reshade"]:
             active_p = stat.get("active_proxy") or "dxgi.dll"
@@ -1397,9 +1397,9 @@ class DLSS5MainWindow(DMBaseWindow):
             arch_choice = "rtx50"
 
         chosen_hook = self.combo_hook_point.currentData() if hasattr(self, "combo_hook_point") else "0"
-        chosen_mode = self.combo_dlss5_mode.currentData() if hasattr(self, "combo_dlss5_mode") else "MODE_A"
+        chosen_mode = self.combo_dlss5_mode.currentData() if hasattr(self, "combo_dlss5_mode") else "MODE_B"
         if not chosen_mode:
-            chosen_mode = "MODE_A"
+            chosen_mode = "MODE_B"
         chosen_proxy = self.combo_proxy_slot.currentData() if hasattr(self, "combo_proxy_slot") else "auto"
         if not chosen_proxy:
             chosen_proxy = "auto"
@@ -1518,13 +1518,13 @@ class DLSS5MainWindow(DMBaseWindow):
         QApplication.processEvents()
 
         ok, msg = DLSS5Injector.restore(self.selected_game.target_dir)
-        # Phase 3.4 & Phase 4: Reset mode selector to default MODE_A
-        self._sync_mode_selector("MODE_A")
+        # 卸载后复位为默认模式 B（DLSS5 NR v13.4）
+        self._sync_mode_selector("MODE_B")
         if hasattr(self, "combo_mode_b_variant"):
-            _v125 = self.combo_mode_b_variant.findData("v12.5")
-            if _v125 >= 0:
+            _v134 = self.combo_mode_b_variant.findData("v13.4")
+            if _v134 >= 0:
                 self.combo_mode_b_variant.blockSignals(True)
-                self.combo_mode_b_variant.setCurrentIndex(_v125)
+                self.combo_mode_b_variant.setCurrentIndex(_v134)
                 self.combo_mode_b_variant.blockSignals(False)
             self.combo_mode_b_variant.setVisible(False)
         self._sync_proxy_selector("auto")
