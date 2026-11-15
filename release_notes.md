@@ -1,3 +1,50 @@
+# 🩺 DM-Toolbox (DM工具箱) v3.1.2 · 修复 Streamline 目录里的 NR 运行库被优先加载
+
+**注入 DLSS 5 后 NR 不生效（0xBAD00001）的真正原因：游戏更新在 `Streamline\` 里放了一份 50 系专用的
+`nvngx_dlssnr.dll`，RenoDX 优先加载它，RTX 20/30/40 创建 NR 特性时被拒绝。**
+
+---
+
+### 🔍 1. 故障现象
+
+- `ReShade.log`：
+
+```
+[RenoDX DLSS] DLSS-NR direct: attached snippet ...\Streamline\nvngx_dlssnr.dll
+[RenoDX DLSS] DLSS-NR direct: CreateFeatureInstance end: result=0xbad00001
+[RenoDX DLSS] RenoDX DLSS NR device feature initialization failed
+```
+
+- 插件加载、NGX 初始化都正常，但 NR 创建 0 次成功（实测 1920 次失败），画面没有任何 NR 效果。
+
+### 🧠 2. 根因
+
+游戏更新后目录里同时存在两份同名运行库：
+
+| 位置 | 大小 | 内容 |
+|---|---|---|
+| 游戏根目录 `nvngx_dlssnr.dll` | 263.37 MB | 20/30/40 系可用 |
+| `Streamline\nvngx_dlssnr.dll` | 254.08 MB | **50 系专用**（游戏更新带入） |
+
+版本号同为 310.9.16，但内核架构不同；RenoDX 优先从 `Streamline\` 加载，于是 4070 上返回
+`0xBAD00001`（`NVSDK_NGX_Result_FAIL_FeatureNotSupported`）。
+
+### ✅ 3. 修复
+
+- 注入 DLSS 5（模式 A / B）时，扫描游戏内的 Streamline 目录
+  （`Streamline`、`*/Streamline`、`Engine/Binaries/*/Streamline` 等），
+  把其中的 `nvngx_dlssnr.dll` 替换成与显卡架构匹配的版本；
+- 替换前备份为 `nvngx_dlssnr.dll.dlss5_bak`，并记录到 `.dlss5_manifest.json`；
+- 「一键卸载」时自动从 `.dlss5_bak` 还原游戏原文件；
+- 模式 C（GITC Uplift）使用自己的 `GITC-Uplift\` 运行库，不做此替换。
+
+### 🔍 4. 回归
+
+- 新增 1 项测试：注入替换 Streamline 运行库并备份、卸载后还原；
+- 全量测试：**171 passed**。
+
+---
+
 # 🩹 DM-Toolbox (DM工具箱) v3.1.1 · 回退模式 A 插件到可用版本
 
 **v3.1.0 附带的 ShortFuse 26092809 构建会导致 DLSS 5 注入后 NR 初始化失败、游戏卡死；本版回退到可用的 2026.1025 构建。**

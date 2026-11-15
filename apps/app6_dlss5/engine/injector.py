@@ -363,6 +363,82 @@ def clean_conflicting_addons(target_dir: Union[str, Path], keep_addon: Optional[
     return True, "", removed
 
 
+STREAMLINE_RUNTIME_PATTERNS = (
+    "Streamline",
+    "*/Streamline",
+    "*/*/Streamline",
+    "*/Binaries/*/Streamline",
+    "Engine/Binaries/*/Streamline",
+)
+
+
+def _iter_streamline_runtime_dirs(td: Path) -> list[Path]:
+    """列出游戏里可能被 RenoDX 优先加载的 Streamline 目录。"""
+    found: list[Path] = []
+    seen: set[str] = set()
+    for pattern in STREAMLINE_RUNTIME_PATTERNS:
+        try:
+            for cand in td.glob(pattern):
+                if not cand.is_dir():
+                    continue
+                key = str(cand.resolve()).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                found.append(cand)
+        except Exception:
+            continue
+    return found
+
+
+def sync_streamline_nr_runtime(td: Path, nr_src: str) -> list[str]:
+    """
+    把 Streamline\\ 目录里的 nvngx_dlssnr.dll 换成与显卡匹配的版本。
+
+    游戏更新会往 Streamline\\ 塞入 50 系专用的 254 MB 运行库，而 RenoDX 优先加载
+    这一份；在 20/30/40 系上会以 0xBAD00001 失败。这里备份原文件后覆盖。
+    """
+    replaced: list[str] = []
+    try:
+        src_size = os.path.getsize(nr_src)
+    except OSError:
+        return replaced
+    for sl_dir in _iter_streamline_runtime_dirs(td):
+        target = sl_dir / "nvngx_dlssnr.dll"
+        if not target.exists():
+            continue
+        try:
+            if target.stat().st_size == src_size:
+                continue  # 已经是同架构版本
+        except OSError:
+            continue
+        backup = target.with_name("nvngx_dlssnr.dll.dlss5_bak")
+        try:
+            if not backup.exists():
+                shutil.copy2(str(target), str(backup))
+            shutil.copy2(nr_src, str(target))
+            replaced.append(str(target.relative_to(td)))
+        except Exception:
+            continue
+    return replaced
+
+
+def restore_streamline_nr_runtime(td: Path) -> list[str]:
+    """还原 inject 时替换过的 Streamline 运行库。"""
+    restored: list[str] = []
+    for sl_dir in _iter_streamline_runtime_dirs(td):
+        target = sl_dir / "nvngx_dlssnr.dll"
+        backup = target.with_name("nvngx_dlssnr.dll.dlss5_bak")
+        if not backup.exists():
+            continue
+        try:
+            os.replace(str(backup), str(target))
+            restored.append(str(target.relative_to(td)))
+        except Exception:
+            continue
+    return restored
+
+
 def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_A",
                               mode_b_variant: str = "v12.5") -> Dict[str, Any]:
     """
@@ -2491,6 +2567,14 @@ class DLSS5Injector:
             else:
                 shutil.copy2(nr_src, nr_dest)
                 manifest_data["injected_files"].append("nvngx_dlssnr.dll")
+                # 覆盖 Streamline\ 里被游戏更新塞进来的“50 系专用”运行库
+                try:
+                    replaced_sl = sync_streamline_nr_runtime(td, nr_src)
+                    if replaced_sl:
+                        manifest_data["streamline_runtime_replaced"] = replaced_sl
+                        manifest_data["injected_files"].extend(replaced_sl)
+                except Exception:
+                    pass
 
             # 6.4 Delete legacy migration marker to prevent RenoDX resetting to factory stock
             (td / "ReShade.ini.v11-backup").unlink(missing_ok=True)
@@ -2775,6 +2859,12 @@ class DLSS5Injector:
                     restored_items.append("bink2w64.dll (从 bink2w64Hooked.dll 恢复)")
                 except Exception:
                     pass
+
+        # Layer 2.6: 还原被替换过的 Streamline NR 运行库
+        try:
+            restore_streamline_nr_runtime(td)
+        except Exception:
+            pass
 
         # Layer 3: Check coexistence status for smart rollback & auto-restoration
         coex_marker = td / ".mfg_coex_backup.json"
