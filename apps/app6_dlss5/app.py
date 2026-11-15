@@ -1388,6 +1388,26 @@ class DLSS5MainWindow(DMBaseWindow):
             ModernDialog.warning(self, "未选择游戏", "请先在上方下拉框中选择要注入的目标游戏！")
             return
 
+        # 反作弊游戏警告（默认取消，可强制继续）
+        try:
+            from common.anti_cheat import detect_anti_cheat, anti_cheat_warning_text
+            from common.config_manager import get_global_theme
+            _ac_hit = detect_anti_cheat(
+                self.selected_game.name,
+                self.selected_game.exe_path,
+                self.selected_game.target_dir,
+            )
+            if _ac_hit and not ModernDialog.confirm(
+                self, "反作弊游戏警告",
+                anti_cheat_warning_text(_ac_hit),
+                get_global_theme() == "dark",
+                ok_text="强制继续", cancel_text="取消",
+            ):
+                self.set_status(f"已取消：{self.selected_game.name} 带反作弊，未注入 DLSS 5")
+                return
+        except Exception:
+            pass
+
         # Architecture choice
         if self.rb_auto.isChecked():
             arch_choice = "auto"

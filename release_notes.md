@@ -1,3 +1,34 @@
+# 🛡 DM-Toolbox (DM工具箱) v3.1.5 · 反作弊游戏拦截（可选择强制继续）
+
+**注入多帧生成 / DLSS 5 前识别带反作弊的游戏，弹窗警告；默认取消，也可「强制继续」。**
+
+---
+
+### 🚨 1. 背景
+
+上游 MFG Unlocker 文档 `docs/compatibility.md` 明确把以下游戏列在「Games with anti-cheat」：
+
+Forza Horizon 6、Battlefield 6 / RedSec、GTA V Enhanced、Gears of War: E-Day、Zenless Zone Zero 等。
+
+这些游戏注入代理 DLL 后会在启动画面被反作弊强制结束（无崩溃日志、无 WER 记录），
+实机验证：Forza Horizon 6 连上游原版 `MFGUnlocker-v1.7.1.zip` 直接改名 `version.dll` 也照样闪退。
+
+### ✅ 2. 新增拦截
+
+- `common/anti_cheat.py`：按游戏名 / exe 名匹配名单，并浅层扫描 `EasyAntiCheat`、`BattlEye` 等反作弊模块；
+- 多帧生成「立即应用」与 DLSS 5「一键注入」前都会检查：
+  - 命中 → 弹窗「反作弊游戏警告」，说明可能启动闪退；
+  - 默认按钮为「取消」；
+  - 点「强制继续」才会真正注入；
+- 未命中名单的游戏（如 yysls、Cyberpunk 2077、黑神话）行为完全不变。
+
+### 🔍 3. 回归
+
+- 新增 5 项测试：FH6 名称/exe 识别、其它反作弊游戏、普通游戏不误报、反作弊模块目录识别、警告文案；
+- 全量测试：**177 passed**。
+
+---
+
 # 🛠 DM-Toolbox (DM工具箱) v3.1.4 · 修复还原后 Cyberpunk 2077 / 巫师 3 无法启动（libxell / libxess_fg 缺失）
 
 **模式 A/C 清理时误删了游戏本体静态导入的 XeSS 运行库，导致还原后游戏报「找不到 libxell.dll / libxess_fg.dll」。**

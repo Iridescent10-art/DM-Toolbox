@@ -6049,6 +6049,25 @@ class ModernMFGGUI(QMainWindow):
             ModernDialog.warning(self, "提示", "请先选择需要修补的游戏！", self.is_dark_mode)
             return
 
+        # 反作弊游戏警告（默认取消，可强制继续）
+        try:
+            from common.anti_cheat import detect_anti_cheat, anti_cheat_warning_text
+            _ac_hit = detect_anti_cheat(
+                self.selected_game.name,
+                self.selected_game.exe_path,
+                self.selected_game.target_dir,
+            )
+            if _ac_hit and not ModernDialog.confirm(
+                self, "反作弊游戏警告",
+                anti_cheat_warning_text(_ac_hit),
+                self.is_dark_mode,
+                ok_text="强制继续", cancel_text="取消",
+            ):
+                self.lbl_status.setText(f"已取消：{self.selected_game.name} 带反作弊，未注入")
+                return
+        except Exception:
+            pass
+
         backend = self.combo_backend.currentData()
         backend_str = backend.value if hasattr(backend, "value") else str(backend)
         backend_name_map = {
