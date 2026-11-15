@@ -349,6 +349,15 @@ class RollbackEngine:
                 if is_reshade_dll_file(dxgi_p) or is_optiscaler_dll_file(dxgi_p):
                     safe_force_remove(dxgi_p)
 
+        # 4.9 自动补齐游戏本体静态导入但已被删除的 DLL（libxell/libxess*/igxess 等）
+        try:
+            from core.utils import auto_heal_game_dependencies
+            healed = auto_heal_game_dependencies(target_dir)
+            if healed:
+                restored_items.extend(f"{name} (自动补齐)" for name in healed)
+        except Exception:
+            pass
+
         # 5. Remove manifest file itself
         safe_force_remove(manifest_file)
         if os.path.exists(dm_backup_dir) and os.path.isdir(dm_backup_dir):

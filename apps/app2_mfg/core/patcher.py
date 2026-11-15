@@ -257,7 +257,13 @@ class PatchEngine:
         cleanup_pending_files(target_dir)
 
         # Purge Mode B & C conflicting files and stale root XeSS runtime DLLs (Mode A runtimes live inside RTXMFG-XeSS/)
+        # 注意：libxess*/libxell/amd_fidelityfx* 可能被 Cyberpunk 2077 / 巫师 3 等游戏本体静态导入，
+        # 删掉会让游戏直接报「找不到 xxx.dll」无法启动；这里只清理非游戏依赖的残留。
+        from core.utils import get_game_statically_imported_dlls
+        _game_imports = get_game_statically_imported_dlls(target_dir)
         for mode_bc_file in ["OptiScaler.ini", "nvngx.ini", "dlssg_to_fsr3_amd_is_better.dll", "fakenvapi.dll", "fakenvapi.ini", "renodx-mfgunlock.addon64", "dlssg_sm86.ini", "libxess_fg.dll", "libxell.dll"]:
+            if mode_bc_file.lower() in _game_imports:
+                continue
             f_p = os.path.join(target_dir, mode_bc_file)
             if os.path.exists(f_p):
                 safe_force_remove(f_p)
@@ -1205,6 +1211,8 @@ class PatchEngine:
             if os.path.exists(opti_dir) and os.path.isdir(opti_dir):
                 shutil.rmtree(opti_dir, ignore_errors=True)
 
+        from core.utils import get_game_statically_imported_dlls
+        _game_imports_c = get_game_statically_imported_dlls(target_dir)
         for conflicting_file in [
             "OptiScaler.ini", "nvngx.ini", "OptiScaler.log", "nvngx.log", "dlssg_to_fsr3.log",
             "dlssg_to_fsr3_amd_is_better.dll", "OptiScaler.dll",
@@ -1216,6 +1224,8 @@ class PatchEngine:
             "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_vk.dll",
             "ReShade64.dll"
         ]:
+            if conflicting_file.lower() in _game_imports_c:
+                continue
             f_p = os.path.join(target_dir, conflicting_file)
             if os.path.exists(f_p):
                 safe_force_remove(f_p)

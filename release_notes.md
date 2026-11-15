@@ -1,3 +1,43 @@
+# 🛠 DM-Toolbox (DM工具箱) v3.1.4 · 修复还原后 Cyberpunk 2077 / 巫师 3 无法启动（libxell / libxess_fg 缺失）
+
+**模式 A/C 清理时误删了游戏本体静态导入的 XeSS 运行库，导致还原后游戏报「找不到 libxell.dll / libxess_fg.dll」。**
+
+---
+
+### 🐞 1. 现象
+
+Cyberpunk 2077 还原后双击启动：
+
+```
+Cyberpunk2077.exe - 系统错误
+由于找不到 libxell.dll，无法继续执行代码。
+由于找不到 libxess_fg.dll，无法继续执行代码。
+```
+
+巫师 3 使用相同引擎，同样会命中。
+
+### 🔍 2. 根因
+
+- Cyberpunk 2077 / 巫师 3 的 exe **静态导入**了 `libxess.dll`、`libxess_fg.dll`、`libxell.dll`（XeSS 运行库）；
+- 模式 A 的「清理旧模式残留」与模式 C 的冲突清理，把这些文件当成 OptiScaler 残留直接删除；
+- 其中 `libxess_fg.dll` 删除时没有备份，导致还原后也无法恢复，游戏加载器直接报错。
+
+### ✅ 3. 修复
+
+- 模式 A / 模式 C 清理前先读取游戏 exe 的静态导入列表
+  （`get_game_statically_imported_dlls`，含 Cyberpunk/巫师 3 的签名保护），
+  **命中游戏导入的 DLL 一律跳过删除**；
+- 「一键还原」结束时调用 `auto_heal_game_dependencies`，自动补齐缺失的游戏依赖；
+- 清理范围仍保留 OptiScaler 配置、fakenvapi、dlssg_sm86 等真正需要替换的文件。
+
+### 🔍 4. 回归
+
+- 新增 1 项测试：Cyberpunk 结构的目录注入模式 A 后 `libxess_fg/libxell/libxess` 必须保留，
+  还原后仍然存在；
+- 全量测试：**172 passed**。
+
+---
+
 # 🔵 DM-Toolbox (DM工具箱) v3.1.3 · DLSS 5 默认底座改为模式 B（DLSS5 NR v13.4）
 
 **DLSS 5 一键注入的默认模式由模式 A 改为模式 B（Lecram DLSS5 NR v13.4）。**
