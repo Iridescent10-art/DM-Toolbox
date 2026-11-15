@@ -1,3 +1,34 @@
+# 🩹 DM-Toolbox (DM工具箱) v3.1.1 · 回退模式 A 插件到可用版本
+
+**v3.1.0 附带的 ShortFuse 26092809 构建会导致 DLSS 5 注入后 NR 初始化失败、游戏卡死；本版回退到可用的 2026.1025 构建。**
+
+---
+
+### 🐞 1. 问题现象
+
+- 注入 DLSS 5 后进入游戏，`ReShade.log` 出现：
+
+```
+[RenoDX DLSS] DLSS-NR direct: CreateFeatureInstance end: result=0xbad00001 handle=0x0
+[RenoDX DLSS] RenoDX DLSS NR device feature initialization failed
+```
+
+- NR 初始化失败后游戏无响应（Windows 事件 1002 AppHang），Yysls 实测 15:32 / 15:33 / 15:38 / 15:39 连续挂起。
+
+### 🔍 2. 根因
+
+v3.1.0 内置的 `renodx-dlss-SF-CN-26092809.addon64` 文件版本是 **0.2026.0928.0119**（9 月 28 日构建），
+比 v3.1.0 之前使用的 **0.2026.1025.0409**（10 月 25 日构建）更旧；旧构建与当前 NR 310.9.16 运行库
+在 `CreateFeatureInstance` 阶段返回 `0xbad00001`，随后挂起游戏。
+
+### ✅ 3. 修复
+
+- 模式 A 资源回退为 `renodx-dlss.addon64` = **0.2026.1025.0409**（3.49 MB，
+  SHA-256 `dd5ed7ba…d93bace`），注入文件名不变；
+- 其余内容与 v3.1.0 相同（MFG 1.7.1、模式 B DLSS5 NR v13.4、模式 C 0.4.2、从进程添加游戏）。
+
+---
+
 # 🖥️ DM-Toolbox (DM工具箱) v3.1.0 · 手动添加游戏支持「从运行中的进程选择」
 
 **游戏库新增任务管理器式的添加方式：直接从正在运行的程序里挑游戏，自动定位安装目录。**
