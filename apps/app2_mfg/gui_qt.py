@@ -68,7 +68,7 @@ from common.app_updater import MirrorSpeedTestWorker
 from core.patcher import PatchEngine
 from core.rollback import RollbackEngine
 from core.rhi_installer import RHIInstaller
-from core.utils import get_system_gpu_name, is_rtx_40_or_newer, is_rtx_20_or_30_series
+from core.utils import get_system_gpu_name, is_rtx_40_or_newer, is_rtx_20_or_30_series, is_amd_gpu
 from core.ini_sync import IniConfigManager
 from core.optiscaler_config import (
     DEFAULT_OPTISCALER_PRESET,
@@ -2451,9 +2451,33 @@ class OptiScalerPresetDialog(QDialog):
             self.preset_a["user_customized_dlss_preset"] = True
             self.preset_a["dlssg_preset"] = self.combo_a_dlssg_preset.currentData()
             if hasattr(self, "combo_a_fg_engine"):
-                self.preset_a["xemfg_standalone"] = (
-                    self.combo_a_fg_engine.currentData() == "xemfg"
-                )
+                _want_xemfg = (self.combo_a_fg_engine.currentData() == "xemfg")
+                if _want_xemfg:
+                    # XeMFG 独立插帧：NVIDIA 上为实验性，且必须游戏内开启 DLSS 帧生成，否则易闪退
+                    try:
+                        _is_amd = is_amd_gpu(getattr(self, "detected_gpu_name", None) or get_system_gpu_name())
+                    except Exception:
+                        _is_amd = False
+                    if not _is_amd:
+                        _keep = ModernDialog.confirm(
+                            self,
+                            "XeSS / XeMFG 独立插帧提示",
+                            "XeMFG 独立插帧（Intel XeSS Frame Generation）在 NVIDIA 显卡上属于实验性功能。\n\n"
+                            "它需要：\n"
+                            "· 游戏内开启【DLSS 帧生成】提供输入（否则可能启动闪退 / 设备移除）；\n"
+                            "· 关闭游戏自带的 FSR / XeSS 帧生成；\n"
+                            "· 已安装 Intel XeSS SDK 3.0.2 的 libxess_fg.dll + libxell.dll（工具箱会自动放置到 RTXMFG-XeSS）。\n\n"
+                            "仍要使用 XeSS / XeMFG 内核吗？",
+                            self.is_dark,
+                            ok_text="仍要使用",
+                            cancel_text="改用 DLSS-G",
+                        )
+                        if not _keep:
+                            _idx = self.combo_a_fg_engine.findData("dlssg")
+                            if _idx >= 0:
+                                self.combo_a_fg_engine.setCurrentIndex(_idx)
+                            _want_xemfg = False
+                self.preset_a["xemfg_standalone"] = _want_xemfg
             self.preset_a["menu_key"] = self.combo_a_key.currentData()
             self.preset_a["proxy_dll"] = self.combo_a_proxy.currentData()
             save_mode_a_preset(self.preset_a)

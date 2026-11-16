@@ -1,3 +1,40 @@
+# ⚠️ DM-Toolbox (DM工具箱) v3.1.6 · XeSS / XeMFG 内核选择提示（修复燕云选 XeSS 闪退的误用）
+
+**模式 A 帧生成内核选择 XeSS / XeMFG 时，在 NVIDIA 显卡上会弹出实验性提示，并说明必须游戏内开启 DLSS 帧生成。**
+
+---
+
+### 🐞 1. 现象
+
+燕云十六声在「多帧生成预设」里把「帧生成内核」切到 **XeSS / XeMFG** 后启动闪退。
+
+### 🔍 2. 日志分析
+
+```
+XESS {"stage":"vk_host_config","enabled":true,"standalone":true,"frames":3}
+State: route=pending ready=0 routeFailure=15 gameFG=0 appliedFG=0
+MFG_PROXY_UI XeMFG standalone chain attached
+First-chance exception 0xC0000005 ... at yysls.exe+0x3E2BD81
+XESS d3d12_present ... "generating":false,"why":"no_inputs" ... hresult=-2005270523 (0x887A0005 设备移除)
+```
+
+- XeMFG 独立插帧已接管 swapchain，但游戏内 **DLSS 帧生成未开启**（`gameFG=0`），没有输入帧；
+- 随后 XeFG 在无输入状态下首次 present，游戏访问违例 / 设备移除并闪退；
+- 运行库本身是正确的 Intel XeSS SDK 3.0.2（`libxess_fg.dll 1.3.1.78`、`libxell.dll 1.3.2.10`），不是版本问题。
+
+### ✅ 3. 修复
+
+- 在「保存配置并同步」时，如果帧生成内核选择 XeSS / XeMFG 且当前不是 AMD 显卡：
+  - 弹出说明：NVIDIA 上为实验性；**必须游戏内开启 DLSS 帧生成**，关闭自带 FSR/XeSS 帧生成；
+  - 「改用 DLSS-G」（默认）会直接把内核切回 DLSS-G，「仍要使用」才保留 XeSS；
+- AMD 显卡（原本就默认 XeSS 多帧生成）不再弹此提示。
+
+### 🔍 4. 回归
+
+- 全量测试：**177 passed**（无行为变更，仅新增 UI 提示路径）。
+
+---
+
 # 🛡 DM-Toolbox (DM工具箱) v3.1.5 · 反作弊游戏拦截（可选择强制继续）
 
 **注入多帧生成 / DLSS 5 前识别带反作弊的游戏，弹窗警告；默认取消，也可「强制继续」。**
