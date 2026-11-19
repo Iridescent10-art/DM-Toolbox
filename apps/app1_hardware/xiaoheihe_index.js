@@ -92,19 +92,19 @@
         }
 
         // 4. Memory Hook
+        //    默认不覆盖 type_name：小黑盒原本不显示 "DDR5" 后缀，强制写入会变成
+        //    "128GB Asgard 6000MHz DDR5"。只有配置里显式给了 memory_type 才覆盖。
         if (info.memory) {
           if (target.memory_vendor) info.memory.vendor = target.memory_vendor;
           if (target.memory_size_gb) info.memory.memory_size = target.memory_size_gb * 1024;
           if (target.memory_clock_mhz) info.memory.clock_speed = target.memory_clock_mhz;
-          if (!info.memory.type_name || info.memory.type_name.toLowerCase().includes('ddr')) {
-            info.memory.type_name = "DDR5";
-          }
+          if (target.memory_type) info.memory.type_name = target.memory_type;
         }
         if (Array.isArray(info.memories) && info.memories.length > 0) {
           for (const m of info.memories) {
             if (target.memory_vendor) m.vendor = target.memory_vendor;
             if (target.memory_clock_mhz) m.clock_speed = target.memory_clock_mhz;
-            m.type_name = "DDR5";
+            if (target.memory_type) m.type_name = target.memory_type;
           }
         }
 
