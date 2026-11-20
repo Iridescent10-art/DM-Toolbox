@@ -45,7 +45,10 @@
         // 1. GPU Hook
         if (Array.isArray(info.gpus) && info.gpus.length > 0) {
           if (target.gpu_model) info.gpus[0].name = target.gpu_model;
-          if (target.gpu_vram_gb) info.gpus[0].memory_size = target.gpu_vram_gb * 1024;
+          if (target.gpu_vram_gb) {
+            const vramMb = Math.round(Number(target.gpu_vram_gb) * 1024);
+            if (Number.isFinite(vramMb) && vramMb > 0) info.gpus[0].memory_size = vramMb;
+          }
         }
         
         // 2. CPU Hook
@@ -96,7 +99,12 @@
         //    "128GB Asgard 6000MHz DDR5"。只有配置里显式给了 memory_type 才覆盖。
         if (info.memory) {
           if (target.memory_vendor) info.memory.vendor = target.memory_vendor;
-          if (target.memory_size_gb) info.memory.memory_size = target.memory_size_gb * 1024;
+          if (target.memory_size_gb) {
+            // 小黑盒 / Electron IPC 的硬件 JSON 只接受整数 MB；
+            // 容量允许小数（如 127.66 GB），这里换算后取整，避免 JSON 序列化/校验报错。
+            const memMb = Math.round(Number(target.memory_size_gb) * 1024);
+            if (Number.isFinite(memMb) && memMb > 0) info.memory.memory_size = memMb;
+          }
           if (target.memory_clock_mhz) info.memory.clock_speed = target.memory_clock_mhz;
           if (target.memory_type) info.memory.type_name = target.memory_type;
         }
