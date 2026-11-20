@@ -1,3 +1,44 @@
+# 🧩 DM-Toolbox (DM工具箱) v3.1.8 · 新增多帧生成模式 D（MFGAdaUnlock-RenoDX · RHI/ReShade 插件）
+
+**新增模式 D：`renodx-mfgunlock.addon64`（mavismmg/MFGAdaUnlock-RenoDx 1.10.1），
+走 ReShade/RHI 底座，RTX 40 解锁 3x/4x/6x，RTX 20/30 实验性，且可与 DLSS 5 共存。**
+
+---
+
+### ✨ 1. 模式 D 是什么
+
+- 上游：https://github.com/mavismmg/MFGAdaUnlock-RenoDx
+- 形态：ReShade Addon（`renodx-mfgunlock.addon64`），需要 ReShade（RHI）宿主；
+- 与模式 A 的区别：不占用 `dxgi.dll` 做代理，而是和 DLSS 5 共用同一个 ReShade 底座，
+  两个 addon 同时加载；
+- 解锁能力：RTX 40 系 3x/4x/6x，Dynamic MFG；XeMFG / XeMFG-DLSS-G 后端；
+- 内置版本：1.10.1（已打进安装包，无需联网下载）。
+
+### 🔧 2. 工具箱改动
+
+- 主界面新增「🧩 模式 D: MFGAdaUnlock-RenoDX (ReShade/RHI 插件 · RTX 40 解锁 3x/4x/6x · 可与 DLSS 5 共存)」；
+- 模式 D 部署：ReShade 6.8 宿主（dxgi.dll）+ `renodx-mfgunlock.addon64` + ReShade.ini 配置；
+- **与 DLSS 5 共存**：
+  - 已装 DLSS 5 时直接复用其 ReShade `dxgi.dll`，不再重复部署；
+  - 清理阶段不再误删 `renodx-mfgunlock.addon64`（模式 D 专属保护）；
+  - DLSS 5 注入时也保留模式 D 插件，两个 addon 可同时加载；
+- 状态识别、还原流程与模式 A/B/C 一致。
+
+### 🛠 3. 燕云十六声 模式 A 闪退/不生效
+
+- 日志确认是 `xemfgStandalone=1` 但游戏内未开 DLSS 帧生成导致（`gameFG=0` → `no_inputs`
+  → 设备移除）；
+- 已把燕云当前配置恢复为 `Standalone=0`（DLSS-G 内核）；
+- 使用模式 A 时请在游戏内开启【DLSS 帧生成】，否则 MFG 没有输入、表现就是“不生效”；
+  想用 XeSS 内核则必须按 v3.1.6 的提示开启游戏内帧生成。
+
+### 🔍 4. 回归
+
+- 新增 2 项测试：模式 D 部署（ReShade + addon + ini）、模式 D 注入后 DLSS 5 注入不删模式 D 插件；
+- 全量测试：**179 passed**。
+
+---
+
 # 🩹 DM-Toolbox (DM工具箱) v3.1.7 · 修复小黑盒内存显示多出「DDR5」后缀
 
 **软件 1（电脑硬件配置）修改配置后，小黑盒「我的电脑」内存一栏从 `128GB Asgard 6000MHz`

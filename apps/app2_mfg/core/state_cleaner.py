@@ -508,10 +508,12 @@ def CleanGameDirectoryState(
 
     # (C) renodx-mfgunlock.addon64: ONLY exists in Mode B!
 
-    renodx_addon = td / "renodx-mfgunlock.addon64"
-    if renodx_addon.exists():
-        safe_remove_file(renodx_addon)
-        actions_taken.append("清理遗留的 renodx-mfgunlock.addon64")
+    # 模式 D (MFGAdaUnlock-RenoDX) 本身就需要这个 addon，不能清理
+    if mode != "D":
+        renodx_addon = td / "renodx-mfgunlock.addon64"
+        if renodx_addon.exists():
+            safe_remove_file(renodx_addon)
+            actions_taken.append("清理遗留的 renodx-mfgunlock.addon64")
 
 
 

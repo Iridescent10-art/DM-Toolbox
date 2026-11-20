@@ -42,5 +42,15 @@
         "file": "version.dll"
       }
     }
+  },
+  "mavismmg": {
+    "latest_tag": "1.10.1",
+    "cached_versions": {
+      "1.10.1": {
+        "file": "renodx-mfgunlock.addon64",
+        "dir": "mavismmg/1.10.1",
+        "sha256": "7a6cac051800f3f6b9830866183f049c5874d095b9153802ca8e6052c4c1ba8f"
+      }
+    }
   }
 }

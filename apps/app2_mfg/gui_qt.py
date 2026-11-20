@@ -4072,6 +4072,7 @@ class ModernMFGGUI(QMainWindow):
         self.combo_backend.addItem("🚀 模式 A: dashdogy 原生多帧解锁器 (Universal 1.7.1 · 全显卡默认)", BackendType.STANDALONE)
         self.combo_backend.addItem("⚡ 模式 B: OptiScaler 跨卡帧生成 (XeSS 2.0 / FSR 3.1 · 全显卡跨架构)", BackendType.OPTISCALER_FSR)
         self.combo_backend.addItem("🔥 模式 C: dlssg_for_sm86 原生插帧 (RTX 20/30 系首选 · 完美共存 DLSS 5)", BackendType.DLSSG_SM86)
+        self.combo_backend.addItem("🧩 模式 D: MFGAdaUnlock-RenoDX (ReShade/RHI 插件 · RTX 40 解锁 3x/4x/6x · 可与 DLSS 5 共存)", BackendType.RESHADE_ADDON)
         
         # RTX 20/30 架构默认自动锁定为模式 C
         gpu_name = get_system_gpu_name()
@@ -6098,6 +6099,7 @@ class ModernMFGGUI(QMainWindow):
             "dashdogy": "dashdogy 原生多帧解锁器 (模式 A)",
             "optiscaler": "OptiScaler / FSR 3.1 跨卡转译 (模式 B)",
             "dlssg_sm86": "dlssg_for_sm86 原生插帧 (模式 C · RTX 20/30 首选)",
+            "mavismmg": "MFGAdaUnlock-RenoDX (模式 D · ReShade/RHI 插件)",
             "smart_auto": "智能推荐自适应模式"
         }
         friendly_backend = backend_name_map.get(backend_str, backend_str)

@@ -122,7 +122,7 @@ class PatchEngine:
             elif active_backend == BackendType.OPTISCALER_FSR or backend_str == BackendType.OPTISCALER_FSR.value:
                 target_mode_char = "B"
             elif active_backend == BackendType.RESHADE_ADDON or backend_str == BackendType.RESHADE_ADDON.value:
-                target_mode_char = "B"
+                target_mode_char = "D"
             elif active_backend == BackendType.DLSSG_SM86 or backend_str == BackendType.DLSSG_SM86.value:
                 target_mode_char = "C"
             else:

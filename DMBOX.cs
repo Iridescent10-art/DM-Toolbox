@@ -14,8 +14,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("DM-Toolbox")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("3.1.7.0")]
-[assembly: AssemblyFileVersion("3.1.7.0")]
+[assembly: AssemblyVersion("3.1.8.0")]
+[assembly: AssemblyFileVersion("3.1.8.0")]
 
 namespace DMBOX
 {
