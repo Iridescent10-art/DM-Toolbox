@@ -280,7 +280,7 @@ def test_7_preset_and_guide_dialogs_mode_c():
 
     # 1. Test OptiScalerPresetDialog defaults and initial_modes
     dlg_def = OptiScalerPresetDialog()
-    assert dlg_def.stacked_widget.count() == 3, f"Expected 3 tabs in preset dialog, got {dlg_def.stacked_widget.count()}"
+    assert dlg_def.stacked_widget.count() == 4, f"Expected 4 tabs in preset dialog, got {dlg_def.stacked_widget.count()}"
     assert hasattr(dlg_def, "combo_sm86_mult"), "Mode C combo_sm86_mult missing in preset dialog"
     assert hasattr(dlg_def, "combo_sm86_opt"), "Mode C combo_sm86_opt missing in preset dialog"
     assert hasattr(dlg_def, "combo_sm86_preset"), "Mode C combo_sm86_preset missing in preset dialog"
@@ -299,7 +299,7 @@ def test_7_preset_and_guide_dialogs_mode_c():
 
     # 2. Test ModernTranslationGuideDialog tabs
     dlg_guide = ModernTranslationGuideDialog()
-    assert dlg_guide.tabs.count() == 3, f"Expected 3 tabs in guide dialog, got {dlg_guide.tabs.count()}"
+    assert dlg_guide.tabs.count() == 4, f"Expected 4 tabs in guide dialog, got {dlg_guide.tabs.count()}"
     print("  -> OptiScalerPresetDialog and ModernTranslationGuideDialog verified successfully!")
 
 

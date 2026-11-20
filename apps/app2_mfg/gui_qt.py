@@ -250,6 +250,7 @@ class ModernTranslationGuideDialog(QDialog):
         self.tabs.addTab(self._create_standalone_tab(is_dark), "🚀 模式 A · dashdogy 原生多帧解锁器 (Backspace)")
         self.tabs.addTab(self._create_optiscaler_tab(is_dark), "⚡ 模式 B · OptiScaler 跨架构转译 (Insert)")
         self.tabs.addTab(self._create_dlssg_sm86_tab(is_dark), "🔥 模式 C · dlssg_for_sm86 原生插帧 (RTX 20/30 系首选)")
+        self.tabs.addTab(self._create_reshade_tab(is_dark), "🧩 模式 D · MFGAdaUnlock-RenoDX (ReShade/RHI · Home)")
 
         self.tabs.setCurrentIndex(initial_tab)
         card_layout.addWidget(self.tabs, 1)
@@ -357,10 +358,16 @@ class ModernTranslationGuideDialog(QDialog):
         badge_home = '<span style="background-color: #16a34a; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">【Home】键</span>'
         html = f"""
         <div style="line-height: 1.6; font-size: 13px;">
-            <h3 style="color: #10b981; margin-top: 0;">🎨 模式 B · RenoDX ReShade 插件（Home）</h3>
+            <h3 style="color: #10b981; margin-top: 0;">🎨 模式 B / 模式 D · RenoDX ReShade 插件（Home）</h3>
             <div style="background-color: {'#3b1812' if is_dark else '#fff7ed'}; border-left: 4px solid #ea580c; padding: 10px 14px; border-radius: 4px; margin-bottom: 12px;">
                 <b>❓ 为什么安装了模式 B 进入游戏却没有显示？</b><br>
                 <b>原因</b>：模式 B 是一个 <b>ReShade Addon 插件</b> (<code>renodx-mfgunlock.addon64</code>)，它必须依赖游戏本身安装了 <b>带 Addon 支持的 ReShade 底座</b> (即 <code>dxgi.dll</code>) 才能被载入。如果游戏未安装底座，进入游戏时游戏根本不会执行插件，按 Home 键也不会有任何面板出现！
+            </div>
+            <div style="background-color: {'#1e1b4b' if is_dark else '#eef2ff'}; border-left: 4px solid #6366f1; padding: 10px 14px; border-radius: 4px; margin-bottom: 12px;">
+                <b>🧩 模式 D（MFGAdaUnlock-RenoDX）</b>：使用同一个 <code>renodx-mfgunlock.addon64</code>，
+                无需手动装 RHI —— 工具箱会自动部署 ReShade 6.8 底座；
+                进游戏按 <b>Home</b> → ReShade 的 <b>Add-ons</b> 里找到 <b>MFG Unlock</b>，
+                可直接选 3x/4x/6x 或开 <b>Force frame multiplier</b>；也可与 DLSS 5 同时安装。
             </div>
             <h4 style="color: #34d399; margin: 8px 0;">🚀 模式 B 正确安装三部曲（一步到位）：</h4>
             <ol style="padding-left: 20px;">
@@ -856,7 +863,7 @@ class OptiScalerPresetDialog(QDialog):
             elif "dlssg" in cb_str or "sm86" in cb_str:
                 raw_mode = "C"
             elif "reshade" in cb_str or "mavis" in cb_str:
-                raw_mode = "B"
+                raw_mode = "D"
 
         if not raw_mode and self.game:
             if self.game.patched_backend:
@@ -867,6 +874,8 @@ class OptiScalerPresetDialog(QDialog):
                     raw_mode = "B"
                 elif "dlssg" in pb or "sm86" in pb:
                     raw_mode = "C"
+                elif "mavismmg" in pb or "reshade" in pb or "adaunlock" in pb:
+                    raw_mode = "D"
             elif self.game.target_dir:
                 td = Path(self.game.target_dir)
                 if (td / "dlssg_sm86.ini").exists() or (td / "dlssg_sm86").exists():
@@ -877,7 +886,9 @@ class OptiScalerPresetDialog(QDialog):
                     raw_mode = "A"
 
         mode_upper = str(raw_mode or "A").upper().strip()
-        if any(k in mode_upper for k in ["SM86", "DLSSG", "C"]):
+        if mode_upper.startswith("D") or "MAVIS" in mode_upper or "ADAUNLOCK" in mode_upper:
+            target_idx = 3
+        elif any(k in mode_upper for k in ["SM86", "DLSSG", "C"]):
             target_idx = 2
         elif any(k in mode_upper for k in ["OPTISCALER", "XESS", "FSR", "B"]):
             target_idx = 1
@@ -1058,20 +1069,23 @@ class OptiScalerPresetDialog(QDialog):
         text_a = "🚀 模式 A: dashdogy (全显卡)"
         text_b = "⚡ 模式 B: OptiScaler (全显卡/跨架构)"
         text_c = "🔥 模式 C: dlssg_for_sm86 (RTX 20/30 系首选)"
+        text_d = "🧩 模式 D: MFGAdaUnlock-RenoDX (RHI 插件)"
 
         self.tab_btn_a = QPushButton(text_a)
         self.tab_btn_b = QPushButton(text_b)
         self.tab_btn_c = QPushButton(text_c)
+        self.tab_btn_d = QPushButton(text_d)
 
         tooltips = [
             "模式 A: dashdogy 原生多帧解锁器 (Universal MFG-Unlocker 1.7.1 · 全显卡 · Backspace 菜单)",
             "模式 B: OptiScaler 跨架构转译 (Intel XeSS 2.0 / FSR 3.1 / 全显卡多倍插帧 · Insert 菜单)",
-            "模式 C: dlssg_for_sm86 原生插帧 (专为 RTX 20/30 系定制 · 原生 DLSS-G 神经网络与专属加速内核 · 完美共存 DLSS 5)"
+            "模式 C: dlssg_for_sm86 原生插帧 (专为 RTX 20/30 系定制 · 原生 DLSS-G 神经网络与专属加速内核 · 完美共存 DLSS 5)",
+            "模式 D: MFGAdaUnlock-RenoDX (renodx-mfgunlock.addon64 · 走 ReShade/RHI 底座 · RTX 40 解锁 3x/4x/6x · 可与 DLSS 5 共存 · Home 面板)"
         ]
         if 0 <= self.initial_tab_index < len(tooltips):
             tooltips[self.initial_tab_index] += " · 当前正在使用该模式"
 
-        self.tab_buttons = [self.tab_btn_a, self.tab_btn_b, self.tab_btn_c]
+        self.tab_buttons = [self.tab_btn_a, self.tab_btn_b, self.tab_btn_c, self.tab_btn_d]
 
         tab_font = QFont("Microsoft YaHei UI")
         tab_font.setPixelSize(13)
@@ -1115,6 +1129,10 @@ class OptiScalerPresetDialog(QDialog):
         # Add Tab 2: Mode C (dlssg_for_sm86)
         tab_mode_c = self._build_dlssg_sm86_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
         self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_c, is_dark))
+
+        # Add Tab 3: Mode D (MFGAdaUnlock-RenoDX / ReShade addon)
+        tab_mode_d = self._build_mode_d_tab(is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border)
+        self.stacked_widget.addWidget(self._wrap_tab_in_scroll(tab_mode_d, is_dark))
 
         card_layout.addWidget(self.stacked_widget, 1)
 
@@ -1956,6 +1974,66 @@ class OptiScalerPresetDialog(QDialog):
 
     _build_mode_c_tab = _build_mode_b_tab  # backward compat alias
 
+    def _build_mode_d_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
+        """模式 D：MFGAdaUnlock-RenoDX（renodx-mfgunlock.addon64）基础设置页。"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
+
+        title = QLabel("🧩 模式 D · MFGAdaUnlock-RenoDX（ReShade / RHI 插件）")
+        title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {text_color};")
+        layout.addWidget(title)
+
+        intro = QLabel(
+            "使用 renodx-mfgunlock.addon64（mavismmg/MFGAdaUnlock-RenoDx 1.10.1）。\n"
+            "· RTX 40 系解锁 3x / 4x / 5x / 6x，RTX 20/30 系实验性；\n"
+            "· 与 DLSS 5 共用同一个 ReShade 底座，两个 addon 可同时加载；\n"
+            "· 进游戏按 Home → ReShade 的 Add-ons → MFG Unlock 面板；\n"
+            "· 游戏内开启【DLSS 帧生成】后本插件才会接管多帧倍率。"
+        )
+        intro.setWordWrap(True)
+        intro.setStyleSheet(f"color: {sub_text}; font-size: 12px; line-height: 1.6;")
+        layout.addWidget(intro)
+
+        card = QFrame()
+        card.setStyleSheet(
+            f"QFrame {{ background-color: {card_bg}; border: 1px solid {card_border}; border-radius: 10px; }}"
+        )
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(16, 16, 16, 16)
+        c_layout.setSpacing(12)
+
+        row1 = QHBoxLayout()
+        lbl_m = QLabel("强制插帧倍率:")
+        lbl_m.setMinimumWidth(120)
+        lbl_m.setStyleSheet(f"color: {text_color}; font-size: 13px; font-weight: 600;")
+        row1.addWidget(lbl_m)
+        self.combo_d_mult = QComboBox()
+        self.combo_d_mult.setStyleSheet(
+            f"QComboBox {{ background-color: {combo_bg}; border: 1px solid {combo_border}; "
+            f"border-radius: 6px; padding: 6px 10px; color: {text_color}; }}"
+        )
+        self.combo_d_mult.addItem("Auto (跟随游戏/驱动默认)", 0)
+        for n in (2, 3, 4, 5, 6):
+            self.combo_d_mult.addItem(f"{n}X {'(推荐)' if n == 3 else ''}", n)
+        self.combo_d_mult.setToolTip("0 = 由游戏决定；固定值会覆盖游戏内请求的倍率")
+        row1.addWidget(self.combo_d_mult, 1)
+        c_layout.addLayout(row1)
+
+        self.chk_d_dynamic = QCheckBox("Dynamic MFG（动态倍率，跟随目标帧率）")
+        self.chk_d_dynamic.setStyleSheet(f"color: {text_color}; font-size: 13px;")
+        c_layout.addWidget(self.chk_d_dynamic)
+
+        self.chk_d_hdr = QCheckBox("HDR / UI 重组兼容（RenoDX HDR 场景）")
+        self.chk_d_hdr.setChecked(True)
+        self.chk_d_hdr.setStyleSheet(f"color: {text_color}; font-size: 13px;")
+        c_layout.addWidget(self.chk_d_hdr)
+
+        layout.addWidget(card)
+        layout.addStretch()
+        return page
+
     def _build_dlssg_sm86_tab(self, is_dark, text_color, sub_text, card_bg, card_border, combo_bg, combo_border) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -2256,6 +2334,15 @@ class OptiScalerPresetDialog(QDialog):
             self.chk_b_dynamic.setChecked(bool(self.preset_b.get("dynamic_mfg", 0)))
             self.chk_b_temporal.setChecked(bool(self.preset_b.get("temporal_fix", 1)))
 
+        # 1.5 Mode D 控件回填（与 Mode B 共用同一份 ReShade 预设）
+        if hasattr(self, "combo_d_mult"):
+            _d_mult = int(self.preset_b.get("force_multiplier", 3))
+            _idx_dm = self.combo_d_mult.findData(_d_mult)
+            if _idx_dm >= 0:
+                self.combo_d_mult.setCurrentIndex(_idx_dm)
+            self.chk_d_dynamic.setChecked(bool(self.preset_b.get("dynamic_mfg", 0)))
+            self.chk_d_hdr.setChecked(bool(self.preset_b.get("hdr_ui_recomposition", 1)))
+
         # 2. Mode C
         fg_out = self.preset_c.get("fg_output", "xefg")
         idx = self.combo_fg_out.findData(fg_out)
@@ -2499,6 +2586,13 @@ class OptiScalerPresetDialog(QDialog):
             if hasattr(self, "chk_c_unlock_mfg"):
                 self.preset_b["unlock_mfg"] = self.chk_c_unlock_mfg.isChecked()
             save_optiscaler_preset(self.preset_b)
+
+        # 1.5 Mode D (MFGAdaUnlock-RenoDX / ReShade addon) — 与 Mode B 共用 ReShade 预设
+        if hasattr(self, "combo_d_mult"):
+            self.preset_b["force_multiplier"] = int(self.combo_d_mult.currentData() or 0)
+            self.preset_b["dynamic_mfg"] = 1 if self.chk_d_dynamic.isChecked() else 0
+            self.preset_b["hdr_ui_recomposition"] = 1 if self.chk_d_hdr.isChecked() else 0
+            save_reshade_preset(self.preset_b)
 
         # 2. Update Mode C (dlssg_for_sm86) dictionary & save
         if hasattr(self, "combo_sm86_mult"):
@@ -4820,6 +4914,11 @@ class ModernMFGGUI(QMainWindow):
             self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #ea580c; font-weight: 600;")
             if hasattr(self, "lbl_rhi_desc_hint"):
                 self.lbl_rhi_desc_hint.setText("当前为模式 B 跨卡转译 · 可使用 RHI 部署 HDR 高级色彩生态")
+        elif backend_str in [BackendType.RESHADE_ADDON.value, "mavismmg"]:
+            self.lbl_backend_desc.setText("模式 D (MFGAdaUnlock-RenoDX): 走 ReShade/RHI 插件，RTX 40 解锁 3x/4x/6x；与 DLSS 5 共用 ReShade，可同时加载；进游戏按 Home 打开 MFG Unlock 面板")
+            self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #7c3aed; font-weight: 600;")
+            if hasattr(self, "lbl_rhi_desc_hint"):
+                self.lbl_rhi_desc_hint.setText("当前为模式 D ReShade 插件 · 与 DLSS 5 共用 RHI 底座，互不冲突")
         elif backend_str in [BackendType.DLSSG_SM86.value, "dlssg_sm86"]:
             self.lbl_backend_desc.setText("模式 C (dlssg_for_sm86): 🔥 RTX 20/30 系首选！官方原生 2X 插帧内核，与 DLSS 5 (dxgi.dll) 完美共存")
             self.lbl_backend_desc.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600;")
@@ -5838,14 +5937,8 @@ class ModernMFGGUI(QMainWindow):
             self.lbl_lock_stat.setText("运行状态: ✅ 未运行 (可安全执行修补与还原)")
             self.lbl_lock_stat.setStyleSheet("font-size: 11px; color: #16a34a;")
 
-        # Clean legacy Mode B (RenoDX addon) if found in game directory
-        if game.target_dir and os.path.exists(game.target_dir):
-            legacy_addon = os.path.join(game.target_dir, "renodx-mfgunlock.addon64")
-            if os.path.exists(legacy_addon):
-                try:
-                    os.remove(legacy_addon)
-                except Exception:
-                    pass
+        # 注意：renodx-mfgunlock.addon64 现在是「模式 D」的正式组件，
+        # 不能再在选中游戏时当作遗留文件删除，否则模式 D 注入后会被立即移除。
 
         if game.is_patched:
             b_str = str(game.patched_backend).lower()
@@ -5867,6 +5960,12 @@ class ModernMFGGUI(QMainWindow):
                 idx_c = self.combo_backend.findData(BackendType.DLSSG_SM86)
                 if idx_c >= 0:
                     self.combo_backend.setCurrentIndex(idx_c)
+            elif "mavismmg" in b_str or "reshade" in b_str or "adaunlock" in b_str:
+                self.lbl_status.setText("● 状态: 就绪 | 补丁状态: 【已修补】后端: 模式 D (MFGAdaUnlock-RenoDX / ReShade 插件)")
+                self.top_alert.setText(f"● 游戏 '{game.name}' 已激活模式 D ReShade 多帧插件 (3x/4x/6x · 可与 DLSS 5 共存)")
+                idx_d = self.combo_backend.findData(BackendType.RESHADE_ADDON)
+                if idx_d >= 0:
+                    self.combo_backend.setCurrentIndex(idx_d)
             else:
                 game.is_patched = False
                 game.patched_backend = None

@@ -1,3 +1,32 @@
+# 🧩 DM-Toolbox (DM工具箱) v3.1.9 · 模式 D 修复：注入不再回落模式 A、同步配置新增模式 D 页
+
+**上次 v3.1.8 只是把模式 D 加进了后端枚举，UI 里没有它的状态分支，而且选中游戏时会把
+`renodx-mfgunlock.addon64` 当“遗留模式 B”删掉，导致模式 D 看起来总是回到模式 A。**
+
+---
+
+### 🐞 1. 修复内容
+
+- **删除破坏性逻辑**：选中/刷新游戏时不再自动删除 `renodx-mfgunlock.addon64`
+  （它现在是模式 D 的正式组件）；
+- **状态识别**：补丁清单里 `active_backend = mavismmg` 时，界面显示
+  「模式 D (MFGAdaUnlock-RenoDX / ReShade 插件)」并自动把下拉框切到模式 D；
+- **后端说明**：下拉选到模式 D 时显示紫色说明（RHI 插件 / 3x-6x / 与 DLSS 5 共存 / Home 打开面板）；
+- **预设配置弹窗新增「🧩 模式 D」页**：不再是只有 A/B/C 三个页签；
+  从模式 D 打开时直接定位到 D 页，并说明参数在游戏内 Home → MFG Unlock 面板调整。
+
+### ✅ 2. 验证
+
+- GUI 级验证：下拉选中模式 D 后，`on_patch_click` 实际传入的后端为 `mavismmg`（模式 D），
+  不再解析成模式 A；
+- 模式 D 部署 + 与 DLSS 5 共存测试继续通过。
+
+### 🔍 3. 回归
+
+- 全量测试：**179 passed**。
+
+---
+
 # 🧩 DM-Toolbox (DM工具箱) v3.1.8 · 新增多帧生成模式 D（MFGAdaUnlock-RenoDX · RHI/ReShade 插件）
 
 **新增模式 D：`renodx-mfgunlock.addon64`（mavismmg/MFGAdaUnlock-RenoDx 1.10.1），
