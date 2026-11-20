@@ -40,7 +40,7 @@ $boardVendor = if ($target.motherboard_vendor) { $target.motherboard_vendor } el
 $boardProduct = if ($target.motherboard_product) { $target.motherboard_product } else { "ROG CROSSHAIR X870E HERO" }
 
 $memoryVendor = if ($target.memory_vendor) { $target.memory_vendor } else { "Corsair" }
-$memoryGb = if ($target.memory_size_gb) { [int]$target.memory_size_gb } else { 64 }
+$memoryGb = if ($target.memory_size_gb) { [double]$target.memory_size_gb } else { 64 }
 $memoryClock = if ($target.memory_clock_mhz) { [int]$target.memory_clock_mhz } else { 7200 }
 
 $diskModel = if ($target.disk_model) { $target.disk_model } else { "Samsung SSD 990 PRO 2TB" }

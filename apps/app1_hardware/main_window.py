@@ -4160,13 +4160,15 @@ class MainWindow(QMainWindow):
         if text.startswith("✏️ 自定义"):
             new_text, ok = QInputDialog.getText(
                 self, "自定义内存容量",
-                "请输入自定义内存容量 (单位: GB，如 96 或 128):",
+                "请输入自定义内存容量 (单位: GB，支持小数，如 96 / 127.5 / 128):",
                 text=str(curr_size)
             )
             if ok and new_text.strip():
                 import re
-                m = re.search(r"(\d+)", new_text)
-                gb_val = int(m.group(1)) if m else curr_size
+                m = re.search(r"(\d+(?:\.\d+)?)", new_text)
+                gb_val = float(m.group(1)) if m else curr_size
+                if float(gb_val).is_integer():
+                    gb_val = int(gb_val)
                 val_str = f"{gb_val} GB"
                 if hasattr(self, "mem_size_input"):
                     self._insert_combo_item(self.mem_size_input, val_str, preset_key="memory_size")
@@ -4181,9 +4183,10 @@ class MainWindow(QMainWindow):
             return
 
         import re
-        m = re.search(r"(\d+)\s*GB", text)
+        m = re.search(r"(\d+(?:\.\d+)?)\s*GB", text)
         if m:
-            self.config["custom_target"]["memory_size_gb"] = int(m.group(1))
+            gb_val = float(m.group(1))
+            self.config["custom_target"]["memory_size_gb"] = int(gb_val) if gb_val.is_integer() else gb_val
             save_config(self.config)
 
     def on_mem_clock_changed(self, text):
@@ -4326,9 +4329,10 @@ class MainWindow(QMainWindow):
         if hasattr(self, "mem_size_input"):
             ms = self.mem_size_input.currentText().strip()
             import re
-            m = re.search(r"(\d+)", ms)
+            m = re.search(r"(\d+(?:\.\d+)?)", ms)
             if m:
-                self.config["custom_target"]["memory_size_gb"] = int(m.group(1))
+                gb_val = float(m.group(1))
+                self.config["custom_target"]["memory_size_gb"] = int(gb_val) if gb_val.is_integer() else gb_val
         if hasattr(self, "mem_clock_input"):
             mc = self.mem_clock_input.currentText().strip()
             import re

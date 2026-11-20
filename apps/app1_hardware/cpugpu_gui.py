@@ -1201,9 +1201,11 @@ class CPUGPUApp:
 
     def parse_mem_gb(self):
         val_str = self.mem_size_var.get()
-        digits = "".join([c for c in val_str.split()[0] if c.isdigit()])
+        import re
+        m = re.search(r"(\d+(?:\.\d+)?)", val_str)
         try:
-            return int(digits)
+            gb_val = float(m.group(1)) if m else 64.0
+            return int(gb_val) if gb_val.is_integer() else gb_val
         except Exception:
             return 64
 
