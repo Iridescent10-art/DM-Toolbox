@@ -1,3 +1,37 @@
+# 🧩 DM-Toolbox (DM工具箱) v3.3.1 · 小黑盒桌面版 Hook 覆盖“扩展缓存”副本
+
+**v3.3.0 只改安装了 `versions/.../services/hardware.mjs`，但小黑盒实际从用户目录的扩展缓存加载，
+缓存没有被打补丁，所以内存/主板/硬盘仍显示真实值。**
+
+---
+
+### 🐞 1. 原因
+
+小黑盒桌面版启动时会把扩展复制到：
+
+```
+%APPDATA%\HeyboxDesktop\desktop\extension-artifacts\v1\packages\<hash>\services\hardware.mjs
+```
+
+实际加载的是这份缓存；安装目录里的 `hardware.mjs` 只是源文件。
+而且不同版本的缓存导出名不同（`Ct/Pt`、`ua/fa` 等），旧注入逻辑写死了 `Ct/Pt`。
+
+### ✅ 2. 修复
+
+- `heybox_desktop_patch.py` 现在会同时处理：
+  - 安装目录 `versions/*/resources/extensions/.../hardware.mjs`
+  - `%APPDATA%\HeyboxDesktop\desktop\extension-artifacts\**\services\hardware.mjs`
+- 注入逻辑改为**通用解析** `export{X as create,Y as dispose}`，不再假设变量名；
+- 每个文件独立备份 `.tbx_bak`，可逐个还原；
+- 软件 1 每次「应用配置」都会重新覆盖缓存副本，避免小黑盒更新后失效。
+
+### 🔍 3. 回归
+
+- 新增 1 项测试：不同导出名（`ua/fa`）也能正确注入；
+- 全量测试：**183 passed**。
+
+---
+
 # 🖥 DM-Toolbox (DM工具箱) v3.3.0 · 支持新版小黑盒桌面版（HeyboxDesktop 2.x）硬件伪装
 
 **小黑盒换成了 `C:\Program Files (x86)\Qingfeng\HeyboxDesktop`（2.x），

@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "apps" / "app1_hardware"))
 import heybox_desktop_patch as h  # noqa: E402
 
 SAMPLE = 'var Ct=function(e){return {getInventory(){return {memory:{totalBytes:1}}},getReportInfo(){return {memory:{memory_size:1}}}}};var Pt=async e=>{};export{Ct as create,Pt as dispose};'
+SAMPLE_ALT = 'var ua=function(e){return {getInventory(){return {}}};var fa=async e=>{};export{ua as create,fa as dispose};' 
 
 
 def test_inject_replaces_export_and_is_idempotent(tmp_path):
@@ -25,6 +26,15 @@ def test_inject_replaces_export_and_is_idempotent(tmp_path):
 
     # 已注入过则不重复注入
     assert h.patch_hardware_module(f) is False
+
+
+def test_generic_export_names_supported(tmp_path):
+    f = tmp_path / "hardware.mjs"
+    f.write_text(SAMPLE_ALT, encoding="utf-8")
+    assert h.patch_hardware_module(f) is True
+    text = f.read_text(encoding="utf-8")
+    assert "const __tbxOrigCreate = ua;" in text
+    assert "fa as dispose" in text
 
 
 def test_restore_brings_original_back(tmp_path):

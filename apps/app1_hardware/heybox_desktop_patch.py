@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 """小黑盒桌面版（HeyboxDesktop 2.x）硬件伪装 Hook。
 
-新版小黑盒不再用 resources/app/index.js，而是把硬件采集放在扩展：
+新版小黑盒把硬件采集放在扩展里，并且会把扩展缓存到用户目录后从缓存加载：
   versions/<ver>/resources/extensions/internal/ai-desktop.hardware-detect/services/hardware.mjs
-这里在模块尾部注入一层包装，覆盖 getInventory / getReportInfo 返回的硬件信息。
+  %APPDATA%\\HeyboxDesktop\\desktop\\extension-artifacts\\v1\\packages\\<hash>\\services\\hardware.mjs
+这里给所有这些 hardware.mjs 尾部注入 ESM 包装，覆盖 getInventory / getReportInfo。
 """
 
 from __future__ import annotations
 
-import json
 import os
+import re
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 MARKER = "/* TBX_HEYBOX_DESKTOP_HOOK_V1 */"
 
@@ -23,12 +24,12 @@ DESKTOP_CANDIDATES = [
     r"D:\Program Files\Qingfeng\HeyboxDesktop",
 ]
 
-HOOK_JS = r"""
+HOOK_JS_TEMPLATE = r"""
 
 /* TBX_HEYBOX_DESKTOP_HOOK_V1 */
 import { readFileSync as __tbxReadFile, existsSync as __tbxExists } from "node:fs";
 import { join as __tbxJoinPath } from "node:path";
-const __tbxOrigCreate = Ct;
+const __tbxOrigCreate = {CREATE};
 function __tbxReadCfg() {
   try {
     const candidates = [];
@@ -132,8 +133,10 @@ function __tbxWrapService(svc) {
   });
 }
 function __tbxCreate(e) { return __tbxWrapService(__tbxOrigCreate(e)); }
-export { __tbxCreate as create, Pt as dispose };
+export { __tbxCreate as create, {DISPOSE} as dispose };
 """
+
+EXPORT_RE = re.compile(r"export\s*\{\s*([A-Za-z_$][\w$]*)\s+as\s+create\s*,\s*([A-Za-z_$][\w$]*)\s+as\s+dispose\s*\}\s*;?\s*$")
 
 
 def find_desktop_dirs() -> List[Path]:
@@ -142,7 +145,6 @@ def find_desktop_dirs() -> List[Path]:
         p = Path(c)
         if p.exists():
             dirs.append(p)
-    # 注册表
     try:
         import winreg
         for hkey, sub in (
@@ -163,7 +165,6 @@ def find_desktop_dirs() -> List[Path]:
                         continue
     except Exception:
         pass
-    # 去重
     out, seen = [], set()
     for d in dirs:
         k = str(d).lower()
@@ -173,7 +174,7 @@ def find_desktop_dirs() -> List[Path]:
     return out
 
 
-def find_hardware_modules(base: Path) -> List[Path]:
+def find_installed_modules(base: Path) -> List[Path]:
     versions = base / "versions"
     if not versions.is_dir():
         return []
@@ -185,6 +186,31 @@ def find_hardware_modules(base: Path) -> List[Path]:
     return found
 
 
+def find_cached_modules() -> List[Path]:
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        return []
+    root = Path(appdata) / "HeyboxDesktop" / "desktop" / "extension-artifacts"
+    if not root.is_dir():
+        return []
+    return [p for p in root.rglob("services/hardware.mjs") if p.is_file()]
+
+
+def hardware_modules() -> List[Path]:
+    mods: List[Path] = []
+    for base in find_desktop_dirs():
+        mods.extend(find_installed_modules(base))
+    mods.extend(find_cached_modules())
+    # 去重
+    out, seen = [], set()
+    for p in mods:
+        k = str(p).lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(p)
+    return out
+
+
 def is_patched(path: Path) -> bool:
     try:
         return MARKER in path.read_text(encoding="utf-8", errors="ignore")
@@ -193,11 +219,12 @@ def is_patched(path: Path) -> bool:
 
 
 def _inject(content: str) -> str:
-    # 去掉旧 export，改成包装后的 create
-    old_export = "export{Ct as create,Pt as dispose};"
-    if old_export not in content:
-        raise RuntimeError("未找到预期的 export 语句，无法注入（小黑盒版本可能已变化）")
-    return content.replace(old_export, HOOK_JS.strip(), 1)
+    m = EXPORT_RE.search(content)
+    if not m:
+        raise RuntimeError("未找到 'export{X as create,Y as dispose}'，小黑盒版本可能已变化")
+    create_name, dispose_name = m.group(1), m.group(2)
+    hook = HOOK_JS_TEMPLATE.replace("{CREATE}", create_name).replace("{DISPOSE}", dispose_name).strip()
+    return content[:m.start()] + hook + content[m.end():]
 
 
 def patch_hardware_module(path: Path, dry_run: bool = False) -> bool:
@@ -223,15 +250,25 @@ def restore_hardware_module(path: Path) -> bool:
 
 
 def apply_heybox_desktop_hook() -> List[str]:
-    """返回已处理的 hardware.mjs 路径列表。"""
+    """返回本次成功注入/已注入的 hardware.mjs 路径列表。"""
     done = []
-    for base in find_desktop_dirs():
-        for mod in find_hardware_modules(base):
-            try:
-                if patch_hardware_module(mod):
-                    done.append(str(mod))
-            except Exception:
-                continue
+    for mod in hardware_modules():
+        try:
+            if patch_hardware_module(mod) or is_patched(mod):
+                done.append(str(mod))
+        except Exception:
+            continue
+    return done
+
+
+def restore_heybox_desktop_hook() -> List[str]:
+    done = []
+    for mod in hardware_modules():
+        try:
+            if restore_hardware_module(mod):
+                done.append(str(mod))
+        except Exception:
+            continue
     return done
 
 
