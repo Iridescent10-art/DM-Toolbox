@@ -1,3 +1,50 @@
+# 🛡 DM-Toolbox (DM工具箱) v3.3.2 · 新版小黑盒改用运行时拦截（IFEO + helper shim）
+
+**小黑盒桌面版 2.x 会校验扩展内容哈希，改 `hardware.mjs` 会被重新下载覆盖；
+本版改为在运行时拦截硬件采集 helper，不再修改任何安装文件。**
+
+---
+
+### 🔍 1. 为什么换方案
+
+- 2.x 启动时校验扩展包 `revision_id` / 文件封条；
+- 被改过的 `hardware.mjs` 会被判定损坏，从 CDN 重新下载到新目录；
+- 因此 v3.3.0 / v3.3.1 的文件 Hook 在新版上不持久。
+
+### ✅ 2. 新方案：helper 运行时拦截
+
+1. 工具箱把当前硬件扩展包复制到 `C:\Users\Public\DMBOX\heybox-helper\`；
+2. 原 `hardware-windows-helper.exe` 改名为 `helper_real.exe`；
+3. 放入编译好的 `HeyboxHelperShim.exe`（C#，11 KB）；
+4. 给 `hardware-windows-helper.exe` 注册 IFEO Debugger：
+   - 小黑盒调用 helper 时，Windows 先启动 shim；
+   - shim 再运行 `helper_real.exe`（不改名防递归）；
+   - 读取其 stdout JSON，按 ToolboxMaster 配置改写
+     CPU / 显卡 / 内存 / 主板 / 硬盘 字段后再输出。
+
+**不修改小黑盒任何文件，也不改 app.asar**，因此不会触发扩展哈希校验。
+
+### 🧠 3. 字段映射
+
+- `cpu.name` ← `cpu_model`
+- `gpus[]` 第一个非虚拟显卡 ← `gpu_model` + `gpu_vram_gb`
+- `memory.modules[*]` / `smbiosMemory[*]` ← 容量（GB→字节，按条数均分）、品牌、频率、类型
+- `board.name/product/vendor`、`computer.model` ← 主板配置
+- `disks[0].name/sizeBytes` ← `disk_model`
+
+### ↩️ 4. 还原
+
+软件 1「还原官方真实配置」会删除 IFEO 项与 `C:\Users\Public\DMBOX\heybox-helper\`，
+小黑盒恢复读取真实硬件。
+
+### 🔍 5. 回归
+
+- 本地实测 shim：127.66 GB / G.Skill / 6000MHz / RTX 4080 SUPER / WD_BLACK SN850X /
+  MS-Terminator B850BKB WIFI 均正确输出；
+- 新增 3 项测试；全量测试：**186 passed**。
+
+---
+
 # 🧩 DM-Toolbox (DM工具箱) v3.3.1 · 小黑盒桌面版 Hook 覆盖“扩展缓存”副本
 
 **v3.3.0 只改安装了 `versions/.../services/hardware.mjs`，但小黑盒实际从用户目录的扩展缓存加载，

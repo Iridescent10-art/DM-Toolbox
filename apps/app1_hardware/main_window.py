@@ -527,7 +527,12 @@ def apply_xiaoheihe_hook(base_dir=None):
 
 
 def restore_xiaoheihe_hook(base_dir=None):
-    # 新版桌面版
+    # 新版桌面版：移除 IFEO 运行时拦截
+    try:
+        from heybox_helper_ifEO import remove_ifEO
+        remove_ifEO()
+    except Exception:
+        pass
     try:
         from heybox_desktop_patch import find_desktop_dirs, find_hardware_modules, restore_hardware_module
         for _b in find_desktop_dirs():
@@ -915,10 +920,13 @@ def execute_hardware_apply(target, components=None):
             apply_xiaoheihe_hook(custom_heybox_dir)
         except Exception:
             pass
-        # 新版小黑盒桌面版（HeyboxDesktop 2.x）硬件采集在扩展 hardware.mjs 里
+        # 新版小黑盒桌面版（HeyboxDesktop 2.x）：扩展包有内容校验，改文件会被重下，
+        # 因此改用 IFEO + helper shim 在运行时改写硬件采集结果。
         try:
-            from heybox_desktop_patch import apply_heybox_desktop_hook
-            apply_heybox_desktop_hook()
+            from heybox_helper_ifEO import install_ifEO
+            _ifeo_msg = install_ifEO()
+            if _ifeo_msg and "没有管理员权限" not in _ifeo_msg:
+                pass
         except Exception:
             pass
 
