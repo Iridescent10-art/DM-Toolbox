@@ -1,3 +1,38 @@
+# 🏷 DM-Toolbox (DM工具箱) v3.3.5 · 内存料号后缀可控（C32 后面的 VAM5UH64…）
+
+**小黑盒内存行显示的 `C32 VAM5UH64C32AG-DVALWA` 是 SMBIOS 里的内存条料号（Part Number），
+之前只改了品牌、没改料号，所以会露出真实条子的型号。**
+
+---
+
+### 🧠 1. 后缀是什么
+
+- `127.66GB 6000MHz C32 Memory VAM5UH64C32AG-DVALWA`
+  - `C32` = CAS 时序（SPD 读出）
+  - `VAM5UH64C32AG-DVALWA` = 内存条料号（SMBIOS Part Number），你真实条子是 Asgard 的型号
+- 别人的截图只显示 `Memory`，因为他们的条子没有可读料号，或料号为空。
+
+### ✅ 2. 新增控制
+
+- 「主板与内存」页新增：**内存料号 / 型号** 输入框
+  - 留空 → 显示为 `Memory`（和大多数人一样）
+  - 可填真实品牌料号，例如 `F5-6000J3038F16GX2-TZ5NR`
+- helper shim 默认清空 `partNumber`（`memory.modules` 与 `smbiosMemory` 都清），
+  只有填了料号才写入。
+
+### 🔍 3. 实测
+
+```
+partNumber=''  vendor=Memory  type=DDR5
+cpu cores 按配置输出
+```
+
+### 🔍 4. 回归
+
+- 全量测试：**186 passed**。
+
+---
+
 # 🧩 DM-Toolbox (DM工具箱) v3.3.4 · 新增 MAXSUN 主板预设 / 还原修复 / 新版小黑盒路径识别
 
 ---

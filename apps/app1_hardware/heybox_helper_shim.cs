@@ -153,6 +153,7 @@ internal static class Program
         long? total = Bytes(N(cfg, "memory_size_gb"));
         string memVendor = S(cfg, "memory_vendor");
         string memPn = S(cfg, "memory_part_number");
+        if (memPn == null) memPn = "";  // 默认隐藏真实料号，显示为 Memory
         double? memClock = N(cfg, "memory_clock_mhz");
         string memType = S(cfg, "memory_type");
 

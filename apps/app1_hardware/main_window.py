@@ -3686,6 +3686,13 @@ class MainWindow(QMainWindow):
         self.mem_vendor_input.currentTextChanged.connect(self.on_mem_vendor_changed)
         c_layout.addWidget(self.mem_vendor_input)
 
+        c_layout.addWidget(QLabel("内存料号 / 型号（小黑盒里 C32 后面的后缀，留空显示 Memory）:"))
+        self.mem_part_input = QLineEdit()
+        self.mem_part_input.setPlaceholderText("留空 = 只显示 Memory；可填 F5-6000J3038F16GX2-TZ5NR 等")
+        self.mem_part_input.setText(str(self.config["custom_target"].get("memory_part_number", "")))
+        self.mem_part_input.textChanged.connect(self.on_mem_part_changed)
+        c_layout.addWidget(self.mem_part_input)
+
         c_layout.addWidget(QLabel("内存容量与工作频率 (DDR5):"))
         mem_h = QHBoxLayout()
         self.mem_size_input = QComboBox()
@@ -4224,6 +4231,14 @@ class MainWindow(QMainWindow):
 
         self.update_target_field("memory_vendor", text)
 
+    def on_mem_part_changed(self, text):
+        val = str(text or "").strip()
+        if val:
+            self.config["custom_target"]["memory_part_number"] = val
+        else:
+            self.config["custom_target"].pop("memory_part_number", None)
+        save_config(self.config)
+
     def on_mem_size_changed(self, text):
         if not text:
             return
@@ -4396,6 +4411,12 @@ class MainWindow(QMainWindow):
                 self.config["custom_target"]["motherboard_product"] = bp
 
         # Memory
+        if hasattr(self, "mem_part_input"):
+            _mp = self.mem_part_input.text().strip()
+            if _mp:
+                self.config["custom_target"]["memory_part_number"] = _mp
+            else:
+                self.config["custom_target"].pop("memory_part_number", None)
         if hasattr(self, "mem_vendor_input"):
             mv = self.mem_vendor_input.currentText().strip()
             if mv and not mv.startswith("✏️"):
