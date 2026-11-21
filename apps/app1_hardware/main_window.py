@@ -3251,7 +3251,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.create_home_view())
         self.stack.addWidget(self.create_cpu_view())
         self.stack.addWidget(self.create_gpu_view())
-        self.stack.addWidget(self.create_board_ram_view())
+        self.stack.addWidget(self._wrap_scroll(self.create_board_ram_view()))
         self.stack.addWidget(self.create_disk_view())
         self.stack.addWidget(self.create_heybox_view())
         self.stack.addWidget(self.create_backup_view())
@@ -3732,9 +3732,9 @@ class MainWindow(QMainWindow):
             f"QLabel {{ color: {_fg}; font-size: 13px; }}"
             f"QLabel[class='DescLabel'] {{ color: {_sub}; }}"
             f"QLineEdit {{ background-color: {_input_bg}; color: {_fg}; border: 1px solid {_border};"
-            f" border-radius: 10px; padding: 8px 12px; font-size: 13px; }}"
+            f" border-radius: 10px; padding: 8px 12px; font-size: 13px; min-height: 22px; }}"
             f"QComboBox {{ background-color: {_input_bg}; color: {_fg}; border: 1px solid {_border};"
-            f" border-radius: 10px; padding: 8px 32px 8px 12px; font-size: 13px; }}"
+            f" border-radius: 10px; padding: 8px 32px 8px 12px; font-size: 13px; min-height: 22px; }}"
             f"QComboBox QAbstractItemView {{ background-color: {_input_bg}; color: {_fg};"
             f" selection-background-color: #2F8F5B; selection-color: #FFFFFF; }}"
             f"QFrame.GridCard, QFrame[class='GridCard'] {{ background-color: {_card_bg};"
@@ -3918,6 +3918,18 @@ class MainWindow(QMainWindow):
     # ==========================
     # 交互与双向实时同步处理 (Events & Two-way Sync)
     # ==========================
+    def _wrap_scroll(self, page: QWidget) -> QScrollArea:
+        """页面套一层透明滚动区，窗口较小时可以向下滑动查看完整内容。"""
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        area.viewport().setAutoFillBackground(False)
+        page.setAutoFillBackground(False)
+        area.setWidget(page)
+        return area
+
     def switch_page(self, idx):
         self.stack.setCurrentIndex(idx)
         for i, btn in enumerate(self.nav_buttons):
