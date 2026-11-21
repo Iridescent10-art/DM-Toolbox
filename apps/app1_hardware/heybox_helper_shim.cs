@@ -185,17 +185,25 @@ internal static class Program
             }
         }
 
+        string boardProduct = S(cfg, "motherboard_product");
+        string boardVendor = S(cfg, "motherboard_vendor");
+        string boardFull = boardProduct;
+        if (!string.IsNullOrEmpty(boardProduct) && !string.IsNullOrEmpty(boardVendor)
+            && !boardProduct.ToLowerInvariant().StartsWith(boardVendor.ToLowerInvariant()))
+            boardFull = boardVendor + " " + boardProduct;
+
         if (root.TryGetValue("board", out tmp))
         {
             var board = tmp as Dictionary<string, object>;
-            Set(board, "name", S(cfg, "motherboard_product"));
-            Set(board, "product", S(cfg, "motherboard_product"));
-            Set(board, "vendor", S(cfg, "motherboard_vendor"));
+            Set(board, "name", boardFull);
+            Set(board, "product", boardProduct);
+            Set(board, "vendor", boardVendor);
         }
         if (root.TryGetValue("computer", out tmp))
         {
             var comp = tmp as Dictionary<string, object>;
-            Set(comp, "model", S(cfg, "motherboard_product"));
+            Set(comp, "model", boardFull);
+            Set(comp, "vendor", boardVendor);
         }
 
         string diskModel = S(cfg, "disk_model");

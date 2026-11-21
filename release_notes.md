@@ -1,3 +1,39 @@
+# 🧩 DM-Toolbox (DM工具箱) v3.3.9 · 修复主板只显示型号、不显示厂商
+
+**小黑盒主板一栏之前只显示 `MS-Terminator B850BKB WIFI`，缺少 `MAXSUN`；
+原因是 helper 的 `board.name` 只写了产品名，界面读的是 name 字段。**
+
+---
+
+### 🐞 1. 原因
+
+- helper 输出里：
+  - `board.product` = `MS-Terminator B850BKB WIFI`
+  - `board.vendor` = `MAXSUN`
+  - `board.name` = 之前被写成产品名（缺厂商）
+- 小黑盒展示的是 `board.name`，所以只剩型号。
+
+### ✅ 2. 修复
+
+- shim 现在写：
+  - `board.name` = `MAXSUN MS-Terminator B850BKB WIFI`
+  - `board.product` = `MS-Terminator B850BKB WIFI`
+  - `board.vendor` = `MAXSUN`
+  - `computer.model` / `computer.vendor` 同步为完整名称/厂商
+
+实测 shim 输出：
+
+```
+board: {name: MAXSUN MS-Terminator B850BKB WIFI, vendor: MAXSUN, product: MS-Terminator B850BKB WIFI}
+computer: {model: MAXSUN MS-Terminator B850BKB WIFI, vendor: MAXSUN}
+```
+
+### 🔍 3. 回归
+
+- 全量测试：**186 passed**。
+
+---
+
 # 💾 DM-Toolbox (DM工具箱) v3.3.8 · 硬盘 PCIe 代际/通道可改 + MAXSUN 预设置顶
 
 ---
