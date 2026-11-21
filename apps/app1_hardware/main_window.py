@@ -3720,6 +3720,27 @@ class MainWindow(QMainWindow):
         mem_h.addWidget(self.mem_clock_input)
         c_layout.addLayout(mem_h)
 
+        # 该页在部分主题切换后会出现文字与半透明卡片对比度过低，这里显式锁定配色
+        _dark = bool(getattr(self, "is_dark_mode", True))
+        if _dark:
+            _fg, _sub, _input_bg, _border = "#F1F5F9", "#CBD5E1", "#1F2023", "#4A4A4A"
+            _card_bg = "rgba(30, 31, 34, 235)"
+        else:
+            _fg, _sub, _input_bg, _border = "#111827", "#374151", "#FFFFFF", "#D1D5DB"
+            _card_bg = "rgba(255, 255, 255, 240)"
+        page.setStyleSheet(
+            f"QLabel {{ color: {_fg}; font-size: 13px; }}"
+            f"QLabel[class='DescLabel'] {{ color: {_sub}; }}"
+            f"QLineEdit {{ background-color: {_input_bg}; color: {_fg}; border: 1px solid {_border};"
+            f" border-radius: 10px; padding: 8px 12px; font-size: 13px; }}"
+            f"QComboBox {{ background-color: {_input_bg}; color: {_fg}; border: 1px solid {_border};"
+            f" border-radius: 10px; padding: 8px 32px 8px 12px; font-size: 13px; }}"
+            f"QComboBox QAbstractItemView {{ background-color: {_input_bg}; color: {_fg};"
+            f" selection-background-color: #2F8F5B; selection-color: #FFFFFF; }}"
+            f"QFrame.GridCard, QFrame[class='GridCard'] {{ background-color: {_card_bg};"
+            f" border: 1px solid {_border}; border-radius: 18px; }}"
+        )
+
         btn_mem_row = QHBoxLayout()
         btn_apply_mem = QPushButton("⚡ 立即单独生效当前 内存 DDR5 定制")
         btn_apply_mem.setProperty("class", "DetailActionBtn")

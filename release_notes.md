@@ -1,3 +1,31 @@
+# 🎨 DM-Toolbox (DM工具箱) v3.3.6 · 修复「主板与内存」页文字看不见 + 主板预设确认
+
+**该页在部分主题/半透明卡片下文字与背景对比度过低，已显式锁定配色；MAXSUN 主板预设已进入默认列表。**
+
+---
+
+### 🐞 1. 文字看不见
+
+- 原因：页面标签/输入框继承的调色板与半透明卡片背景不一致
+  （深色卡片 + 浅色主题文字 / 浅色卡片 + 深色文字都会出现低对比）；
+- 修复：`create_board_ram_view` 给整页锁定配色：
+  - 深色主题：文字 `#F1F5F9`、输入框 `#1F2023`、卡片 `rgba(30,31,34,235)`
+  - 浅色主题：文字 `#111827`、输入框 `#FFFFFF`、卡片 `rgba(255,255,255,240)`
+- 下拉框弹出列表也同步配色，不会再出现白底白字/黑底黑字。
+
+### 🧩 2. MAXSUN 主板预设
+
+- `MAXSUN MS-Terminator B850BKB WIFI` 已写入：
+  - `apps/app1_hardware/config.json` 默认预设（第 1 项）
+  - `main_window.py` / `cpugpu_gui.py` 的内置预设
+  - 当前用户配置 `%APPDATA%\ToolboxMaster\config\app1_hardware\config.json`
+
+### 🔍 3. 回归
+
+- 全量测试：**186 passed**。
+
+---
+
 # 🏷 DM-Toolbox (DM工具箱) v3.3.5 · 内存料号后缀可控（C32 后面的 VAM5UH64…）
 
 **小黑盒内存行显示的 `C32 VAM5UH64C32AG-DVALWA` 是 SMBIOS 里的内存条料号（Part Number），
