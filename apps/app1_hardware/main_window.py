@@ -4704,6 +4704,13 @@ class MainWindow(QMainWindow):
                 self.sync_board(real_bv, real_bp)
                 self.sync_disk(real_disk)
 
+                # 修复被旧版“统一改名”波及的核显/其它显卡描述
+                try:
+                    from gpu_restore_repair import repair_gpu_descriptors
+                    repair_gpu_descriptors()
+                except Exception:
+                    pass
+
                 # 移除新版小黑盒的运行时代理，并清空核心/线程伪装
                 try:
                     from heybox_helper_ifEO import remove_ifEO

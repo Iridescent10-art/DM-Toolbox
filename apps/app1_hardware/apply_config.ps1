@@ -61,6 +61,13 @@ if ([string]::IsNullOrWhiteSpace($gpuInstancePath)) {
         $gpuInstancePath = $gpu.PNPDeviceID
     }
 }
+# 只修改目标显卡厂商的注册表节点，避免把核显（AMD/Intel）也改成同一型号
+$gpuVendorPattern = "NVIDIA|GeForce|RTX|GTX|Quadro|Tesla"
+if ($gpuInstancePath -match "VEN_1002") {
+    $gpuVendorPattern = "AMD|Radeon|ATI"
+} elseif ($gpuInstancePath -match "VEN_8086") {
+    $gpuVendorPattern = "Intel|Arc|Iris|UHD|Graphics"
+}
 if ([string]::IsNullOrWhiteSpace($diskInstancePath)) {
     $disk = Get-CimInstance Win32_DiskDrive | Where-Object { $_.PNPDeviceID -match "^SCSI\\" } | Select-Object -First 1
     if ($disk) {
@@ -139,7 +146,7 @@ if (Test-Path $dxBase) {
     Set-ItemProperty -Path $dxBase -Name "MaxDedicatedVideoMemory" -Value $vramBytes -Type QWord -Force -ErrorAction SilentlyContinue
     Get-ChildItem $dxBase | Where-Object { $_.PSChildName -match "^\{.*\}$" } | ForEach-Object {
         $curDesc = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).Description
-        if ($curDesc -and $curDesc -notmatch "Basic|Virtual") {
+        if ($curDesc -and $curDesc -notmatch "Basic|Virtual" -and $curDesc -match $gpuVendorPattern) {
             Set-ItemProperty -Path $_.PSPath -Name "Description" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $_.PSPath -Name "DedicatedVideoMemory" -Value $vramBytes -Type QWord -Force -ErrorAction SilentlyContinue
             Write-Host "  -> 已更新 DirectX 适配器描述与显存 ($($_.PSChildName)): $gpuTarget / $vramGb GB" -ForegroundColor Cyan
@@ -156,7 +163,7 @@ if (Test-Path $videoBase) {
         $vidSub = Join-Path $guidPath "Video"
         if (Test-Path $vidSub) {
             $curD = (Get-ItemProperty $vidSub -ErrorAction SilentlyContinue).DeviceDesc
-            if ($curD -and $curD -notmatch "Virtual|Remote") {
+            if ($curD -and $curD -notmatch "Virtual|Remote" -and $curD -match $gpuVendorPattern) {
                 Set-ItemProperty -Path $vidSub -Name "DeviceDesc" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue
             }
         }
@@ -164,8 +171,10 @@ if (Test-Path $videoBase) {
         for ($i = 0; $i -lt 8; $i++) {
             $outSub = Join-Path $guidPath ("000{0}" -f $i)
             if (Test-Path $outSub) {
-                $chip = (Get-ItemProperty $outSub -ErrorAction SilentlyContinue)."HardwareInformation.ChipType"
-                if ($chip -notmatch "Virtual|Remote") {
+                $outP = Get-ItemProperty $outSub -ErrorAction SilentlyContinue
+                $chip = $outP."HardwareInformation.ChipType"
+                $outDesc = $outP.DriverDesc
+                if ($outDesc -match $gpuVendorPattern -and $chip -notmatch "Virtual|Remote") {
                     Set-ItemProperty -Path $outSub -Name "HardwareInformation.ChipType" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue
                     Set-ItemProperty -Path $outSub -Name "HardwareInformation.AdapterString" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue
                     Set-ItemProperty -Path $outSub -Name "HardwareInformation.qwMemorySize" -Value $vramBytes -Type QWord -Force -ErrorAction SilentlyContinue
@@ -181,7 +190,7 @@ $classBase = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-b
 if (Test-Path $classBase) {
     Get-ChildItem $classBase | Where-Object { $_.PSChildName -match "^\d{4}$" } | ForEach-Object {
         $driverDesc = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DriverDesc
-        if ($driverDesc -and $driverDesc -notmatch "Virtual|Remote") {
+        if ($driverDesc -and $driverDesc -notmatch "Virtual|Remote" -and $driverDesc -match $gpuVendorPattern) {
             Set-ItemProperty -Path $_.PSPath -Name "DriverDesc" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $_.PSPath -Name "HardwareInformation.ChipType" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $_.PSPath -Name "HardwareInformation.AdapterString" -Value $gpuTarget -Type String -Force -ErrorAction SilentlyContinue

@@ -13,19 +13,24 @@
     "disk_instance_path": "SCSI\\DISK&VEN_NVME&PROD_YSSDM-2TN3000\\5&1574F6F4&0&000000"
   },
   "custom_target": {
-    "cpu_model": "AMD Ryzen 9 9950X3D2 16-Core Processor",
-    "gpu_model": "NVIDIA GeForce RTX 5090",
-    "gpu_vram_gb": 32,
+    "cpu_model": "AMD Ryzen 7 9800X3D 8-Core Processor",
+    "gpu_model": "NVIDIA GeForce RTX 4080 SUPER",
+    "gpu_vram_gb": 16,
     "target_gpu_instance_path": "PCI\\VEN_10DE&DEV_2786&SUBSYS_12017377&REV_A1\\4&D0BDF66&0&0009",
-    "motherboard_vendor": "ASUSTeK COMPUTER INC.",
-    "motherboard_product": "ROG CROSSHAIR X870E HERO",
-    "memory_vendor": "G.Skill",
-    "memory_size_gb": 64,
-    "memory_clock_mhz": 7200,
-    "disk_model": "Samsung SSD 990 PRO 4TB",
+    "motherboard_vendor": "MAXSUN",
+    "motherboard_product": "MS-Terminator B850BKB WIFI",
+    "memory_vendor": "Memory",
+    "memory_size_gb": 127.66,
+    "memory_clock_mhz": 6000,
+    "disk_model": "WD_BLACK SN850X 4000GB",
     "target_disk_instance_path": "SCSI\\DISK&VEN_NVME&PROD_YSSDM-2TN3000\\5&1574F6F4&0&000000",
     "enable_startup_fix": true,
-    "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxAccelerator"
+    "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxDesktop",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "disk_bus_type": "",
+    "disk_pcie_gen": 4,
+    "disk_pcie_lanes": 4
   },
   "presets": {
     "cpu": [
@@ -90,10 +95,6 @@
       "8 GB"
     ],
     "motherboard": [
-      {
-        "vendor": "MAXSUN",
-        "product": "MS-Terminator B850BKB WIFI"
-      },
       {
         "vendor": "ASUSTeK COMPUTER INC.",
         "product": "ROG CROSSHAIR X870E HERO"
@@ -169,6 +170,10 @@
       {
         "vendor": "ASRock",
         "product": "X870E Taichi"
+      },
+      {
+        "vendor": "MAXSUN",
+        "product": "MS-Terminator B850BKB WIFI"
       }
     ],
     "memory_vendor": [
@@ -179,7 +184,8 @@
       "Predator",
       "TEAMGROUP",
       "Crucial",
-      "ADATA"
+      "ADATA",
+      "Memory"
     ],
     "memory_size": [
       "128 GB",
@@ -187,7 +193,8 @@
       "64 GB (32GBx2)",
       "48 GB (24GBx2)",
       "32 GB (16GBx2)",
-      "16 GB (8GBx2)"
+      "16 GB (8GBx2)",
+      "127.66 GB"
     ],
     "memory_clock": [
       "8400 MHz",
@@ -213,6 +220,6 @@
       "YSSDM-2TN3000"
     ]
   },
-  "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxAccelerator",
+  "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxDesktop",
   "theme": "dark"
 }
