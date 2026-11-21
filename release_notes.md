@@ -1,3 +1,44 @@
+# 🖥 DM-Toolbox (DM工具箱) v3.3.0 · 支持新版小黑盒桌面版（HeyboxDesktop 2.x）硬件伪装
+
+**小黑盒换成了 `C:\Program Files (x86)\Qingfeng\HeyboxDesktop`（2.x），
+硬件采集不再走 `resources/app/index.js`，旧 Hook 失效（CPU/显卡能变，内存/主板/硬盘还是真实值）。**
+
+---
+
+### 🔍 1. 新版小黑盒的结构变化
+
+| 项目 | 旧版 HeyboxAccelerator | 新版 HeyboxDesktop 2.x |
+|---|---|---|
+| 主程序 | `heyboxacc.exe` | `小黑盒.exe` + `versions/<ver>/` |
+| 界面 | `resources/app/index.js` | `resources/app.asar` |
+| 硬件采集 | `resources/app/index.js` + `acc_hardware_helper.node` | `resources/extensions/internal/ai-desktop.hardware-detect/services/hardware.mjs` |
+| 底层 | 自研 WMI | LibreHardwareMonitor + `hardware-windows-helper.exe` |
+
+### ✅ 2. 工具箱改动
+
+- 新增 `apps/app1_hardware/heybox_desktop_patch.py`：
+  - 自动探测 `HeyboxDesktop`（已知路径 + 注册表）；
+  - 找到 `versions/*/resources/extensions/internal/ai-desktop.hardware-detect/services/hardware.mjs`；
+  - 在文件尾部注入 ESM 包装层，拦截 `getInventory` / `getReportInfo`，
+    覆盖 CPU、显卡、内存（容量/品牌/频率/型号）、主板、硬盘；
+  - 注入前备份为 `hardware.mjs.tbx_bak`，可一键还原；
+  - 幂等：已注入则跳过；版本变化找不到 export 时安全报错，不会写坏文件。
+- 软件 1 的「应用配置 / 一键应用」会自动同时处理旧版与桌面版；
+- 「还原官方真实配置」同时还原桌面版 `hardware.mjs`；
+- 路径探测回退顺序加入 `HeyboxDesktop`。
+
+### 🧠 3. 内存小数兼容
+
+- 注入使用 `memory_size_gb` 精确值（如 127.66 GB），内部换算成整数字节；
+- 配置与界面保留小数，不再触发 JSON 整数校验问题。
+
+### 🔍 4. 回归
+
+- 新增 3 项测试：注入替换 export / 幂等、还原备份、缺失 export 安全失败；
+- 全量测试：**182 passed**。
+
+---
+
 # 🧩 DM-Toolbox (DM工具箱) v3.2.1 · 修复设置小数内存后小黑盒弹「JSON错误」
 
 **v3.2.0 支持小数容量后，注入脚本把 `127.66 GB` 原样换算成 `130723.84 MB` 写进小黑盒硬件数据，

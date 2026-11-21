@@ -431,6 +431,12 @@ def get_xiaoheihe_base_dir():
                 return cand
 
     # 5. 回退到标准默认路径
+    for _desk in (
+        r"C:\Program Files (x86)\Qingfeng\HeyboxDesktop",
+        r"C:\Program Files\Qingfeng\HeyboxDesktop",
+    ):
+        if os.path.isdir(_desk):
+            return _desk
     return r"C:\Program Files (x86)\Qingfeng\HeyboxAccelerator"
 
 
@@ -521,6 +527,14 @@ def apply_xiaoheihe_hook(base_dir=None):
 
 
 def restore_xiaoheihe_hook(base_dir=None):
+    # 新版桌面版
+    try:
+        from heybox_desktop_patch import find_desktop_dirs, find_hardware_modules, restore_hardware_module
+        for _b in find_desktop_dirs():
+            for _m in find_hardware_modules(_b):
+                restore_hardware_module(_m)
+    except Exception:
+        pass
     for p in get_xiaoheihe_index_paths(base_dir):
         bak = p + ".bak"
         if os.path.exists(bak):
@@ -899,6 +913,12 @@ def execute_hardware_apply(target, components=None):
     if apply_hook:
         try:
             apply_xiaoheihe_hook(custom_heybox_dir)
+        except Exception:
+            pass
+        # 新版小黑盒桌面版（HeyboxDesktop 2.x）硬件采集在扩展 hardware.mjs 里
+        try:
+            from heybox_desktop_patch import apply_heybox_desktop_hook
+            apply_heybox_desktop_hook()
         except Exception:
             pass
 
