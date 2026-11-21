@@ -1,3 +1,35 @@
+# 💾 DM-Toolbox (DM工具箱) v3.3.8 · 硬盘 PCIe 代际/通道可改 + MAXSUN 预设置顶
+
+---
+
+### 💾 1. 硬盘 PCIe 通道伪装
+
+「硬盘存储」页新增：
+
+- **总线**：Auto / NVMe / SATA
+- **PCIe 代际**：Auto / 3.0 / 4.0 / 5.0
+- **通道**：Auto / x4 / x2 / x1
+
+helper shim 会覆盖 `pcieGen` / `pcieMaxGen` / `pcieLanes` / `busType`，
+小黑盒评分里的「PCIe 3.0 x4」会跟随设置变化（例如改成 PCIe 4.0 x4）。
+
+实测：
+
+```
+name=WD_BLACK/Samsung… busType=NVMe pcieGen=4 pcieMaxGen=4 pcieLanes=4
+```
+
+### 🧩 2. MAXSUN 主板始终置顶
+
+- 主板下拉构建时强制把 `MAXSUN MS-Terminator B850BKB WIFI` 放在第一项；
+- 即使旧配置文件里没有/顺序靠后，也会显示在最上面。
+
+### 🔍 3. 回归
+
+- 全量测试：**186 passed**。
+
+---
+
 # 📜 DM-Toolbox (DM工具箱) v3.3.7 · 「主板与内存」页可滚动，输入框不再遮挡文字
 
 **该页内容较长，窗口较小时输入框被压缩、文字被圆角框裁切；现在整页可上下滚动，输入框有最小高度。**

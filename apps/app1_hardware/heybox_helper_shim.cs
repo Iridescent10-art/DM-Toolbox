@@ -210,6 +210,20 @@ internal static class Program
                     disk["name"] = diskModel;
                     long? sz = DiskBytes(diskModel);
                     if (sz.HasValue) disk["sizeBytes"] = sz.Value;
+                    string bus = S(cfg, "disk_bus_type");
+                    if (!string.IsNullOrEmpty(bus))
+                    {
+                        disk["busType"] = bus;
+                        disk["media"] = "SSD";
+                    }
+                    int? gen = Int(cfg, "disk_pcie_gen");
+                    if (gen.HasValue)
+                    {
+                        disk["pcieGen"] = gen.Value;
+                        disk["pcieMaxGen"] = gen.Value;
+                    }
+                    int? lanes = Int(cfg, "disk_pcie_lanes");
+                    if (lanes.HasValue) disk["pcieLanes"] = lanes.Value;
                 }
             }
         }

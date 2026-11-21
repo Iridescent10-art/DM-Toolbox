@@ -3352,6 +3352,8 @@ class MainWindow(QMainWindow):
 
         # Card 3: 主板与内存 (橙色系)
         board_presets = [f"{b['vendor']} {b['product']}" for b in self.config["presets"]["motherboard"]]
+        _maxsun = "MAXSUN MS-Terminator B850BKB WIFI"
+        board_presets = [_maxsun] + [x for x in board_presets if "B850BKB WIFI" not in x]
         curr_board = f"{self.config['custom_target'].get('motherboard_vendor', 'ASUSTeK COMPUTER INC.')} {self.config['custom_target'].get('motherboard_product', 'ROG CROSSHAIR X870E HERO')}".strip()
         self.card_board, self.home_board_combo = self.create_grid_card(
             badge_class="CardBadgeOrange", badge_char="M",
@@ -3643,6 +3645,8 @@ class MainWindow(QMainWindow):
 
         c_layout.addWidget(QLabel("主板预设型号快速选择 (与首页卡片实时双向同步):"))
         board_presets = [f"{b['vendor']} {b['product']}" for b in self.config["presets"]["motherboard"]]
+        _maxsun = "MAXSUN MS-Terminator B850BKB WIFI"
+        board_presets = [_maxsun] + [x for x in board_presets if "B850BKB WIFI" not in x]
         curr_board = f"{self.config['custom_target'].get('motherboard_vendor', 'ASUSTeK COMPUTER INC.')} {self.config['custom_target'].get('motherboard_product', 'ROG CROSSHAIR X870E HERO')}".strip()
         self.board_sub_combo = QComboBox()
         self.board_sub_combo.setEditable(False)
@@ -3781,6 +3785,34 @@ class MainWindow(QMainWindow):
         self.disk_sub_combo.setToolTip(curr_disk)
         self.disk_sub_combo.currentTextChanged.connect(lambda v: self.sync_disk(v, source=self.disk_sub_combo))
         c_layout.addWidget(self.disk_sub_combo)
+
+        c_layout.addWidget(QLabel("硬盘总线 / PCIe 通道（小黑盒评分读取）:"))
+        _row = QHBoxLayout()
+        self.disk_bus_combo = QComboBox()
+        self.disk_bus_combo.addItem("Auto（保持真实）", "")
+        self.disk_bus_combo.addItem("NVMe", "NVMe")
+        self.disk_bus_combo.addItem("SATA", "SATA")
+        self.disk_gen_combo = QComboBox()
+        self.disk_gen_combo.addItem("Auto（保持真实）", 0)
+        self.disk_gen_combo.addItem("PCIe 3.0", 3)
+        self.disk_gen_combo.addItem("PCIe 4.0", 4)
+        self.disk_gen_combo.addItem("PCIe 5.0", 5)
+        self.disk_lanes_combo = QComboBox()
+        self.disk_lanes_combo.addItem("Auto（保持真实）", 0)
+        self.disk_lanes_combo.addItem("x4", 4)
+        self.disk_lanes_combo.addItem("x2", 2)
+        self.disk_lanes_combo.addItem("x1", 1)
+        for _combo, _key, _default in (
+            (self.disk_bus_combo, "disk_bus_type", ""),
+            (self.disk_gen_combo, "disk_pcie_gen", 0),
+            (self.disk_lanes_combo, "disk_pcie_lanes", 0),
+        ):
+            _cur = self.config["custom_target"].get(_key, _default)
+            _idx = _combo.findData(_cur)
+            _combo.setCurrentIndex(_idx if _idx >= 0 else 0)
+            _combo.currentIndexChanged.connect(self.on_disk_link_changed)
+            _row.addWidget(_combo, 1)
+        c_layout.addLayout(_row)
 
         c_layout.addWidget(QLabel("出厂物理真实硬盘:"))
         real_disk_lbl = QLabel(self.config["current_hardware"].get("disk_model", DEFAULT_REAL_DISK_MODEL))
@@ -4264,6 +4296,15 @@ class MainWindow(QMainWindow):
 
         self.update_target_field("memory_vendor", text)
 
+    def on_disk_link_changed(self, *_):
+        try:
+            self.config["custom_target"]["disk_bus_type"] = self.disk_bus_combo.currentData() or ""
+            self.config["custom_target"]["disk_pcie_gen"] = int(self.disk_gen_combo.currentData() or 0)
+            self.config["custom_target"]["disk_pcie_lanes"] = int(self.disk_lanes_combo.currentData() or 0)
+            save_config(self.config)
+        except Exception:
+            pass
+
     def on_mem_part_changed(self, text):
         val = str(text or "").strip()
         if val:
@@ -4467,6 +4508,12 @@ class MainWindow(QMainWindow):
             m = re.search(r"(\d+)", mc)
             if m:
                 self.config["custom_target"]["memory_clock_mhz"] = int(m.group(1))
+
+        # Disk link
+        if hasattr(self, "disk_gen_combo"):
+            self.config["custom_target"]["disk_bus_type"] = self.disk_bus_combo.currentData() or ""
+            self.config["custom_target"]["disk_pcie_gen"] = int(self.disk_gen_combo.currentData() or 0)
+            self.config["custom_target"]["disk_pcie_lanes"] = int(self.disk_lanes_combo.currentData() or 0)
 
         # Disk
         if hasattr(self, "cpu_cores_combo"):

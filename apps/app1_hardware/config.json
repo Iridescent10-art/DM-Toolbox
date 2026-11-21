@@ -19,7 +19,7 @@
     "target_gpu_instance_path": "PCI\\VEN_10DE&DEV_2786&SUBSYS_12017377&REV_A1\\4&D0BDF66&0&0009",
     "motherboard_vendor": "ASUSTeK COMPUTER INC.",
     "motherboard_product": "ROG CROSSHAIR X870E HERO",
-    "memory_vendor": "Corsair",
+    "memory_vendor": "G.Skill",
     "memory_size_gb": 64,
     "memory_clock_mhz": 7200,
     "disk_model": "Samsung SSD 990 PRO 4TB",
@@ -90,6 +90,10 @@
       "8 GB"
     ],
     "motherboard": [
+      {
+        "vendor": "MAXSUN",
+        "product": "MS-Terminator B850BKB WIFI"
+      },
       {
         "vendor": "ASUSTeK COMPUTER INC.",
         "product": "ROG CROSSHAIR X870E HERO"
@@ -210,5 +214,5 @@
     ]
   },
   "custom_heybox_dir": "C:\\Program Files (x86)\\Qingfeng\\HeyboxAccelerator",
-  "theme": "light"
+  "theme": "dark"
 }
