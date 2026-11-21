@@ -1,3 +1,34 @@
+# 🧩 DM-Toolbox (DM工具箱) v3.3.4 · 新增 MAXSUN 主板预设 / 还原修复 / 新版小黑盒路径识别
+
+---
+
+### ✨ 1. 新增主板预设
+
+- 主板下拉新增：**MAXSUN MS-Terminator B850BKB WIFI**（排在列表首位）；
+- 同时写入模板 `config.json` 与当前用户配置，重启软件即可选到。
+
+### 🐞 2. 修复「还原后 CPU 名称没恢复」
+
+- 「一键还原官方真实硬件」现在会同时：
+  - 移除新版小黑盒的 IFEO 运行时代理（`HeyboxHelperShim`）；
+  - 清空 `cpu_cores` / `cpu_threads` 伪装；
+  - 把 CPU / GPU / 主板 / 硬盘型号恢复为备份的真实值。
+- 之前只还原了注册表，helper 代理还在，所以小黑盒仍显示伪装 CPU 名。
+
+### 🐞 3. 修复新版小黑盒目录识别
+
+- 路径校验现在接受新版桌面版布局：
+  - `小黑盒.exe`
+  - `versions/` 目录
+  - 旧版 `heyboxacc.exe` / `resources/`
+- 选择 `C:\Program Files (x86)\Qingfeng\HeyboxDesktop` 不再报“未找到 heyboxacc.exe 或 resources”。
+
+### 🔍 4. 回归
+
+- 全量测试：**186 passed**。
+
+---
+
 # 🧮 DM-Toolbox (DM工具箱) v3.3.3 · 小黑盒 CPU 核心数 / 线程数也可修改
 
 **之前只改了 CPU 型号，小黑盒仍显示真实核心数（6 核 / 12 线程）。本版支持自定义核心/线程，

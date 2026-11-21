@@ -177,6 +177,7 @@ def load_config():
                 "8 GB"
             ],
             "motherboard": [
+                {"vendor": "MAXSUN", "product": "MS-Terminator B850BKB WIFI"},
                 {"vendor": "ASUSTeK COMPUTER INC.", "product": "ROG CROSSHAIR X870E HERO"},
                 {"vendor": "ASUSTeK COMPUTER INC.", "product": "ROG CROSSHAIR X870E DARK HERO"},
                 {"vendor": "ASUSTeK COMPUTER INC.", "product": "ROG MAXIMUS Z890 EXTREME"},

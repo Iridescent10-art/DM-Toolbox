@@ -299,6 +299,7 @@ def load_config():
             ],
             "vram": ["48 GB", "32 GB", "24 GB", "16 GB", "12 GB (保持原始)", "8 GB"],
             "motherboard": [
+                {"vendor": "MAXSUN", "product": "MS-Terminator B850BKB WIFI"},
                 {"vendor": "ASUSTeK COMPUTER INC.", "product": "ROG CROSSHAIR X870E HERO"},
                 {"vendor": "ASUSTeK COMPUTER INC.", "product": "ROG CROSSHAIR X870E DARK HERO"},
                 {"vendor": "ASUSTeK COMPUTER INC.", "product": "ROG MAXIMUS Z890 EXTREME"},
@@ -360,7 +361,10 @@ def get_xiaoheihe_base_dir():
         cfg = load_config()
         custom_dir = cfg.get("custom_heybox_dir")
         if custom_dir and os.path.isdir(custom_dir):
-            if os.path.exists(os.path.join(custom_dir, "heyboxacc.exe")) or os.path.exists(os.path.join(custom_dir, "resources")):
+            if (os.path.exists(os.path.join(custom_dir, "heyboxacc.exe"))
+                    or os.path.exists(os.path.join(custom_dir, "resources"))
+                    or os.path.isdir(os.path.join(custom_dir, "versions"))
+                    or os.path.exists(os.path.join(custom_dir, "小黑盒.exe"))):
                 return custom_dir
     except Exception:
         pass
@@ -4307,8 +4311,9 @@ class MainWindow(QMainWindow):
         # 验证核心标志物
         has_exe = os.path.exists(os.path.join(p, "heyboxacc.exe"))
         has_res = os.path.exists(os.path.join(p, "resources"))
+        has_desktop = os.path.isdir(os.path.join(p, "versions")) or os.path.exists(os.path.join(p, "小黑盒.exe"))
         index_paths = get_xiaoheihe_index_paths(p)
-        if has_exe or has_res or len(index_paths) > 0:
+        if has_exe or has_res or has_desktop or len(index_paths) > 0:
             count = len(index_paths)
             self.heybox_path_status.setText(f"● 路径有效：已成功识别小黑盒核心模块 (找到 {count} 个 Electron 拦截入口节点)")
             if is_dark:
@@ -4316,7 +4321,7 @@ class MainWindow(QMainWindow):
             else:
                 self.heybox_path_status.setStyleSheet("color: #059669; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 600;")
         else:
-            self.heybox_path_status.setText("● 警告：该目录下未找到 heyboxacc.exe 或 resources 文件夹，请选择包含主程序的根目录")
+            self.heybox_path_status.setText("● 警告：该目录下未找到 heyboxacc.exe / resources / versions（新桌面版），请选择包含主程序或 versions 的根目录")
             if is_dark:
                 self.heybox_path_status.setStyleSheet("color: #FCA5A5; background-color: #7F1D1D; border: 1px solid #B91C1C; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 600;")
             else:
@@ -4597,6 +4602,23 @@ class MainWindow(QMainWindow):
                 self.sync_gpu(real_gpu)
                 self.sync_board(real_bv, real_bp)
                 self.sync_disk(real_disk)
+
+                # 移除新版小黑盒的运行时代理，并清空核心/线程伪装
+                try:
+                    from heybox_helper_ifEO import remove_ifEO
+                    remove_ifEO()
+                except Exception:
+                    pass
+                try:
+                    self.config["custom_target"].pop("cpu_cores", None)
+                    self.config["custom_target"].pop("cpu_threads", None)
+                    if hasattr(self, "cpu_cores_combo"):
+                        self.cpu_cores_combo.setCurrentText("")
+                    if hasattr(self, "cpu_threads_combo"):
+                        self.cpu_threads_combo.setCurrentText("")
+                    save_config(self.config)
+                except Exception:
+                    pass
 
                 progress_dlg.finish(
                     True,
