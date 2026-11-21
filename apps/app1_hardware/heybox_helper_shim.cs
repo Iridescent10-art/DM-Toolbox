@@ -82,6 +82,32 @@ internal static class Program
         catch { return null; }
     }
 
+    private static int? Int(Dictionary<string, object> d, string k)
+    {
+        if (d == null) return null;
+        object v;
+        if (!d.TryGetValue(k, out v) || v == null) return null;
+        try
+        {
+            double x = Convert.ToDouble(v, CultureInfo.InvariantCulture);
+            if (x > 0 && x < 1024) return (int)Math.Round(x);
+            return null;
+        }
+        catch { return null; }
+    }
+
+    private static int? CoresFromName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        var m = Regex.Match(name, @"(\d+)\s*-\s*Core", RegexOptions.IgnoreCase);
+        if (m.Success)
+        {
+            int n;
+            if (int.TryParse(m.Groups[1].Value, out n) && n > 0) return n;
+        }
+        return null;
+    }
+
     private static long? Bytes(double? gb)
     {
         if (!gb.HasValue) return null;
@@ -111,7 +137,17 @@ internal static class Program
         if (root.TryGetValue("cpu", out tmp))
         {
             var cpu = tmp as Dictionary<string, object>;
-            Set(cpu, "name", S(cfg, "cpu_model"));
+            string cpuName = S(cfg, "cpu_model");
+            Set(cpu, "name", cpuName);
+            if (cpu != null)
+            {
+                int? cores = Int(cfg, "cpu_cores");
+                int? threads = Int(cfg, "cpu_threads");
+                if (!cores.HasValue) cores = CoresFromName(cpuName);
+                if (!threads.HasValue && cores.HasValue) threads = cores.Value * 2;
+                if (cores.HasValue) cpu["physicalCores"] = cores.Value;
+                if (threads.HasValue) cpu["logicalCores"] = threads.Value;
+            }
         }
 
         long? total = Bytes(N(cfg, "memory_size_gb"));

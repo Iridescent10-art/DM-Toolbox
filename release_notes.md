@@ -1,3 +1,34 @@
+# 🧮 DM-Toolbox (DM工具箱) v3.3.3 · 小黑盒 CPU 核心数 / 线程数也可修改
+
+**之前只改了 CPU 型号，小黑盒仍显示真实核心数（6 核 / 12 线程）。本版支持自定义核心/线程，
+并跟随 IFEO helper shim 输出。**
+
+---
+
+### ✨ 1. 新增
+
+- 软件 1「处理器 CPU 深度定制」新增：
+  - **核心数**（4/6/8/10/12/16/20/24/32/64，可手填）
+  - **线程数**（8/12/16/20/24/32/40/48/64/128，可手填）
+- 保存到配置 `cpu_cores` / `cpu_threads`；
+- 留空时自动从 CPU 型号推断（`… 16-Core` → 16 核 / 32 线程）；
+- helper shim 改写 `cpu.physicalCores` / `cpu.logicalCores`。
+
+### 🧠 2. 实测
+
+shim 对真实 helper 的 inventory 输出：
+
+```
+cpu: AMD Ryzen 9 9950X3D2 16-Core Processor | physical=16 logical=32
+mem: Corsair 7200MHz
+```
+
+### 🔍 3. 回归
+
+- 全量测试：**186 passed**。
+
+---
+
 # 🛡 DM-Toolbox (DM工具箱) v3.3.2 · 新版小黑盒改用运行时拦截（IFEO + helper shim）
 
 **小黑盒桌面版 2.x 会校验扩展内容哈希，改 `hardware.mjs` 会被重新下载覆盖；

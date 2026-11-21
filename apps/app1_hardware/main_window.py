@@ -3503,6 +3503,47 @@ class MainWindow(QMainWindow):
         self.cpu_sub_combo.currentTextChanged.connect(lambda val: self.sync_cpu(val, source=self.cpu_sub_combo))
         c_layout.addWidget(self.cpu_sub_combo)
 
+        # 核心数 / 线程数（小黑盒 / 任务管理器显示）
+        c_layout.addWidget(QLabel("CPU 核心数 / 线程数（小黑盒显示的规格）:"))
+        cores_row = QHBoxLayout()
+        self.cpu_cores_combo = QComboBox()
+        self.cpu_cores_combo.setEditable(True)
+        self.cpu_cores_combo.addItems([str(v) for v in (4, 6, 8, 10, 12, 16, 20, 24, 32, 64)])
+        self.cpu_threads_combo = QComboBox()
+        self.cpu_threads_combo.setEditable(True)
+        self.cpu_threads_combo.addItems([str(v) for v in (8, 12, 16, 20, 24, 32, 40, 48, 64, 128)])
+        cur_cores = self.config["custom_target"].get("cpu_cores", "")
+        cur_threads = self.config["custom_target"].get("cpu_threads", "")
+        self.cpu_cores_combo.setCurrentText(str(cur_cores) if cur_cores else "")
+        self.cpu_threads_combo.setCurrentText(str(cur_threads) if cur_threads else "")
+        self.cpu_cores_combo.setToolTip("物理核心数，留空则按型号自动推断")
+        self.cpu_threads_combo.setToolTip("逻辑线程数，留空则按核心数自动推断")
+        cores_row.addWidget(QLabel("核心:"))
+        cores_row.addWidget(self.cpu_cores_combo, 1)
+        cores_row.addWidget(QLabel("线程:"))
+        cores_row.addWidget(self.cpu_threads_combo, 1)
+        c_layout.addLayout(cores_row)
+
+        def _save_cores(*_):
+            import re as _re
+            def _num(txt):
+                m = _re.search(r"\d+", str(txt or ""))
+                return int(m.group(0)) if m else None
+            c = _num(self.cpu_cores_combo.currentText())
+            t = _num(self.cpu_threads_combo.currentText())
+            if c is not None:
+                self.config["custom_target"]["cpu_cores"] = c
+            else:
+                self.config["custom_target"].pop("cpu_cores", None)
+            if t is not None:
+                self.config["custom_target"]["cpu_threads"] = t
+            else:
+                self.config["custom_target"].pop("cpu_threads", None)
+            save_config(self.config)
+
+        self.cpu_cores_combo.currentTextChanged.connect(_save_cores)
+        self.cpu_threads_combo.currentTextChanged.connect(_save_cores)
+
         c_layout.addWidget(QLabel("检测出厂物理真实 CPU:"))
         real_cpu_lbl = QLabel(self.config["current_hardware"].get("detected_cpu", DEFAULT_REAL_CPU))
         real_cpu_lbl.setProperty("class", "RealHardwareBadge")
@@ -4369,6 +4410,18 @@ class MainWindow(QMainWindow):
                 self.config["custom_target"]["memory_clock_mhz"] = int(m.group(1))
 
         # Disk
+        if hasattr(self, "cpu_cores_combo"):
+            import re as _re
+            def _num2(txt):
+                m = _re.search(r"\d+", str(txt or ""))
+                return int(m.group(0)) if m else None
+            _c = _num2(self.cpu_cores_combo.currentText())
+            _t = _num2(self.cpu_threads_combo.currentText())
+            if _c is not None:
+                self.config["custom_target"]["cpu_cores"] = _c
+            if _t is not None:
+                self.config["custom_target"]["cpu_threads"] = _t
+
         if hasattr(self, "home_disk_combo"):
             d = self.home_disk_combo.currentText().strip()
             if d and not d.startswith("✏️"):
