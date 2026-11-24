@@ -40,33 +40,29 @@
 
 ---
 
-# 🖥 DM-Toolbox (DM工具箱) v3.3.10 · 修复核显被一起改名（RTX 4070 ×2）
+# 🖥 DM-Toolbox (DM工具箱) v3.3.10 · 修复核显被一起改名
 
 **旧版 apply 脚本会把所有非虚拟显卡的 `DriverDesc/DeviceDesc` 都改成目标显卡名，
-导致 AMD 核显也显示成 RTX 4070；本版只改目标显卡，并在还原时按 INF 找回核显真实型号。**
+导致核显也被一起改名；本版只改目标显卡，并在还原时按 INF 找回核显真实型号。**
 
 ---
 
 ### 🐞 1. 原因
 
 `apply_config.ps1` 的 DirectX / Control\Video / Class 三处循环只排除了 Virtual/Remote，
-没有按目标显卡厂商过滤，于是核显（VEN_1002）也被写成了 `NVIDIA GeForce RTX 4070`。
+没有按目标显卡厂商过滤，于是核显也被写成了目标显卡的名称。
 
 ### ✅ 2. 修复
 
-- apply 脚本按目标显卡厂商计算过滤正则：
-  - NVIDIA：`NVIDIA|GeForce|RTX|GTX|Quadro|Tesla`
-  - AMD：`AMD|Radeon|ATI`
-  - Intel：`Intel|Arc|Iris|UHD`
-- 只修改匹配厂商的注册表节点，核显不再被改名。
+- apply 脚本按目标显卡厂商计算过滤正则，只修改匹配厂商的注册表节点，核显不再被改名。
 
 ### 🩹 3. 还原时修复已损坏的核显名
 
 - 新增 `gpu_restore_repair.py`：
   - 遍历显示类 `Class\{4d36e968…}\000X`；
-  - 对 AMD/Intel 核显从对应驱动 INF（`C:\Windows\INF\oemXX.inf`）解析原始型号；
+  - 对核显从对应驱动 INF（`C:\Windows\INF\oemXX.inf`）解析原始型号；
   - 写回 `DriverDesc`、`HardwareInformation.ChipType/AdapterString`、Enum `DeviceDesc/FriendlyName`、DirectX `Description`；
-- 实测解析结果：`AMD Radeon(TM) Graphics`；
+- 实测可正确解析出核显原始型号；
 - 「一键还原官方真实硬件」会自动执行该修复。
 
 ### 🔍 4. 回归
