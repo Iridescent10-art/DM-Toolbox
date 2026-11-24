@@ -54,8 +54,10 @@ def test_phase1_constants_and_assets():
 
     # Check physical assets in package
     assert (LOCAL_ASSETS_DIR / "renodx-dlss.addon64").is_file(), "Mode A asset renodx-dlss.addon64 must exist"
-    assert (LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr.addon64").is_file(), "Mode B asset dlss5-nr.addon64 must exist"
-    assert (LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr-host" / "nr-host64.exe").is_file(), "Mode B host must exist"
+    assert (LOCAL_ASSETS_DIR / "ShortFusePlus-Panel.addon64").is_file(), "Mode A SF PLUS panel addon must exist"
+    assert (LOCAL_ASSETS_DIR / "nvngx_dlssnr.dll").is_file(), "SF PLUS panel/NGX proxy must exist"
+    assert (LOCAL_ASSETS_DIR / "lecram_v151" / "dlss5-nr.addon64").is_file(), "Mode B asset dlss5-nr.addon64 must exist"
+    assert (LOCAL_ASSETS_DIR / "lecram_v151" / "dlss5-nr-host" / "nr-host64.exe").is_file(), "Mode B host must exist"
     assert (LOCAL_ASSETS_DIR / "dxgi.dll").is_file(), "dxgi.dll must exist"
     assert (LOCAL_ASSETS_DIR / "runtimes" / "nvngx_dlssnr_rtx50.dll").is_file()
     assert (LOCAL_ASSETS_DIR / "runtimes" / "nvngx_dlssnr_rtx20_30_40.dll").is_file()
@@ -104,18 +106,20 @@ def test_phase3_mode_a_and_mode_b_injection_lifecycle():
         assert stat0["is_injected"] is False
         assert "未安装" in stat0["mode_status_display"]
 
-        # Step 1: Inject Mode A
+        # Step 1: Inject Mode A (SF PLUS 4.2.0: addon + panel + proxy + real runtime)
         ok_a, msg_a = DLSS5Injector.inject(str(game_dir), arch_choice="auto", mode="MODE_A")
         assert ok_a is True, f"Mode A injection failed: {msg_a}"
         assert (game_dir / "renodx-dlss.addon64").exists()
+        assert (game_dir / "ShortFusePlus-Panel.addon64").exists()
         assert (game_dir / "dxgi.dll").exists()
         assert (game_dir / "nvngx_dlssnr.dll").exists()
+        assert (game_dir / "nvngx_dlssnr_real.dll").exists()
         assert not (game_dir / "dlss5-nr.addon64").exists()
 
         stat_a = check_game_dlss5_status(str(game_dir))
         assert stat_a["is_injected"] is True
         assert stat_a["detected_mode"] == "MODE_A"
-        assert "模式 A · ShortFuse 原生底座" in stat_a["mode_status_display"]
+        assert "模式 A · SF PLUS 4.2.0 原生底座" in stat_a["mode_status_display"]
 
         # Step 2: Switch & Inject Mode B (verify mutex cleanup removes Mode A)
         ok_b, msg_b = DLSS5Injector.inject(str(game_dir), arch_choice="auto", mode="MODE_B")
@@ -123,11 +127,13 @@ def test_phase3_mode_a_and_mode_b_injection_lifecycle():
         assert (game_dir / "dlss5-nr.addon64").exists(), "Mode B addon must be deployed"
         assert (game_dir / "dlss5-nr-host" / "nr-host64.exe").exists(), "Mode B 64-bit host must be deployed"
         assert not (game_dir / "renodx-dlss.addon64").exists(), "Mode A addon must be cleaned during Mode B injection"
+        assert not (game_dir / "ShortFusePlus-Panel.addon64").exists(), "Mode A SF PLUS panel must be cleaned during Mode B injection"
+        assert not (game_dir / "nvngx_dlssnr_real.dll").exists(), "Mode A proxy layout must be cleaned during Mode B injection"
 
         stat_b = check_game_dlss5_status(str(game_dir))
         assert stat_b["is_injected"] is True
         assert stat_b["detected_mode"] == "MODE_B"
-        assert "模式 B · DLSS5 NR v13.4 扩展底座" in stat_b["mode_status_display"]
+        assert "模式 B · DLSS5 NR v15.1.0 扩展底座" in stat_b["mode_status_display"]
 
         # Step 3: Test legacy detection
         (game_dir / "dlss5-nr.addon64").unlink()
@@ -160,7 +166,7 @@ def test_phase4_ui_elements_and_default_behavior():
     # 2.1 Banner subtitle check
     sub_title_label = win.findChild(object, "dlss5_sub_title")
     assert sub_title_label is not None
-    assert "DLSS5 NR v13.4 扩展底座 (模式 B 默认)" in sub_title_label.text()
+    assert "DLSS5 NR v15.1.0 扩展底座 (模式 B 默认)" in sub_title_label.text()
     assert "GITC Uplift 全 API 底座 (模式 C)" in sub_title_label.text()
     assert "共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存" in sub_title_label.text()
 
@@ -170,14 +176,14 @@ def test_phase4_ui_elements_and_default_behavior():
     assert win.combo_dlss5_mode.count() == 3
     assert win.combo_dlss5_mode.currentIndex() == 1, "Default must be Mode B (index 1)"
     assert win.combo_dlss5_mode.currentData() == "MODE_B"
-    assert "模式 B：DLSS5 NR v13.4" in win.lbl_mode_hint.text()
+    assert "模式 B：DLSS5 NR v15.1.0" in win.lbl_mode_hint.text()
 
     # Switch to Mode B in UI
     win.combo_dlss5_mode.setCurrentIndex(1)
     assert win.combo_dlss5_mode.currentData() == "MODE_B"
-    assert "模式 B：DLSS5 NR v13.4" in win.lbl_mode_hint.text()
-    assert "DLSS5 NR v13.4" in win.lbl_mode_hint.text()
-    assert "DLSS5 NR v13.4" in win.combo_dlss5_mode.currentText()
+    assert "模式 B：DLSS5 NR v15.1.0" in win.lbl_mode_hint.text()
+    assert "DLSS5 NR v15.1.0" in win.lbl_mode_hint.text()
+    assert "DLSS5 NR v15.1.0" in win.combo_dlss5_mode.currentText()
 
     # Switch to Mode C (GITC Uplift)
     win.combo_dlss5_mode.setCurrentIndex(2)
@@ -188,16 +194,16 @@ def test_phase4_ui_elements_and_default_behavior():
     # Switch back to Mode A
     win.combo_dlss5_mode.setCurrentIndex(0)
     assert win.combo_dlss5_mode.currentData() == "MODE_A"
-    assert "当前已选模式 A (默认)" in win.lbl_mode_hint.text()
+    assert "当前已选模式 A" in win.lbl_mode_hint.text()
 
     # Sync mode selector test
     win._sync_mode_selector("MODE_B")
     assert win.combo_dlss5_mode.currentIndex() == 1
-    assert "模式 B：DLSS5 NR v13.4" in win.lbl_mode_hint.text()
+    assert "模式 B：DLSS5 NR v15.1.0" in win.lbl_mode_hint.text()
 
     win._sync_mode_selector("MODE_A")
     assert win.combo_dlss5_mode.currentIndex() == 0
-    assert "当前已选模式 A (默认)" in win.lbl_mode_hint.text()
+    assert "当前已选模式 A" in win.lbl_mode_hint.text()
 
     win.close()
 
@@ -232,7 +238,7 @@ def test_mode_a_figure1_parameters_and_mode_b_f12_hotkey():
         sec_renodx_p1 = cp["RENODX-DLSS-preset1"]
         assert sec_renodx_p1.get("DirectNeuralRenderingStyle") == "2"
         assert sec_renodx_p1.get("DirectNeuralRenderingAutoMask") == "1"
-        assert sec_renodx_p1.get("DirectNeuralRenderingSkinStructureStrength") == "0.8"
+        assert sec_renodx_p1.get("DirectNeuralRenderingSkinStructureStrength") == "0.5"
         assert sec_renodx_p1.get("DirectNeuralRenderingProcessingScale") == "100"
         assert sec_renodx_p1.get("DirectNeuralRenderingFilterDomain") == "0"
         assert sec_renodx_p1.get("DirectNeuralRenderingPreset") == "2"
@@ -246,7 +252,7 @@ def test_mode_a_figure1_parameters_and_mode_b_f12_hotkey():
         sec_preset1 = cp["renodx-preset1"]
         assert sec_preset1.get("DirectNeuralRenderingStyle") == "2"
         assert sec_preset1.get("DirectNeuralRenderingAutoMask") == "1"
-        assert sec_preset1.get("DirectNeuralRenderingSkinStructureStrength") == "0.800000"
+        assert sec_preset1.get("DirectNeuralRenderingSkinStructureStrength") == "0.500000"
         assert sec_preset1.get("DirectNeuralRenderingFilterDomain") == "0"
         assert sec_preset1.get("DirectNeuralRenderingIntensity") == "1.000000"
 
@@ -267,7 +273,7 @@ def test_mode_a_figure1_parameters_and_mode_b_f12_hotkey():
         assert sec_a.get("DirectNeuralRenderingLocalStructureStrength") == "1.000000"  # Structure Intensity: 1.00
         assert sec_a.get("DirectNeuralRenderingLocalToneStrength") == "1.000000"  # Tone Intensity: 1.00
         assert sec_a.get("DirectNeuralRenderingAutoMask") == "1"  # Character Mask: On
-        assert sec_a.get("DirectNeuralRenderingSkinStructureStrength") == "0.800000"  # Character Intensity: 0.80
+        assert sec_a.get("DirectNeuralRenderingSkinStructureStrength") == "0.500000"  # Character Intensity: 50%
         assert sec_a.get("DirectNeuralRenderingProcessingScale") == "100.000000"  # Resolution Scale: 100%
         assert sec_a.get("DirectNeuralRenderingFilterDomain") == "0"  # Scaling Domain: scRGB-nl
         assert sec_a.get("DirectNeuralRenderingDownsampleFilter") == "0"  # Downsample Filter: Area
@@ -290,10 +296,17 @@ def test_mode_a_figure1_parameters_and_mode_b_f12_hotkey():
         cp_b = configparser.ConfigParser(interpolation=None, strict=False)
         cp_b.read(reshade_ini, encoding="utf-8")
 
-        # 模式 B 换成 DLSS5 NR v13.4：核心是 addon + 64 位宿主目录
+        # 模式 B 换成 DLSS5 NR v15.1.0：核心是 addon + 64 位宿主目录
         assert (game_dir / "dlss5-nr.addon64").exists()
         assert (game_dir / "dlss5-nr-host" / "nr-host64.exe").exists()
         assert (game_dir / "dlss5-nr-host" / "ReShade64.dll").exists()
+
+        # 默认注入的面部（角色 / 皮肤）参数必须为 50%
+        sec_b = cp_b["RenoDX.DLSS5"]
+        assert sec_b.get("NRSkinStructure") == "0.500000"
+        assert sec_b.get("SkinStructure") == "50"
+        assert sec_b.get("Skin") == "50"
+        assert sec_b.get("NRPass2Skin") == "-1"
 
 
 def test_hook_point_dual_mode_synchronization():

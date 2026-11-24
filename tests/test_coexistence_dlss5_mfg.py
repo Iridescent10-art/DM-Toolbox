@@ -275,8 +275,11 @@ def test_assertion_4_model_and_dependency_completeness():
         assert ok_inj, "RTX 20/30/40 模型注入应成功"
 
         nr_file_40 = game_dir_40 / "nvngx_dlssnr.dll"
-        assert nr_file_40.exists(), "nvngx_dlssnr.dll 必须存在"
-        size_40_mb = round(nr_file_40.stat().st_size / (1024 * 1024), 2)
+        nr_real_40 = game_dir_40 / "nvngx_dlssnr_real.dll"
+        assert nr_file_40.exists(), "nvngx_dlssnr.dll (SF PLUS 面板/NGX 代理) 必须存在"
+        assert nr_real_40.exists(), "nvngx_dlssnr_real.dll (真实模型) 必须存在"
+        assert nr_file_40.stat().st_size < 5 * 1024 * 1024, "nvngx_dlssnr.dll 应为小型面板代理"
+        size_40_mb = round(nr_real_40.stat().st_size / (1024 * 1024), 2)
         assert abs(size_40_mb - 263.37) < 0.5, f"RTX 20/30/40 模型大小应为 ~263.37 MB，实际: {size_40_mb} MB"
 
         # 注入 模式 A (标准官方 Proxy DLL 注入规范)
@@ -306,8 +309,10 @@ def test_assertion_4_model_and_dependency_completeness():
         assert ok_inj_50, "RTX 50 模型注入应成功"
 
         nr_file_50 = game_dir_50 / "nvngx_dlssnr.dll"
-        assert nr_file_50.exists(), "nvngx_dlssnr.dll 必须存在"
-        size_50_mb = round(nr_file_50.stat().st_size / (1024 * 1024), 2)
+        nr_real_50 = game_dir_50 / "nvngx_dlssnr_real.dll"
+        assert nr_file_50.exists(), "nvngx_dlssnr.dll (SF PLUS 面板/NGX 代理) 必须存在"
+        assert nr_real_50.exists(), "nvngx_dlssnr_real.dll (真实模型) 必须存在"
+        size_50_mb = round(nr_real_50.stat().st_size / (1024 * 1024), 2)
         assert abs(size_50_mb - 254.08) < 0.5, f"RTX 50 模型大小应为 ~254.08 MB，实际: {size_50_mb} MB"
 
         # 注入 模式 C (OptiScaler 跨卡转译)
@@ -362,7 +367,7 @@ def test_assertion_5_uninstallation_idempotency_and_restoration():
         # 4. 严格校验所有注入文件 100% 灭失
         forbidden_extensions = [".addon64", ".addon"]
         forbidden_filenames = [
-            "dxgi.dll", "nvngx_dlssnr.dll", "version.dll", "winmm.dll", "dinput8.dll",
+            "dxgi.dll", "nvngx_dlssnr.dll", "nvngx_dlssnr_real.dll", "version.dll", "winmm.dll", "dinput8.dll",
             "fakenvapi.dll", "fakenvapi.ini", "fakenvapi.log", "OptiScaler.ini", "OptiScaler.dll",
             "ReShade.ini", "ReShadePreset.ini", "ReShade64.dll", "dlssg_sm86.ini",
             ".dlss5_manifest.json", ".mfg_patch_manifest.json", ".dlss5_config.json",
@@ -690,7 +695,7 @@ def test_assertion_8_repeated_injection_is_idempotent():
         proxies = [n for n in ("dxgi.dll", "version.dll", "winmm.dll", "dinput8.dll", "wininet.dll")
                    if n != "dxgi.dll" and n == snap["optiscaler_slot"]]
         assert len(proxies) == 1, "OptiScaler 代理必须唯一"
-        assert len(list(game_dir.glob("*.addon64"))) == 1, "只允许存在一个 DLSS 5 Addon"
+        assert len(list(game_dir.glob("*.addon64"))) == 2, "模式 A 只允许 renodx-dlss.addon64 + ShortFusePlus-Panel.addon64"
 
         ok, msg = DLSS5Injector.restore(str(game_dir))
         assert ok, msg

@@ -729,7 +729,13 @@ def CleanGameDirectoryState(
 
             "dlss5-nr.addon64",
 
+            "dlss5-nr.addon32",
+
+            "ShortFusePlus-Panel.addon64",
+
             "nvngx_dlssnr.dll",
+
+            "nvngx_dlssnr_real.dll",
 
             ".dlss5_manifest.json",
 
@@ -764,6 +770,20 @@ def CleanGameDirectoryState(
                 shutil.rmtree(dlss5_runtime_dir, ignore_errors=True)
 
                 actions_taken.append("清理 DLSS 5 运行时目录")
+
+            except Exception:
+
+                pass
+
+        dlss5_host_dir = td / "dlss5-nr-host"
+
+        if dlss5_host_dir.exists() and dlss5_host_dir.is_dir():
+
+            try:
+
+                shutil.rmtree(dlss5_host_dir, ignore_errors=True)
+
+                actions_taken.append("清理 DLSS 5 64 位宿主目录")
 
             except Exception:
 

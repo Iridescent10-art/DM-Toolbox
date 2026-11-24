@@ -1,4 +1,4 @@
-DLSS5 NR v13.4.0: the add-on for a hand install (DLSS5 NR Setup does all of this for you)
+DLSS5 NR v15.1.0: the add-on for a hand install (DLSS5 NR Setup does all of this for you)
 
 Needs ReShade 6.8 or newer with add-on support in the game (ReShade's setup: "with full add-on support").
 

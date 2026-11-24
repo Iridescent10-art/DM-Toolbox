@@ -6,7 +6,7 @@ Dedicated, rock-solid one-click injector for DLSS 5 (RenoDX DLSS-NR & ReShade Ad
 Reuses Game Recognition and RHI modules directly from App 2 (app2_mfg).
 Coexists with Mode A/B/C/D frame generation through the shared
 `apps/app2_mfg/core/coexistence.py` router instead of overwriting their proxy slots.
-Defaults to RenoDX DLSS 5 v11.9 flagship addon (renodx-dlss5-v11.9.addon64).
+Defaults to RenoDX DLSS 5 (SF PLUS 4.2.0) for Mode A and DLSS5 NR v15.1.0 for Mode B.
 """
 
 import os
@@ -26,21 +26,21 @@ from typing import Optional, Tuple, Dict, Any, List, Union
 DLSS5_ENGINE_MODES = {
     "MODE_A": {
         "key": "MODE_A",
-        "title": "模式 A · ShortFuse 官方原生底座 (默认推荐)",
-        "short_name": "模式 A (ShortFuse 原生底座)",
+        "title": "模式 A · SF PLUS 4.2.0 (ShortFuse 原生底座)",
+        "short_name": "模式 A (SF PLUS 4.2.0 原生底座)",
         "addon_file": "renodx-dlss.addon64",
-        "badge": "默认推荐",
-        "desc": "ShortFuse 官方高频维护 · 原生轻量零冗余 · 完美兼容模式 A/B/C/D 多帧生成共存",
+        "badge": "原生稳定",
+        "desc": "SF PLUS 4.2.0 · ShortFuse 原生底座 + 独立控制面板代理 · 极速稳定 · 完美兼容多帧生成共存",
         "ini_section": "RenoDX DLSS",  # 二进制内部注册名: RenoDX DLSS
-        "features": ["OptionsMode (DLSS-NR / DLSS-G / DLSS-SR)", "DLSSQualityMode", "Preset #1/#2/#3"]
+        "features": ["OptionsMode (DLSS-NR / DLSS-G / DLSS-SR)", "DLSSQualityMode", "Preset #1/#2/#3", "SF PLUS 面板"]
     },
     "MODE_B": {
         "key": "MODE_B",
-        "title": "模式 B · DLSS5 NR v13.4 (Lecram) 扩展底座",
-        "short_name": "模式 B (DLSS5 NR v13.4 扩展底座)",
+        "title": "模式 B · DLSS5 NR v15.1.0 (Lecram) 扩展底座",
+        "short_name": "模式 B (DLSS5 NR v15.1.0 扩展底座)",
         "addon_file": "dlss5-nr.addon64",
         "badge": "可选扩展",
-        "desc": "DLSS5 NR v13.4.0 · 64 位宿主架构（dlss5-nr-host）· 预设库 / 对比 / 多 pass 与帧生成宿主接管",
+        "desc": "DLSS5 NR v15.1.0 Dev · 64 位宿主架构（dlss5-nr-host）· 面部重构默认 50% · 预设库 / 对比 / 多 pass",
         "ini_section": "RenoDX DLSS5",
         "features": ["NR host (64-bit)", "Preset library", "Compare / Studio", "Pass & hook settings"]
     },
@@ -58,9 +58,24 @@ DLSS5_ENGINE_MODES = {
 
 DEFAULT_DLSS5_MODE = "MODE_B"
 
+# --- SF PLUS 4.2.0 (模式 A) 资产拓扑 -------------------------------------------------
+# 新版 ShortFuse 底座由「独立控制面板代理」+「真实神经重构运行库」组成：
+#   nvngx_dlssnr.dll       = 910 KB 控制面板 / NGX 代理（含 AddonInit 导出）
+#   nvngx_dlssnr_real.dll  = 真实 NVIDIA NR 运行库（按显卡架构区分）
+#   ShortFusePlus-Panel.addon64 = ReShade 面板插件，必须与 renodx-dlss.addon64 同目录
+MODE_A_PANEL_ADDON = "ShortFusePlus-Panel.addon64"
+NR_PROXY_FILENAME = "nvngx_dlssnr.dll"
+NR_REAL_FILENAME = "nvngx_dlssnr_real.dll"
+
+# --- 默认注入的面部（角色 / 皮肤）重构参数 -------------------------------------------
+# 0 = 完全保护游戏原脸，100 = NVIDIA 原始神经重构强度。用户要求默认注入 50%。
+DEFAULT_NR_SKIN_PERCENT = 50
+DEFAULT_NR_SKIN_RATIO = "0.500000"
+
 # 所有可能产生 NGX/DLSS Hook 冲突的同源插件黑名单（用于注入前互斥清理与卸载）
 CONFLICT_DLSS_ADDONS = [
     "renodx-dlss.addon64",
+    "ShortFusePlus-Panel.addon64",
     "Lecram-v12.addon64",
     "renodx-dlss5.addon64",
     "renodx-dlss5-v11.9.addon64",
@@ -341,7 +356,8 @@ def clean_conflicting_addons(target_dir: Union[str, Path], keep_addon: Optional[
         if p.exists() and p.is_file():
             candidates.add(p)
 
-    for pat in ["renodx-dlss*.addon64", "Lecram*.addon64", "lecram*.addon64", "renodx-dlss5*.addon64"]:
+    for pat in ["renodx-dlss*.addon64", "Lecram*.addon64", "lecram*.addon64", "renodx-dlss5*.addon64",
+                "ShortFusePlus*.addon64", "shortfuseplus*.addon64"]:
         for p in td.glob(pat):
             if p.is_file():
                 candidates.add(p)
@@ -440,12 +456,12 @@ def restore_streamline_nr_runtime(td: Path) -> list[str]:
 
 
 def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MODE_B",
-                              mode_b_variant: str = "v12.5") -> Dict[str, Any]:
+                              mode_b_variant: str = "v15.1") -> Dict[str, Any]:
     """
     Scans the given source directory (or auto-detected paths) for:
     - dxgi.dll (ReShade base)
     - Mode A base: renodx-dlss.addon64
-    - Mode B base: Lecram-v12.addon64
+    - Mode B base: DLSS5 NR v15.1.0 (dlss5-nr.addon64)
     - Active addon based on chosen mode
     - nvngx_dlssnr.dll models (RTX 50 vs RTX 20/30/40)
     """
@@ -458,13 +474,19 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
         "mode_a_path": None,
         "mode_a_size_mb": 0.0,
         "mode_a_exists": False,
+        "mode_a_panel_path": None,
+        "mode_a_panel_size_mb": 0.0,
+        "mode_a_panel_exists": False,
+        "nr_proxy_path": None,
+        "nr_proxy_size_mb": 0.0,
+        "nr_proxy_exists": False,
         "mode_b_path": None,
         "mode_b_size_mb": 0.0,
         "mode_b_exists": False,
         "mode_b_v125_path": None,
         "mode_b_v125_size_mb": 0.0,
         "mode_b_v125_exists": False,
-        "mode_b_variant": "v13.4",
+        "mode_b_variant": "v15.1",
         "mode_b_dir": None,
         "mode_c_path": None,
         "mode_c_size_mb": 0.0,
@@ -522,12 +544,30 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
             result["mode_a_size_mb"] = round(cands_a[0].stat().st_size / (1024 * 1024), 2)
             result["mode_a_exists"] = True
 
-    # 3. Search for Mode B base: DLSS5 NR v13.4 (dlss5-nr.addon64)
+    # 2b. Search for Mode A SF PLUS control-panel addon
+    for _panel_cand in (s_dir / MODE_A_PANEL_ADDON, LOCAL_ASSETS_DIR / MODE_A_PANEL_ADDON):
+        if _panel_cand.exists() and _panel_cand.is_file():
+            result["mode_a_panel_path"] = str(_panel_cand)
+            result["mode_a_panel_size_mb"] = round(_panel_cand.stat().st_size / (1024 * 1024), 2)
+            result["mode_a_panel_exists"] = True
+            break
+
+    # 2c. Search for SF PLUS NR proxy DLL (nvngx_dlssnr.dll, ~0.9 MB panel/NGX proxy)
+    for _proxy_cand in (s_dir / NR_PROXY_FILENAME, LOCAL_ASSETS_DIR / NR_PROXY_FILENAME):
+        if _proxy_cand.exists() and _proxy_cand.is_file():
+            result["nr_proxy_path"] = str(_proxy_cand)
+            result["nr_proxy_size_mb"] = round(_proxy_cand.stat().st_size / (1024 * 1024), 2)
+            result["nr_proxy_exists"] = True
+            break
+
+    # 3. Search for Mode B base: DLSS5 NR v15.1.0 (dlss5-nr.addon64)
     mode_b_candidates = [
-        s_dir / "lecram_v134" / "dlss5-nr.addon64",
+        s_dir / "lecram_v151" / "dlss5-nr.addon64",
         s_dir / "dlss5-nr.addon64",
-        LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr.addon64",
+        s_dir / "lecram_v134" / "dlss5-nr.addon64",
+        LOCAL_ASSETS_DIR / "lecram_v151" / "dlss5-nr.addon64",
         LOCAL_ASSETS_DIR / "dlss5-nr.addon64",
+        LOCAL_ASSETS_DIR / "lecram_v134" / "dlss5-nr.addon64",
     ]
     for _cand in mode_b_candidates:
         if _cand.exists() and _cand.is_file():
@@ -603,7 +643,7 @@ def scan_plugin_source_assets(source_dir: Optional[Path] = None, mode: str = "MO
             result["addon_name"] = Path(result["mode_a_path"]).name
             result["addon_size_mb"] = result["mode_a_size_mb"]
     elif mode == "MODE_B":
-        result["mode_b_variant"] = "v13.4"
+        result["mode_b_variant"] = "v15.1"
         if result["mode_b_path"]:
             result["addon_path"] = result["mode_b_path"]
             result["addon_name"] = Path(result["mode_b_path"]).name
@@ -692,8 +732,8 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
     3.3 目标游戏状态智能识别 (detect_game_injection_status)
     Checks whether DLSS 5 is currently injected into the game's target directory.
     Identifies:
-    - MODE_A (renodx-dlss.addon64): 🟢 已注入 DLSS 5 [模式 A · ShortFuse 原生底座]
-    - MODE_B (Lecram-v12.addon64): 🔵 已注入 DLSS 5 [模式 B · Lecram v12 扩展底座]
+    - MODE_A (renodx-dlss.addon64): 🟢 已注入 DLSS 5 [模式 A · SF PLUS 4.2.0 原生底座]
+    - MODE_B (dlss5-nr.addon64): 🔵 已注入 DLSS 5 [模式 B · DLSS5 NR v15.1.0 扩展底座]
     - Legacy (renodx-dlss5-v11.9.addon64 / renodx-dlss5.addon64): 🟡 检测到旧版插件 (v11.9)，建议点击一键注入升级至默认模式 A
     - Not installed: ⚪ 未安装 DLSS 5 插件
     """
@@ -754,26 +794,22 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
     dlss_addons = [a for a in addons if any(k in a.lower() for k in ["renodx", "dlss", "shortfuse", "lecram", "gitc-uplift"]) and "mfgunlock" not in a.lower()]
     has_addon = len(dlss_addons) > 0
 
-    has_mode_a = (td / "renodx-dlss.addon64").exists()
+    has_mode_a = (td / "renodx-dlss.addon64").exists() or (td / MODE_A_PANEL_ADDON).exists()
     has_mode_c = any("gitc-uplift" in a.lower() for a in dlss_addons)
     has_mode_b = any("dlss5-nr" in a.lower() or "lecram" in a.lower() for a in dlss_addons)
-    has_mode_b_v125 = False
     has_legacy = any("v11.9" in a.lower() or "dlss5." in a.lower() or "beta" in a.lower() for a in dlss_addons)
 
     detected_mode = None
-    detected_mode_b_variant = "v12.5" if has_mode_b_v125 else "v12"
+    detected_mode_b_variant = "v15.1"
     if has_mode_c and not has_mode_a and not has_mode_b:
         detected_mode = "MODE_C"
         mode_status_display = "🟣 已注入 DLSS 5 [模式 C · GITC Uplift 神经重构底座]"
     elif has_mode_a and not has_mode_b:
         detected_mode = "MODE_A"
-        mode_status_display = "🟢 已注入 DLSS 5 [模式 A · ShortFuse 原生底座]"
+        mode_status_display = "🟢 已注入 DLSS 5 [模式 A · SF PLUS 4.2.0 原生底座]"
     elif has_mode_b and not has_mode_a:
         detected_mode = "MODE_B"
-        if has_mode_b_v125:
-            mode_status_display = "🔵 已注入 DLSS 5 [模式 B · Lecram v12.5 扩展底座]"
-        else:
-            mode_status_display = "🔵 已注入 DLSS 5 [模式 B · DLSS5 NR v13.4 扩展底座]"
+        mode_status_display = "🔵 已注入 DLSS 5 [模式 B · DLSS5 NR v15.1.0 扩展底座]"
     elif has_mode_a and has_mode_b:
         detected_mode = "MODE_A"
         mode_status_display = "⚠️ 检测到双底座冲突 (模式 A + 模式 B)，建议重新一键注入整理"
@@ -787,9 +823,24 @@ def check_game_dlss5_status(target_dir: str) -> Dict[str, Any]:
         detected_mode = None
         mode_status_display = "⚪ 未安装 DLSS 5 插件"
 
-    # Runtime check
-    has_runtime = runtime_path.exists() and runtime_path.is_file() and runtime_path.stat().st_size > 100 * 1024 * 1024
-    runtime_size_mb = round(runtime_path.stat().st_size / (1024 * 1024), 2) if has_runtime else 0.0
+    # Runtime check: SF PLUS 4.2.0 splits the runtime into a tiny panel/NGX proxy
+    # (nvngx_dlssnr.dll ~0.9 MB) plus the real model (nvngx_dlssnr_real.dll ~250 MB),
+    # while Mode B / Mode C still deploy the real model directly as nvngx_dlssnr.dll.
+    real_runtime_path = td / NR_REAL_FILENAME
+    proxy_size = 0
+    if runtime_path.is_file():
+        proxy_size = runtime_path.stat().st_size
+    real_runtime_size = 0
+    if real_runtime_path.is_file():
+        real_runtime_size = real_runtime_path.stat().st_size
+
+    has_runtime = proxy_size > 100 * 1024 * 1024 or real_runtime_size > 100 * 1024 * 1024
+    if real_runtime_size > 100 * 1024 * 1024:
+        runtime_size_mb = round(real_runtime_size / (1024 * 1024), 2)
+    elif proxy_size > 100 * 1024 * 1024:
+        runtime_size_mb = round(proxy_size / (1024 * 1024), 2)
+    else:
+        runtime_size_mb = 0.0
 
     # Check manifest
     manifest_data = None
@@ -1046,7 +1097,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         'DirectNeuralRenderingProcessingScale': '100',
         'DirectNeuralRenderingScaleReconstruction': '0',
         'DirectNeuralRenderingSignalEncoding': '0',
-        'DirectNeuralRenderingSkinStructureStrength': '0.8',
+        'DirectNeuralRenderingSkinStructureStrength': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass10': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass2': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass3': '0.5',
@@ -1150,7 +1201,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         'DirectNeuralRenderingProcessingScale': '100',
         'DirectNeuralRenderingScaleReconstruction': '0',
         'DirectNeuralRenderingSignalEncoding': '0',
-        'DirectNeuralRenderingSkinStructureStrength': '0.8',
+        'DirectNeuralRenderingSkinStructureStrength': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass10': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass2': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass3': '0.5',
@@ -1254,7 +1305,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         'DirectNeuralRenderingProcessingScale': '100',
         'DirectNeuralRenderingScaleReconstruction': '0',
         'DirectNeuralRenderingSignalEncoding': '0',
-        'DirectNeuralRenderingSkinStructureStrength': '0.8',
+        'DirectNeuralRenderingSkinStructureStrength': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass10': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass2': '0.5',
         'DirectNeuralRenderingSkinStructureStrengthPass3': '0.5',
@@ -1289,7 +1340,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingAutoMask": "1",
-        "DirectNeuralRenderingSkinStructureStrength": "0.800000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingProcessingScale": "100.000000",
         "DirectNeuralRenderingFilterDomain": "0",
         "DirectNeuralRenderingDownsampleFilter": "0",
@@ -1344,7 +1395,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingAutoMask": "1",
-        "DirectNeuralRenderingSkinStructureStrength": "0.800000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingProcessingScale": "100.000000",
         "DirectNeuralRenderingFilterDomain": "0",
         "DirectNeuralRenderingDownsampleFilter": "0",
@@ -1378,7 +1429,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingAutoMask": "1",
-        "DirectNeuralRenderingSkinStructureStrength": "0.800000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingProcessingScale": "100.000000",
         "DirectNeuralRenderingFilterDomain": "0",
         "DirectNeuralRenderingDownsampleFilter": "0",
@@ -1405,7 +1456,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingAutoMask": "1",
-        "DirectNeuralRenderingSkinStructureStrength": "0.800000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingProcessingScale": "100.000000",
         "DirectNeuralRenderingFilterDomain": "0",
         "DirectNeuralRenderingDownsampleFilter": "0",
@@ -1449,10 +1500,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "LocalTone": "1.000000",
         "NRLocalTone": "1.000000",
         "DirectNeuralRenderingAutoMask": "1",
-        "DirectNeuralRenderingSkinStructureStrength": "0.800000",
-        "SkinStructure": "80",
-        "Skin": "80",
-        "NRSkinStructure": "0.800000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
+        "SkinStructure": "50",
+        "Skin": "50",
+        "NRSkinStructure": "0.500000",
         "DirectNeuralRenderingProcessingScale": "100.000000",
         "ProcessingScale": "100.000000",
         "ResolutionScale": "1.000000",
@@ -1522,10 +1573,10 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "LocalTone": "1.000000",
         "NRLocalStructure": "1.000000",
         "LocalStructure": "1.000000",
-        "NRSkinStructure": "1.000000",
-        "SkinStructure": "100",
-        "Skin": "100",
-        "NRPass2Skin": "100",
+        "NRSkinStructure": "0.500000",
+        "SkinStructure": "50",
+        "Skin": "50",
+        "NRPass2Skin": "-1",
         "NRPasses": "1",
         "PassCount": "1",
         "NRModelLabEnabled": "1",
@@ -1563,7 +1614,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingVramBuffering": "1",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
-        "DirectNeuralRenderingSkinStructureStrength": "1.000000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingPassCount": "1",
         "DirectNeuralRenderingFineTune": "0",
         "DirectNeuralRenderingUiCorrectionMode": "1",
@@ -1578,9 +1629,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRHookPoint": "0",
         "NRStyle": "2",
         "NRPass2Preset": "2",
-        "NRSkinStructure": "1.000000",
-        "SkinStructure": "100",
-        "Skin": "100",
+        "NRSkinStructure": "0.500000",
+        "SkinStructure": "50",
+        "Skin": "50",
         "NRResolutionScale": "0.500000",
         "NRFollowInputRes": "1",
         "NRIntensity": "1.000000",
@@ -1609,9 +1660,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRHookPoint": "0",
         "NRStyle": "2",
         "NRPass2Preset": "2",
-        "NRSkinStructure": "1.000000",
-        "SkinStructure": "100",
-        "Skin": "100",
+        "NRSkinStructure": "0.500000",
+        "SkinStructure": "50",
+        "Skin": "50",
         "NRResolutionScale": "0.500000",
         "NRFollowInputRes": "1",
         "NRIntensity": "1.000000",
@@ -1649,7 +1700,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingVramBuffering": "1",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
-        "DirectNeuralRenderingSkinStructureStrength": "1.000000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingPassCount": "1",
         "DirectNeuralRenderingFineTune": "0",
         "DirectNeuralRenderingUiCorrectionMode": "1",
@@ -1685,9 +1736,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRNormTrace": "0",
         "NRLocalTone": "1.000000",
         "NRLocalStructure": "1.000000",
-        "NRSkinStructure": "1.000000",
-        "SkinStructure": "100",
-        "Skin": "100",
+        "NRSkinStructure": "0.500000",
+        "SkinStructure": "50",
+        "Skin": "50",
         "NRPassCount": "1",
         "NRFineTune": "0",
         "NRLayersEnabled": "1",
@@ -1701,9 +1752,9 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "NRHookPoint": "0",
         "NRStyle": "2",
         "NRPass2Preset": "2",
-        "NRSkinStructure": "1.000000",
-        "SkinStructure": "100",
-        "Skin": "100",
+        "NRSkinStructure": "0.500000",
+        "SkinStructure": "50",
+        "Skin": "50",
         "NRResolutionScale": "0.500000",
         "NRFollowInputRes": "1",
         "NRIntensity": "1.000000",
@@ -1739,7 +1790,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "VramBuffering": "1",
         "LocalTone": "1.000000",
         "LocalStructure": "1.000000",
-        "SkinStructure": "100",
+        "SkinStructure": "50",
         "PassCount": "1",
         "FineTune": "0",
         "UiCorrection": "1",
@@ -1755,7 +1806,7 @@ DEFAULT_DLSS5_INI_SECTIONS: Dict[str, Dict[str, str]] = {
         "DirectNeuralRenderingVramBuffering": "1",
         "DirectNeuralRenderingLocalToneStrength": "1.000000",
         "DirectNeuralRenderingLocalStructureStrength": "1.000000",
-        "DirectNeuralRenderingSkinStructureStrength": "1.000000",
+        "DirectNeuralRenderingSkinStructureStrength": "0.500000",
         "DirectNeuralRenderingPassCount": "1",
         "DirectNeuralRenderingFineTune": "0",
         "DirectNeuralRenderingUiCorrectionMode": "1",
@@ -1973,7 +2024,7 @@ def sync_nr_vram_settings(
 
 def sync_dlss5_hook_point(target_dir: Union[str, Path], hook_point: str = "0") -> bool:
     """
-    Synchronizes DLSS 5 hook point for BOTH Mode A (ShortFuse renodx-dlss) and Mode B (Lecram-v12).
+    Synchronizes DLSS 5 hook point for BOTH Mode A (SF PLUS / ShortFuse renodx-dlss) and Mode B (DLSS5 NR v15.1.0).
     
     Mode A enum mapping (DirectNeuralRenderingHookStage):
       - '0' (Upscaled): DirectNeuralRenderingHookStage='1'
@@ -2139,8 +2190,8 @@ def ensure_reshade_chinese_ini(ini_path: Path, is_mode_c: bool = False, addon_na
         sections["ADDON"]["LoadFromDllMain"] = "" 
 
     # Key binding configuration:
-    # Mode A (ShortFuse) / Mode B (DLSS5 NR v13.4) 都用 Home 呼出 NR 面板；
-    # v13.4 的 ReShade 自带菜单是 Shift + Home。
+    # Mode A (SF PLUS / ShortFuse) / Mode B (DLSS5 NR v15.1.0) 都用 Home 呼出 NR 面板；
+    # v15.1.0 的 ReShade 自带菜单是 Shift + Home。
     sections["OVERLAY"]["KeyOverlay"] = "36,0,0,0"
     if "INPUT" not in sections:
         sections["INPUT"] = {}
@@ -2205,7 +2256,7 @@ class DLSS5Injector:
             "1": "之前 (Before · 原生渲染阶段)"
         }
         lbl = label_map.get(str(hook_point), f"模式 {hook_point}")
-        return True, f"已成功将当前游戏的 DLSS 5 挂钩模式修改为【{lbl}】！\n\n已无缝同步至模式 A (ShortFuse 原生底座) 与模式 B (Lecram v12 扩展底座) 配置文件，无需启动游戏即可生效。"
+        return True, f"已成功将当前游戏的 DLSS 5 挂钩模式修改为【{lbl}】！\n\n已无缝同步至模式 A (SF PLUS 4.2.0 原生底座) 与模式 B (DLSS5 NR v15.1.0 扩展底座) 配置文件，无需启动游戏即可生效。"
 
     @staticmethod
     def inject(
@@ -2217,7 +2268,7 @@ class DLSS5Injector:
         proxy_choice: str = "auto",
         nr_vram_guard: Optional[bool] = None,
         nr_vram_margin: Optional[int] = None,
-        mode_b_variant: str = "v12.5",
+        mode_b_variant: str = "v15.1",
     ) -> Tuple[bool, str]:
         """
         Executes one-click standalone injection of DLSS 5 into target_dir.
@@ -2227,7 +2278,7 @@ class DLSS5Injector:
             source_dir: Plugin assets folder
             arch_choice: 'auto', 'rtx20_30_40', or 'rtx50'
             hook_point: '0' (Upscaled), '2' (Present), or '1' (Before)
-            mode: 'MODE_A' (ShortFuse native base) or 'MODE_B' (Lecram v12 base)
+            mode: 'MODE_A' (SF PLUS / ShortFuse native base) or 'MODE_B' (DLSS5 NR v15.1.0 base)
         """
         td = Path(target_dir) if target_dir else None
         if not td or not td.exists() or not td.is_dir():
@@ -2485,7 +2536,7 @@ class DLSS5Injector:
                 except Exception:
                     pass
 
-            # 6.2 Copy addon64 (defaults to renodx-dlss5-v11.9.addon64)
+            # 6.2 Copy addon64 (Mode A: renodx-dlss.addon64 / Mode B: dlss5-nr.addon64)
             addon_dest = td / Path(addon_src).name
             shutil.copy2(addon_src, addon_dest)
             manifest_data["injected_files"].append(addon_dest.name)
@@ -2539,7 +2590,7 @@ class DLSS5Injector:
                         shutil.copy2(str(fx_src), str(td / fx_name))
                         manifest_data["injected_files"].append(fx_name)
 
-            # 6.2c 模式 B（DLSS5 NR v13.4）：随包宿主目录 dlss5-nr-host 与 32 位插件
+            # 6.2c 模式 B（DLSS5 NR v15.1.0）：随包宿主目录 dlss5-nr-host 与 32 位插件
             if mode == "MODE_B":
                 _b_dir = Path(assets.get("mode_b_dir") or Path(addon_src).parent)
                 _host_src = _b_dir / "dlss5-nr-host"
@@ -2558,15 +2609,47 @@ class DLSS5Injector:
                     shutil.copy2(str(_addon32), str(td / _addon32.name))
                     manifest_data["injected_files"].append(_addon32.name)
 
-            # 6.3 Copy nvngx_dlssnr.dll（模式 C 时只放 GITC-Uplift 子目录，避免 50 系驱动抢先加载）
+            # 6.2d 模式 A（SF PLUS 4.2.0）：独立控制面板 ReShade 插件必须与 renodx-dlss.addon64 同目录
+            if mode == "MODE_A":
+                _panel_src = assets.get("mode_a_panel_path")
+                if _panel_src and os.path.exists(_panel_src):
+                    shutil.copy2(str(_panel_src), str(td / Path(_panel_src).name))
+                    manifest_data["injected_files"].append(Path(_panel_src).name)
+
+            # 6.3 部署神经重构运行时
+            #  - 模式 A（SF PLUS 4.2.0）：nvngx_dlssnr.dll = 面板/NGX 代理，
+            #    nvngx_dlssnr_real.dll = 真实模型；代理从自身目录加载真实运行库。
+            #  - 模式 B：真实模型直接落地为 nvngx_dlssnr.dll（Lecram 宿主 / Addon 自行加载）。
+            #  - 模式 C：只放 GITC-Uplift\ 子目录，避免 50 系驱动抢先加载。
+            proxy_src = assets.get("nr_proxy_path")
             if mode == "MODE_C":
                 try:
                     (td / "nvngx_dlssnr.dll").unlink(missing_ok=True)
+                    (td / NR_REAL_FILENAME).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            elif mode == "MODE_A" and proxy_src and os.path.exists(proxy_src):
+                shutil.copy2(proxy_src, nr_dest)
+                manifest_data["injected_files"].append("nvngx_dlssnr.dll")
+                shutil.copy2(nr_src, td / NR_REAL_FILENAME)
+                manifest_data["injected_files"].append(NR_REAL_FILENAME)
+                manifest_data["runtime_layout"] = "proxy+real"
+                # 覆盖 Streamline\ 里被游戏更新塞进来的“50 系专用”运行库
+                try:
+                    replaced_sl = sync_streamline_nr_runtime(td, nr_src)
+                    if replaced_sl:
+                        manifest_data["streamline_runtime_replaced"] = replaced_sl
+                        manifest_data["injected_files"].extend(replaced_sl)
                 except Exception:
                     pass
             else:
+                try:
+                    (td / NR_REAL_FILENAME).unlink(missing_ok=True)
+                except Exception:
+                    pass
                 shutil.copy2(nr_src, nr_dest)
                 manifest_data["injected_files"].append("nvngx_dlssnr.dll")
+                manifest_data["runtime_layout"] = "real"
                 # 覆盖 Streamline\ 里被游戏更新塞进来的“50 系专用”运行库
                 try:
                     replaced_sl = sync_streamline_nr_runtime(td, nr_src)
@@ -2605,9 +2688,9 @@ class DLSS5Injector:
                     "Style=2\n"
                     "NRPass2Preset=2\n"
                     "NRModelVersion=1\n"
-                    "NRSkinStructure=1.000000\n"
-                    "SkinStructure=100\n"
-                    "Skin=100\n"
+                    "NRSkinStructure=0.500000\n"
+                    "SkinStructure=50\n"
+                    "Skin=50\n"
                     "NRPass2Skin=-1\n"
                     "NRResolutionScale=0.500000\n"
                     "NRFollowInputRes=1\n"
@@ -2719,7 +2802,16 @@ class DLSS5Injector:
             try:
                 appdata_runtime_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "DLSS5-NR" / "runtime"
                 if appdata_runtime_dir.exists():
-                    shutil.copy2(nr_src, appdata_runtime_dir / "nvngx_dlssnr.dll")
+                    if mode == "MODE_A" and proxy_src and os.path.exists(proxy_src):
+                        # SF PLUS：缓存同样保持「代理 + 真实模型」结构，真实模型由代理按自身目录加载
+                        shutil.copy2(proxy_src, appdata_runtime_dir / "nvngx_dlssnr.dll")
+                        shutil.copy2(nr_src, appdata_runtime_dir / NR_REAL_FILENAME)
+                    else:
+                        shutil.copy2(nr_src, appdata_runtime_dir / "nvngx_dlssnr.dll")
+                        try:
+                            (appdata_runtime_dir / NR_REAL_FILENAME).unlink(missing_ok=True)
+                        except Exception:
+                            pass
                     copy_txt = appdata_runtime_dir / "b" / "nr-copy.txt"
                     if copy_txt.exists():
                         copy_txt.unlink(missing_ok=True)
@@ -2777,7 +2869,7 @@ class DLSS5Injector:
             f"• 代理槽位: {DLSS5_PROXY_SLOTS.get(chosen_proxy, {}).get('title', chosen_proxy)}\n"          f"• 扩展插件: {Path(addon_src).name} ({mode_conf['short_name']})\n"
             f"• 注入模式: {mode_conf['title']}\n"
             f"• 神经网络: {arch_label} ({round(os.path.getsize(nr_src)/(1024*1024), 1)} MB)\n"
-            f"• 调优配置: 预设[My look已载入] · 挂钩点[{hook_disp}] · 皮肤[100%] · 风格[模型 C] · 版本[新版] · 分辨率[匹配游戏]\n"
+            f"• 调优配置: 预设[My look已载入] · 挂钩点[{hook_disp}] · 皮肤[{DEFAULT_NR_SKIN_PERCENT}%] · 风格[模型 C] · 版本[新版] · 分辨率[匹配游戏]\n"
             f"• 体验优化: 快捷键[已禁用防误触] · 显存缓冲[精简模式，防OOM爆显存] · 运行库路径[强制本地锁定]\n"
             f"• 防闪退加固: Upscaled时序解耦 · 显存精简防爆 · 多帧生成动态槽位协同避让\n"
             f"{coex_lines}\n"
@@ -2899,7 +2991,8 @@ class DLSS5Injector:
                 if "mfgunlock" in name_lower:
                     continue
                 if ("renodx-dlss" in name_lower or "lecram" in name_lower
-                        or "gitc-uplift" in name_lower):
+                        or "gitc-uplift" in name_lower or "shortfuse" in name_lower
+                        or "dlss5-nr" in name_lower):
                     try:
                         safe_force_remove(str(addon_file))
                         if addon_file.name not in removed_items:
@@ -2914,11 +3007,15 @@ class DLSS5Injector:
                     safe_force_remove(str(p_file))
                     removed_items.append(f"{proxy_name} (ReShade底座)")
 
-            # 3. Remove nvngx_dlssnr.dll
+            # 3. Remove nvngx_dlssnr.dll (+ SF PLUS real runtime)
             nr_file = td / "nvngx_dlssnr.dll"
             if nr_file.exists():
                 safe_force_remove(str(nr_file))
                 removed_items.append("nvngx_dlssnr.dll (神经重构模型)")
+            nr_real_file = td / NR_REAL_FILENAME
+            if nr_real_file.exists():
+                safe_force_remove(str(nr_real_file))
+                removed_items.append(f"{NR_REAL_FILENAME} (真实神经重构模型)")
 
             # 4. Remove DLSS 5 specific folders
             for fld in ["RenoDX", "dlss5-nr-runtime"]:
@@ -3018,11 +3115,15 @@ class DLSS5Injector:
             safe_force_remove(str(td / "OptiScaler.log"))
             safe_force_remove(str(td / "d3d12-ReShade64.dll"))
 
-        # (C) nvngx_dlssnr.dll
+        # (C) nvngx_dlssnr.dll (+ SF PLUS real runtime)
         nr_file = td / "nvngx_dlssnr.dll"
         if nr_file.exists():
             safe_force_remove(str(nr_file))
             removed_items.append("nvngx_dlssnr.dll (神经重构模型)")
+        nr_real_file = td / NR_REAL_FILENAME
+        if nr_real_file.exists():
+            safe_force_remove(str(nr_real_file))
+            removed_items.append(f"{NR_REAL_FILENAME} (真实神经重构模型)")
 
         # (D) Remove mod directories
         folders_to_purge = [
@@ -3065,6 +3166,8 @@ class DLSS5Injector:
             ".dlss5_patch_manifest.json",
             ".mfg_patch_manifest.json",
             "dxgi.dll.dlss5_bak",
+            "nvngx_dlssnr.dll",
+            NR_REAL_FILENAME,
             "fakenvapi.dll",
             "fakenvapi.ini",
             "fakenvapi.log",
@@ -3426,7 +3529,7 @@ class DLSS5DelayedInjector:
 
                 time.sleep(0.3)
                 if cls.is_module_loaded(pid, dll_name):
-                    return True, f"🎉 成功向游戏主进程 (PID: {pid}) 注入底座模块: {dll_name}！\n\n游戏内按【Home】键即可呼出 NR 面板（v13.4 的 ReShade 菜单为 Shift+Home） / RenoDX 简体中文控制面板！"
+                    return True, f"🎉 成功向游戏主进程 (PID: {pid}) 注入底座模块: {dll_name}！\n\n游戏内按【Home】键即可呼出 NR 面板（v15.1.0 的 ReShade 菜单为 Shift+Home） / RenoDX 简体中文控制面板！"
                 return True, f"远程加载指令已执行 (返回地址: 0x{exit_code.value:X})。"
             finally:
                 cls._k32.VirtualFreeEx(h_process, remote_mem, 0, cls.MEM_RELEASE)

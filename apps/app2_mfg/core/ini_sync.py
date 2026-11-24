@@ -1,4 +1,4 @@
-﻿try:
+try:
     from core.state_cleaner import is_dlss5_present
 except ImportError:
     try:
@@ -1176,7 +1176,7 @@ class IniConfigManager:
             "NRHookPoint": "0",
             "NRStyle": "2",
             "NRPass2Preset": "2",
-            "NRSkinStructure": "1.000000",
+            "NRSkinStructure": "0.500000",
             "NRPresentNonBlocking": "1",
             "NRVramBuffering": "1"
         }

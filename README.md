@@ -1,4 +1,4 @@
-﻿# DM-Toolbox (DM工具箱)
+# DM-Toolbox (DM工具箱)
 
 <div align="center">
 
@@ -121,10 +121,10 @@
 
 </div>
 
-- **RenoDX DLSS 5 最新优化底座**：一键部署 ReShade 6.8 Add-on 底座 (`dxgi.dll`) + 最新官方底座 `renodx-dlss.addon64` + `nvngx_dlssnr.dll`，为 DLSS 超分接管神经网络渲染与画质重构，带来极高稳定性与抗伪影表现。
+- **双底座自由切换**：模式 A = **SF PLUS 4.2.0** 原生底座（`renodx-dlss.addon64` + `ShortFusePlus-Panel.addon64` 独立控制面板 + `nvngx_dlssnr.dll` 面板/NGX 代理 + `nvngx_dlssnr_real.dll` 真实运行库）；模式 B = **DLSS5 NR v15.1.0 Dev** 扩展底座（`dlss5-nr.addon64` + `dlss5-nr.addon32` + `dlss5-nr-host` 64 位宿主）。
 - **架构自适应运行库**：按物理显卡自动选择模型——RTX 20/30/40 用 263.37 MB 版本、RTX 50 (Blackwell) 用 254.08 MB 版本，避免内核与硬件不匹配。
 - **极致显存与性能调优**：默认出厂预设采用最小显存缓冲占用（Minimal 显存模式），根治显存占用虚高；出厂默认挂钩点深度优化为“之后 (Upscaled)”，彻底解决 4K 分辨率下的 GPU 挂起与死锁。
-- **细腻真实的人像质感**：默认皮肤结构强度与神经重构参数深度优化（默认值设定为 100%），呈现细腻通透的真实人像质感。
+- **细腻真实的人像质感**：默认注入的面部（角色 / 皮肤）重构强度调整为 **50%**（面板 0 保护原脸 ~ 100 NVIDIA 原始重构），兼顾真实感与角色辨识度，进游戏后在 `Home` 面板可随时微调。
 - **离线挂钩模式控制台 (免启动游戏)**：软件内新增独立挂钩阶段调节控制台，提供“之后 (Upscaled · 推荐防闪退)”与“呈现 (Present)”模式快速切换；支持已注入游戏免启动一键修改并实时同步配置文件，彻底解决因配置冲突导致游戏启动闪退而无法进入游戏菜单调整的死锁痛点。
 - **游戏原生依赖智能自愈引擎**：注入前与还原后自动校验并补齐游戏原生静态导入的 PE 依赖库（`libxess.dll`, `libxess_fg.dll`, `libxell.dll` 等），彻底杜绝赛博朋克 2077、巫师 3 启动时提示缺失 DLL 的系统级报错。
 - **与多帧生成全自动协同共存**：模式 A / 模式 B 同时注入时自动做 DLL 槽位隔离（ReShade 独占 `dxgi.dll`、模式 A/B 智能迁移至 `winmm`/`version`），并清理 fakenvapi 与重复 ReShade 实例，彻底解决双注入闪退问题。

@@ -303,7 +303,10 @@ class RollbackEngine:
             safe_force_remove(os.path.join(target_dir, "renodx-dlss-ShortFuse-261017汉化版.addon64"))
             safe_force_remove(os.path.join(target_dir, "lecram-dlss5-beta10.addon64"))
             safe_force_remove(os.path.join(target_dir, "dlss5-nr.addon64"))
+            safe_force_remove(os.path.join(target_dir, "dlss5-nr.addon32"))
+            safe_force_remove(os.path.join(target_dir, "ShortFusePlus-Panel.addon64"))
             safe_force_remove(os.path.join(target_dir, "nvngx_dlssnr.dll"))
+            safe_force_remove(os.path.join(target_dir, "nvngx_dlssnr_real.dll"))
             safe_force_remove(os.path.join(target_dir, ".dlss5_config.json"))
             safe_force_remove(os.path.join(target_dir, ".dlss5_patch_manifest.json"))
             safe_force_remove(os.path.join(target_dir, "ReShade.ini"))
@@ -313,7 +316,8 @@ class RollbackEngine:
             safe_force_remove(os.path.join(target_dir, "ReShadePreset.ini"))
             safe_force_remove(os.path.join(target_dir, "ReShadePreset.ini.v11-backup"))
             safe_force_remove(os.path.join(target_dir, ".mfg_coex_backup.json"))
-            for _leftover_dir in ("reshade-shaders", ".dlss5_backup", "RTXMFG-XeSS", "dlssg_sm86"):
+            for _leftover_dir in ("reshade-shaders", ".dlss5_backup", "RTXMFG-XeSS", "dlssg_sm86",
+                                  "dlss5-nr-host", "dlss5-nr-runtime"):
                 _lp = os.path.join(target_dir, _leftover_dir)
                 if os.path.isdir(_lp):
                     shutil.rmtree(_lp, ignore_errors=True)

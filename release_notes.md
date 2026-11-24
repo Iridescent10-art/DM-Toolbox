@@ -1,4 +1,46 @@
-# 🖥 DM-Toolbox (DM工具箱) v3.3.10 · 修复核显被一起改名（RTX 4070 ×2）
+# 🧠 DM-Toolbox (DM工具箱) v3.3.11 · DLSS 5 双底座升级（SF PLUS 4.2.0 / DLSS5 NR v15.1.0）+ 默认面部参数 50%
+
+**DLSS 5 注入器的 A / B 两套底座全部替换为新版本；从本版起，一键注入默认写入的面部（角色 / 皮肤）
+重构强度为 50%（旧版为 100%）。**
+
+---
+
+### 🚀 1. 模式 A 升级为 SF PLUS 4.2.0
+
+- 新底座拓扑：`renodx-dlss.addon64`（原生底座）+ `ShortFusePlus-Panel.addon64`（独立控制面板）
+  + `nvngx_dlssnr.dll`（0.9 MB 面板 / NGX 代理）+ `nvngx_dlssnr_real.dll`（真实运行库）。
+- 注入时按所选显卡自动部署：RTX 20/30/40 使用 263.37 MB 真实模型，RTX 50 使用 254.08 MB 模型；
+  代理从自身目录加载 `nvngx_dlssnr_real.dll`，面板与 ReShade 互斥逻辑由代理接管。
+- 卸载 / 切换模式时会一并清理代理与真实运行库，不再残留 250 MB 大文件。
+
+### ⚡ 2. 模式 B 升级为 DLSS5 NR v15.1.0 Dev（Lecram）
+
+- 主插件 `dlss5-nr.addon64` 更新为 v15.1.0 Dev（18.0 MB），32 位插件同步更新为 `dlss5-nr.addon32`。
+- 64 位宿主 `dlss5-nr-host`（`nr-host64.exe` + `ReShade64.dll`）同步替换为新版；
+  模式 B 仍按原逻辑把真实运行库直接部署为 `nvngx_dlssnr.dll`，宿主与预设库 / 对比 / 多 pass 面板可直接使用。
+- 模式切换互斥清理现在同时覆盖 `ShortFusePlus-Panel.addon64`，避免 A/B 双面板残留导致 ReShade 重复加载。
+
+### 🎭 3. 默认注入的面部参数调整为 50%
+
+- 所有注入写盘位置统一为 50%：`NRSkinStructure=0.500000`、`SkinStructure=50`、`Skin=50`、
+  `DirectNeuralRenderingSkinStructureStrength=0.500000`（含 preset1/2/3、`[RenoDX DLSS]`、
+  `[RenoDX.DLSS5]`、`[RenoDX]`、`[DLSSNR]`、`RenoDX/DLSS5/Presets/*.ini` 与 `ReShadePreset.ini`）。
+- `NRPass2Skin=-1`（多 pass 时沿用 pass 1 的 50%）。
+- 模式 A / 模式 B / 多帧生成共存同步（`ini_sync.py`）写入的面部参数也统一为 0.5。
+- 进游戏按 `Home` 打开 NR 面板仍可随时手动微调（0 = 保护原脸，100 = NVIDIA 原始重构强度）。
+
+### 🔍 4. 回归
+
+- 分文件全量回归：**180 passed, 1 skipped**（每个测试文件独立进程执行，避免 PySide6 无头环境下多窗口共用进程的堆损坏）。
+- 唯一失败项 `test_v126_app4_indicators::test_1_discovery_uses_real_games_only` 依赖本机 app2 游戏缓存；
+  当前缓存为空（0 款游戏），与本次改动无关。
+- DLSS 5 专项：模式 A / B 注入、切换、状态识别、卸载还原、面部 50% 默认值断言全部通过。
+- 新增/更新断言：A 模式面板 + 代理 + 真实运行库三件套部署；B 模式 v15.1.0 宿主与 addon32；
+  `NRSkinStructure=0.500000` / `SkinStructure=50` / `Skin=50`；卸载后 `nvngx_dlssnr_real.dll` 不残留。
+
+---
+
+
 
 **旧版 apply 脚本会把所有非虚拟显卡的 `DriverDesc/DeviceDesc` 都改成目标显卡名，
 导致 AMD 核显也显示成 RTX 4070；本版只改目标显卡，并在还原时按 INF 找回核显真实型号。**

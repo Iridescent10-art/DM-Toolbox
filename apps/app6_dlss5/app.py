@@ -229,7 +229,7 @@ class DLSS5MainWindow(DMBaseWindow):
         lbl_head.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.Bold))
         lbl_head.setWordWrap(True)
 
-        lbl_sub = QLabel("搭载 DLSS5 NR v13.4 扩展底座 (模式 B 默认) / ShortFuse 原生底座 (模式 A 可选) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
+        lbl_sub = QLabel("搭载 DLSS5 NR v15.1.0 扩展底座 (模式 B 默认) / SF PLUS 4.2.0 原生底座 (模式 A) / GITC Uplift 全 API 底座 (模式 C) · 共用二号软件游戏库与 RHI 底座 · 自动兼容多帧生成共存")
         lbl_sub.setObjectName("dlss5_sub_title")
         lbl_sub.setFont(QFont("Microsoft YaHei UI", 9))
         lbl_sub.setWordWrap(True)
@@ -474,18 +474,18 @@ class DLSS5MainWindow(DMBaseWindow):
         self.combo_dlss5_mode.setFixedHeight(36)
         self.combo_dlss5_mode.setFont(QFont("Microsoft YaHei UI", 9))
         self.combo_dlss5_mode.addItem(
-            "🚀 模式 A (可选) — renodx-dlss.addon64 [ShortFuse 官方原生底座 · 极速稳定]",
+            "🚀 模式 A — renodx-dlss.addon64 [SF PLUS 4.2.0 原生底座 · 独立控制面板 · 极速稳定]",
             "MODE_A"
         )
         self.combo_dlss5_mode.addItem(
-            "⚡ 模式 B (默认推荐) — DLSS5 NR v13.4 [Lecram 新版 · 64 位宿主 · 预设库/对比/多 pass]",
+            "⚡ 模式 B (默认推荐) — DLSS5 NR v15.1.0 [Lecram 新版 · 64 位宿主 · 预设库/对比/多 pass]",
             "MODE_B"
         )
         self.combo_dlss5_mode.addItem(
             "🧪 模式 C (全 API 通用) — gitc-uplift.addon64 [GITC Uplift 1.7.0 · DX9/10/11/12/Vulkan/OpenGL · 自带显存检查与中文界面]",
             "MODE_C"
         )
-        self.combo_dlss5_mode.setCurrentIndex(1)  # 默认模式 B（DLSS5 NR v13.4）
+        self.combo_dlss5_mode.setCurrentIndex(1)  # 默认模式 B（DLSS5 NR v15.1.0）
         self.combo_dlss5_mode.currentIndexChanged.connect(self._on_mode_selection_changed)
         card_plugin_layout.addWidget(self.combo_dlss5_mode)
 
@@ -494,11 +494,11 @@ class DLSS5MainWindow(DMBaseWindow):
         self.combo_mode_b_variant.setFixedHeight(32)
         self.combo_mode_b_variant.setFont(QFont("Microsoft YaHei UI", 9))
         self.combo_mode_b_variant.addItem(
-            "🆕 模式 B · DLSS5 NR v13.4.0（唯一版本）— 13.5 MB · 64 位宿主", "v13.4"
+            "🆕 模式 B · DLSS5 NR v15.1.0 Dev（唯一版本）— 18.0 MB · 64 位宿主", "v15.1"
         )
         self.combo_mode_b_variant.setToolTip(
-            "Lecram v12.5 是较新的扩展底座版本，面板与参数项更多；\n"
-            "若 v12.5 出现兼容问题，可随时切回 v12。"
+            "DLSS5 NR v15.1.0 Dev 为当前随包版本：64 位宿主 + 预设库/对比/多 pass；\n"
+            "默认注入面部（角色 / 皮肤）重构强度 50%。"
         )
         self.combo_mode_b_variant.setCurrentIndex(0)
         self.combo_mode_b_variant.setVisible(False)
@@ -931,7 +931,7 @@ class DLSS5MainWindow(DMBaseWindow):
                 }
             """)
         elif mode == "MODE_B":
-            self.lbl_mode_hint.setText("模式 B：DLSS5 NR v13.4（Lecram 新版）· 自动部署 dlss5-nr.addon64 + dlss5-nr-host 宿主 · 进游戏按 Home 打开 NR 面板")
+            self.lbl_mode_hint.setText("模式 B：DLSS5 NR v15.1.0 Dev（Lecram 新版）· 自动部署 dlss5-nr.addon64 + dlss5-nr-host 宿主 · 默认面部重构 50% · 进游戏按 Home 打开 NR 面板")
             self.lbl_mode_hint.setStyleSheet("""
                 QLabel {
                     color: #0284c7;
@@ -942,7 +942,7 @@ class DLSS5MainWindow(DMBaseWindow):
                 }
             """)
         else:
-            self.lbl_mode_hint.setText("当前已选模式 A (默认)：使用 ShortFuse 原版 renodx-dlss.addon64，体积轻量、兼容性最佳。")
+            self.lbl_mode_hint.setText("当前已选模式 A：SF PLUS 4.2.0 原生底座（renodx-dlss.addon64 + 独立控制面板代理），轻量稳定、兼容性最佳。")
             self.lbl_mode_hint.setStyleSheet("""
                 QLabel {
                     color: #059669;
@@ -976,9 +976,9 @@ class DLSS5MainWindow(DMBaseWindow):
         if hasattr(self, "combo_mode_b_variant"):
             self.combo_mode_b_variant.setVisible(False)
             if target_idx != 1:
-                # 回到模式 A 时把 B 的版本选择复位到默认 v12.5，
+                # 回到模式 A 时把 B 的版本选择复位到当前随包版本，
                 # 避免上一次模式 B 的残留选择影响下一次注入。
-                default_idx = self.combo_mode_b_variant.findData("v12.5")
+                default_idx = self.combo_mode_b_variant.findData("v15.1")
                 if default_idx >= 0 and self.combo_mode_b_variant.currentIndex() != default_idx:
                     self.combo_mode_b_variant.blockSignals(True)
                     self.combo_mode_b_variant.setCurrentIndex(default_idx)
@@ -1163,9 +1163,19 @@ class DLSS5MainWindow(DMBaseWindow):
         # Mode A addon status
         if assets.get("mode_a_path"):
             act_tag = " [当前激活]" if cur_mode == "MODE_A" else ""
-            details.append(f"• 模式 A 底座: renodx-dlss.addon64 ({assets['mode_a_size_mb']} MB · ShortFuse 官方版 [默认注入]{act_tag})")
+            details.append(f"• 模式 A 底座: renodx-dlss.addon64 ({assets['mode_a_size_mb']} MB · SF PLUS 4.2.0 原生底座{act_tag})")
         else:
             details.append("• 模式 A 底座: <span style='color: #ef4444;'>❌ 缺失 renodx-dlss.addon64</span>")
+
+        if assets.get("mode_a_panel_path"):
+            details.append(f"• 模式 A 控制面板: ShortFusePlus-Panel.addon64 ({assets['mode_a_panel_size_mb']} MB)")
+        else:
+            details.append("• 模式 A 控制面板: <span style='color: #ef4444;'>❌ 缺失 ShortFusePlus-Panel.addon64</span>")
+
+        if assets.get("nr_proxy_path"):
+            details.append(f"• SF PLUS 面板代理: nvngx_dlssnr.dll ({assets['nr_proxy_size_mb']} MB · 加载 nvngx_dlssnr_real.dll)")
+        else:
+            details.append("• SF PLUS 面板代理: <span style='color: #f59e0b;'>⚠️ 未检测到（模式 A 将改为直接部署真实运行库）</span>")
 
         # Mode C addon status (GITC Uplift)
         if assets.get("mode_c_exists"):
@@ -1177,25 +1187,22 @@ class DLSS5MainWindow(DMBaseWindow):
         else:
             details.append("• 模式 C 底座: <span style='color: #ef4444;'>❌ 缺失 gitc-uplift.addon64</span>")
 
-        # Mode B addon status (v12 / v12.5)
+        # Mode B addon status
         if assets.get("mode_b_path"):
             act_tag = " [当前激活]" if cur_mode == "MODE_B" else ""
             v_name = Path(assets["mode_b_path"]).name
-            v_label = "DLSS5 NR v13.4 扩展版"
-            details.append(f"• 模式 B 底座: {v_name} ({assets['mode_b_size_mb']} MB · {v_label} [可选项目]{act_tag})")
+            v_label = "DLSS5 NR v15.1.0 扩展版"
+            details.append(f"• 模式 B 底座: {v_name} ({assets['mode_b_size_mb']} MB · {v_label} [默认推荐]{act_tag})")
         else:
             details.append("• 模式 B 底座: <span style='color: #ef4444;'>❌ 缺失 Lecram 底座</span>")
-        if assets.get("mode_b_v125_exists"):
-            v125_tag = " [当前激活]" if cur_mode == "MODE_B" and assets.get("mode_b_variant") == "v12.5" else ""
-            details.append(f"• 模式 B v12.5 可选包: {assets['mode_b_v125_size_mb']} MB · 已就绪{v125_tag}")
 
         if assets["nr_50_path"]:
-            details.append(f"• RTX 50 模型: nvngx_dlssnr.dll ({assets['nr_50_size_mb']} MB)")
+            details.append(f"• RTX 50 真实模型: nvngx_dlssnr_real.dll ({assets['nr_50_size_mb']} MB)")
         else:
             details.append("• RTX 50 模型: <span style='color: #ef4444;'>❌ 未检测到</span>")
 
         if assets["nr_20_30_40_path"]:
-            details.append(f"• RTX 20/30/40 模型: nvngx_dlssnr.dll ({assets['nr_20_30_40_size_mb']} MB)")
+            details.append(f"• RTX 20/30/40 真实模型: nvngx_dlssnr_real.dll ({assets['nr_20_30_40_size_mb']} MB)")
         else:
             details.append("• RTX 20/30/40 模型: <span style='color: #ef4444;'>❌ 未检测到</span>")
 
@@ -1279,7 +1286,7 @@ class DLSS5MainWindow(DMBaseWindow):
             self.lbl_main_status_badge.setStyleSheet("color: #0284c7; font-weight: bold;")
             self._sync_mode_selector("MODE_B")
             if hasattr(self, "combo_mode_b_variant"):
-                want_variant = "v12.5" if stat.get("mode_b_variant") == "v12.5" else "v12"
+                want_variant = "v15.1"
                 v_idx = self.combo_mode_b_variant.findData(want_variant)
                 if v_idx >= 0:
                     self.combo_mode_b_variant.blockSignals(True)
@@ -1447,8 +1454,8 @@ class DLSS5MainWindow(DMBaseWindow):
             nr_vram_guard=nr_guard,
             nr_vram_margin=nr_margin,
             mode_b_variant=(
-                self.combo_mode_b_variant.currentData() or "v12.5"
-                if hasattr(self, "combo_mode_b_variant") else "v12.5"
+                self.combo_mode_b_variant.currentData() or "v15.1"
+                if hasattr(self, "combo_mode_b_variant") else "v15.1"
             ),
         )
 
@@ -1459,8 +1466,8 @@ class DLSS5MainWindow(DMBaseWindow):
             return
 
         mode_tag = {
-            "MODE_A": "模式 A: renodx-dlss.addon64",
-            "MODE_B": "模式 B: DLSS5 NR v13.4",
+            "MODE_A": "模式 A: SF PLUS 4.2.0 (renodx-dlss.addon64)",
+            "MODE_B": "模式 B: DLSS5 NR v15.1.0",
             "MODE_C": "模式 C: GITC Uplift",
         }.get(chosen_mode, chosen_mode)
 
@@ -1538,13 +1545,13 @@ class DLSS5MainWindow(DMBaseWindow):
         QApplication.processEvents()
 
         ok, msg = DLSS5Injector.restore(self.selected_game.target_dir)
-        # 卸载后复位为默认模式 B（DLSS5 NR v13.4）
+        # 卸载后复位为默认模式 B（DLSS5 NR v15.1.0）
         self._sync_mode_selector("MODE_B")
         if hasattr(self, "combo_mode_b_variant"):
-            _v134 = self.combo_mode_b_variant.findData("v13.4")
-            if _v134 >= 0:
+            _v151 = self.combo_mode_b_variant.findData("v15.1")
+            if _v151 >= 0:
                 self.combo_mode_b_variant.blockSignals(True)
-                self.combo_mode_b_variant.setCurrentIndex(_v134)
+                self.combo_mode_b_variant.setCurrentIndex(_v151)
                 self.combo_mode_b_variant.blockSignals(False)
             self.combo_mode_b_variant.setVisible(False)
         self._sync_proxy_selector("auto")
